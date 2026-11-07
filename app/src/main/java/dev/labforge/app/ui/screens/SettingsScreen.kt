@@ -1,6 +1,9 @@
 package dev.labforge.app.ui.screens
 
 import android.os.Build
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -295,7 +298,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Text("O Kiosk completo exige provisionar este aplicativo como Device Owner. Isso normalmente requer aparelho novo/resetado e comando ADB; o app não consegue conceder esse privilégio sozinho.", fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp)
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(Lab.Cyan.copy(alpha = 0.12f)).clickable {
-                val activity = context as? android.app.Activity
+                val activity = context.findActivity()
                 kioskMessage = if (activity == null) "Atividade indisponível." else dev.labforge.app.kiosk.KioskController.enter(activity).message
             }.padding(11.dp), contentAlignment = Alignment.Center) {
                 Text("Ativar Modo Kiosk", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
@@ -388,4 +391,17 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
 
         Spacer(Modifier.height(30.dp))
     }
+}
+
+
+/** Unwrap Compose ContextThemeWrapper instances to reach the hosting Activity. */
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        val next = current.baseContext
+        if (next === current) return null
+        current = next
+    }
+    return current as? Activity
 }
