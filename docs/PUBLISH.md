@@ -4,18 +4,17 @@ O checkout local já está commitado em `main` com o histórico inicial. Falta a
 
 ## GitHub
 
-O conector GitHub do ambiente está autenticado como `Enhikyy`, mas o app instalado tem permissão de **conteúdo/PR**, não de **criação de repositório**. Crie o repositório vazio uma vez:
+O repositório já existe em <https://github.com/Enhikyy/Girassol> e o código foi enviado para `main`.
 
-1. abra <https://github.com/new?name=girassol&visibility=public>;
-2. **não** marque README, .gitignore ou licença;
-3. clique em **Create repository**.
+O que falta é o arquivo de workflow: o app conector pode escrever conteúdo, mas não tem a permissão **Workflows** do GitHub. Por isso o workflow está em `ci/android.yml`.
 
-Depois, no sandbox:
+Ative seguindo [`docs/CI.md`](CI.md) ou, se a permissão for concedida, copie para `.github/workflows/android.yml`.
+
+Depois:
 
 ```bash
 cd /home/user/.workspace/girassol-repo
-connector-cli github setup-git
-git remote add origin https://github.com/Enhikyy/girassol.git
+git remote add origin https://github.com/Enhikyy/Girassol.git
 git push -u origin main
 ```
 
