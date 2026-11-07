@@ -69,6 +69,10 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var testing by remember { mutableStateOf(false) }
     var boosting by remember { mutableStateOf(false) }
     var boostResult by remember { mutableStateOf<dev.labforge.app.service.MemoryBooster.Result?>(null) }
+    val context = LocalContext.current
+    var cpuLockEnabled by remember { mutableStateOf(dev.labforge.app.service.CpuWakeLock.isHeld()) }
+    var kioskMessage by remember { mutableStateOf<String?>(null) }
+    val isDeviceOwner = remember { dev.labforge.app.kiosk.KioskController.isDeviceOwner(context) }
 
     LaunchedEffect(vm.settings) {
         endpoint = vm.settings.endpoint
@@ -264,6 +268,48 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 )
                 Text(r.note, fontSize = 8.5.sp, color = Lab.Muted, lineHeight = 12.sp)
             }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(20.dp))
+        SectionHeader("CPU WakeLock", "manter CPU ativa durante trabalhos longos")
+        Spacer(Modifier.height(10.dp))
+        GlassCard {
+            KeyValueRow("estado", if (cpuLockEnabled) "WakeLock ativo" else "WakeLock liberado")
+            Text("O bloqueio parcial impede que a CPU entre em suspensão durante tarefas longas. Tem limite de segurança de 4 horas; jobs em foreground service o ativam automaticamente.", fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(Lab.Violet.copy(alpha = 0.14f)).clickable {
+                if (cpuLockEnabled) dev.labforge.app.service.CpuWakeLock.release()
+                else dev.labforge.app.service.CpuWakeLock.acquire(context)
+                cpuLockEnabled = dev.labforge.app.service.CpuWakeLock.isHeld()
+            }.padding(11.dp), contentAlignment = Alignment.Center) {
+                Text(if (cpuLockEnabled) "Liberar WakeLock" else "Manter CPU ativa", fontSize = 11.sp, color = Lab.Violet, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        SectionHeader("Modo Kiosk", "LockTask · Device Owner")
+        Spacer(Modifier.height(10.dp))
+        GlassCard {
+            KeyValueRow("Device Owner", if (isDeviceOwner) "Configurado" else "Não configurado")
+            KeyValueRow("LockTask", if (dev.labforge.app.kiosk.KioskController.isLockTaskActive(context)) "Ativo" else "Inativo")
+            Text("O Kiosk completo exige provisionar este aplicativo como Device Owner. Isso normalmente requer aparelho novo/resetado e comando ADB; o app não consegue conceder esse privilégio sozinho.", fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(Lab.Cyan.copy(alpha = 0.12f)).clickable {
+                val activity = context as? android.app.Activity
+                kioskMessage = if (activity == null) "Atividade indisponível." else dev.labforge.app.kiosk.KioskController.enter(activity).message
+            }.padding(11.dp), contentAlignment = Alignment.Center) {
+                Text("Ativar Modo Kiosk", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(6.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(Lab.Surface).clickable {
+                val activity = context as? android.app.Activity
+                kioskMessage = if (activity == null) "Atividade indisponível." else dev.labforge.app.kiosk.KioskController.exit(activity).message
+            }.padding(11.dp), contentAlignment = Alignment.Center) {
+                Text("Sair do Modo Kiosk", fontSize = 11.sp, color = Lab.Text)
+            }
+            Text(dev.labforge.app.kiosk.KioskController.provisioningCommand(context.packageName), fontSize = 8.5.sp, color = Lab.Muted, fontFamily = FontFamily.Monospace)
+            kioskMessage?.let { Text(it, fontSize = 9.sp, color = Lab.Cyan) }
         }
 
         Spacer(Modifier.height(20.dp))
