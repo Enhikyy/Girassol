@@ -40,6 +40,8 @@ adb install -r Girassol-1.3.1-debug.apk
 
 > Requer Android 8.0+ (API 26) e **arm64-v8a**. O APK tem ~36 MB.
 
+> **CI:** o workflow está em [`ci/android.yml`](ci/android.yml). Para ativá-lo, siga [`docs/CI.md`](docs/CI.md) (o conector do agente não tem a permissão `Workflows` do GitHub).
+
 ---
 
 ## O que é
