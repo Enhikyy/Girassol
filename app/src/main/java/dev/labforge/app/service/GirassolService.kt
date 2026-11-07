@@ -26,10 +26,16 @@ class GirassolService : Service() {
         createChannel()
     }
 
+    override fun onDestroy() {
+        CpuWakeLock.releaseJob()
+        super.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Trabalhando no seu modelo"
         val detail = intent?.getStringExtra(EXTRA_DETAIL) ?: "Você pode sair do app; o processo continua."
         return try {
+            CpuWakeLock.acquireForJob(applicationContext)
             startForeground(NOTIFICATION_ID, buildNotification(title, detail))
             START_STICKY
         } catch (t: Throwable) {
