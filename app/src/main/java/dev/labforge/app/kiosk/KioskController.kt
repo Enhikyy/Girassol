@@ -29,9 +29,7 @@ object KioskController {
             if (android.os.Build.VERSION.SDK_INT >= 28) {
                 dpm.setLockTaskFeatures(
                     admin(activity),
-                    DevicePolicyManager.LOCK_TASK_FEATURE_HOME or
-                        DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW or
-                        DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS,
+                    0,
                 )
             }
             activity.startLockTask()
