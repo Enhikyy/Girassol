@@ -2,19 +2,16 @@ package dev.labforge.app.service
 
 import android.app.ActivityManager
 import android.content.Context
-import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
- * Best-effort RAM recovery. Android does not allow an app to force-stop others
- * reliably; `killBackgroundProcesses` is the only public surface and the system
- * may ignore it. We combine it with cache cleanup and a GC, then report the real
- * delta measured before/after.
+ * Best-effort memory recovery for this process only.
+ *
+ * Android does not grant ordinary apps a reliable way to terminate other apps.
+ * Deleting cache directories is also unsafe because they may contain active
+ * downloads or application-managed temporary data. Keep this operation
+ * non-destructive and report the measured system-memory delta honestly.
  */
 object MemoryBooster {
 
@@ -29,60 +26,26 @@ object MemoryBooster {
 
     suspend fun boost(context: Context): Result = withContext(Dispatchers.IO) {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val before = availMb(am)
-        var touched = 0
+        val before = availableMb(am)
 
-        // launchable, non-system apps — the ones a user would normally swipe away
-        runCatching {
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            val apps = context.packageManager.queryIntentActivities(intent, 0)
-            apps.map { it.activityInfo.applicationInfo }
-                .distinctBy { it.packageName }
-                .forEach { ai ->
-                    if (ai.packageName == context.packageName) return@forEach
-                    if (ai.flags and ApplicationInfo.FLAG_SYSTEM != 0) return@forEach
-                    runCatching {
-                        am.killBackgroundProcesses(ai.packageName)
-                        touched++
-                    }
-                }
-        }
+        // Ask the current process to reclaim unused managed objects only.
+        runCatching { Runtime.getRuntime().gc() }
+        runCatching { System.runFinalization() }
 
-        val caches = purgeCaches(context)
-        Runtime.getRuntime().gc()
-        delay(650)
-        val after = availMb(am)
+        val after = availableMb(am)
         Result(
             beforeMb = before,
             afterMb = after,
             freedMb = (after - before).coerceAtLeast(0),
-            appsTouched = touched,
-            cachesMb = caches,
-            note = "Android pode ignorar o encerramento de apps em segundo plano; o ganho real é medido abaixo.",
+            appsTouched = 0,
+            cachesMb = 0,
+            note = "Somente limpeza de memória do próprio processo. O Android controla a memória dos demais aplicativos.",
         )
     }
 
-    private fun availMb(am: ActivityManager): Long {
+    private fun availableMb(am: ActivityManager): Long {
         val info = ActivityManager.MemoryInfo()
         am.getMemoryInfo(info)
         return info.availMem / (1024 * 1024)
     }
-
-    private fun purgeCaches(context: Context): Long {
-        var freed = 0L
-        runCatching {
-            context.cacheDir.listFiles()?.forEach { f ->
-                freed += sizeOf(f)
-                f.deleteRecursively()
-            }
-            context.externalCacheDir?.listFiles()?.forEach { f ->
-                freed += sizeOf(f)
-                f.deleteRecursively()
-            }
-        }
-        return freed / (1024 * 1024)
-    }
-
-    private fun sizeOf(f: File): Long =
-        if (f.isFile) f.length() else (f.listFiles()?.sumOf { sizeOf(it) } ?: 0L)
 }
