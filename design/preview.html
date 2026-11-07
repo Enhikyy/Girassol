@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Girassol — Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070805; --bg-elev:#0C0E09; --surface:#13160F; --surface-high:#1C2015;
+  --outline:#2E331F; --text:#FBF6E7; --muted:#A2A78E;
+  --gold:#F2C14E; --gold-deep:#C6922A; --lime:#A9D96B; --green:#84D98A;
+  --orange:#FF9D5C; --amber:#FFD166; --red:#FF6B6B;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:Inter,'DejaVu Sans',sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:24px;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+body.single{padding:0;display:block;width:390px;height:844px;overflow:hidden}
+.phone{position:relative;width:390px;height:844px;background:var(--bg);border-radius:30px;overflow:hidden;flex:0 0 auto;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+body.single .phone{display:none;border-radius:0;box-shadow:none}
+body.single .phone.on{display:block}
+.status{position:absolute;top:14px;left:22px;right:22px;display:flex;justify-content:space-between;font-size:10px;font-weight:600;color:var(--text)}
+.status .right{color:var(--muted);font-weight:500}
+.header{position:absolute;top:28px;left:18px;right:18px;display:flex;align-items:center;gap:10px}
+.mark{width:36px;height:36px;border-radius:11px;overflow:hidden;flex:0 0 auto;background:#111}
+.mark img{width:100%;height:100%;object-fit:cover;display:block}
+.brand{font-size:18px;font-weight:800;letter-spacing:-.5px;line-height:1.1}
+.tagline{font-size:8px;color:var(--muted);margin-top:2px;letter-spacing:.1px}
+.spacer{flex:1}
+.mem{display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:6px 9px;font-size:8px;font-weight:600}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex:0 0 auto}
+.icon-btn{width:30px;height:30px;border-radius:50%;background:var(--surface);border:1px solid rgba(255,255,255,.06);display:grid;place-items:center;color:var(--muted)}
+svg.ico{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.title{font-size:23px;font-weight:800;letter-spacing:-.7px;line-height:1.1}
+.sub{font-size:9px;color:var(--muted);margin-top:4px}
+.pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:700;letter-spacing:.5px;border:1px solid transparent;white-space:nowrap}
+.pill.fill{background:var(--green);color:#07100A}
+.pill.line{border-color:rgba(169,217,107,.55);color:var(--lime)}
+.pill.gold{border-color:rgba(242,193,78,.55);color:var(--gold)}
+.pill.muted{border-color:var(--outline);color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--outline);border-radius:18px}
+.hero{position:absolute;left:16px;right:16px;top:82px;height:226px;border-radius:26px;padding:18px;overflow:hidden;
+  background:linear-gradient(135deg,#3B2E0B 0%,#1B1C0C 52%,#0D1B12 100%);border:1px solid rgba(255,255,255,.08)}
+.hero h1{font-size:25px;line-height:1.15;letter-spacing:-.8px;margin-top:12px;font-weight:800}
+.hero p{font-size:9.5px;line-height:1.45;color:rgba(255,255,255,.66);margin-top:7px;width:78%}
+.actions{display:flex;gap:9px;margin-top:14px}
+.btn{height:38px;border-radius:14px;border:0;background:linear-gradient(135deg,var(--gold),var(--gold-deep));color:#120E05;font-family:inherit;font-size:10px;font-weight:700;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:#fff;font-weight:500}
+.btn.wide{width:100%;height:46px;font-size:11px}
+.btn.secondary{background:var(--surface-high);border:1px solid var(--outline);color:var(--text)}
+.sec{position:absolute;left:18px;right:18px;display:flex;justify-content:space-between;align-items:baseline}
+.sec b{font-size:11px;font-weight:700}
+.sec span{font-size:8px;color:var(--muted)}
+.grid{position:absolute;left:16px;right:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{height:82px;padding:12px 14px;border-radius:18px;position:relative}
+.stat .k{font-size:9px;color:var(--muted);margin-left:14px;font-weight:500}
+.stat .v{font-size:18px;font-weight:800;margin-top:8px;letter-spacing:-.5px}
+.stat .m{font-size:8px;color:var(--muted);margin-top:3px}
+.stat .adot{position:absolute;left:14px;top:16px;width:7px;height:7px;border-radius:50%}
+.continue{position:absolute;left:16px;right:16px;height:82px;border-radius:20px;padding:14px;display:flex;gap:14px;align-items:flex-start}
+.continue .ci{width:44px;height:44px;border-radius:14px;background:var(--surface-high);display:grid;place-items:center;color:var(--gold);font-size:20px}
+.continue .ct{font-size:11px;font-weight:600;line-height:1.3}
+.continue .cm{font-size:8px;color:var(--muted);margin-top:5px}
+.continue .bar{height:4px;background:var(--surface-high);border-radius:3px;margin-top:10px;overflow:hidden}
+.continue .bar i{display:block;height:100%;width:75%;background:var(--gold);border-radius:3px}
+.bottom{position:absolute;left:12px;right:12px;bottom:12px;height:60px;border-radius:22px;background:rgba(27,30,20,.94);border:1px solid rgba(255,255,255,.07);display:flex;padding:0 4px}
+.nav{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:7.5px;color:var(--muted);font-weight:500}
+.nav.on{color:var(--gold);font-weight:700}
+.nav .nd{width:5px;height:5px;border-radius:50%;background:currentColor}
+/* autoestudo */
+.stages{position:absolute;top:82px;left:16px;right:16px;display:flex;gap:4px}
+.stage{flex:1;height:38px;border:1px solid var(--outline);border-radius:13px;padding:7px 8px;position:relative;background:var(--surface)}
+.stage.done{border-color:rgba(242,193,78,.6);background:#20260F}
+.stage .sd{width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:5px;vertical-align:1px}
+.stage.done .sd{background:var(--gold)}
+.stage .sl{font-size:8px;font-weight:600;display:inline}
+.stage .sn{position:absolute;left:8px;bottom:4px;font-size:6.5px;color:var(--muted)}
+.stage.done .sn{color:var(--gold)}
+.research{position:absolute;top:134px;left:16px;right:16px;height:156px;border-radius:22px;padding:14px}
+.research .h{font-size:11px;font-weight:700}
+.research .q{font-size:8.5px;color:var(--muted);margin-top:5px}
+.ring{position:absolute;right:22px;top:28px;width:72px;height:72px;border-radius:50%;border:8px solid var(--surface-high);border-top-color:var(--gold);border-right-color:var(--gold);border-bottom-color:var(--gold);transform:rotate(35deg)}
+.ring span{position:absolute;inset:0;display:grid;place-items:center;transform:rotate(-35deg);font-size:17px;font-weight:800;color:var(--text)}
+.research .eta{position:absolute;left:14px;bottom:28px;font-size:8px;color:var(--muted)}
+.research .rbar{position:absolute;left:14px;right:14px;bottom:14px;height:4px;background:var(--surface-high);border-radius:2px;overflow:hidden}
+.research .rbar i{display:block;height:100%;width:72%;background:var(--gold)}
+.slist{position:absolute;top:306px;left:16px;right:16px}
+.srow{display:flex;align-items:center;height:34px;gap:8px;font-size:9px}
+.srow .sd{width:6px;height:6px;border-radius:50%}
+.srow .st{flex:1;font-weight:500}
+.srow .sm{font-size:8px;color:var(--muted)}
+.specs{position:absolute;top:532px;left:16px;right:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.spec{height:58px;border-radius:14px;padding:9px;background:var(--surface);border:1px solid var(--outline)}
+.spec .k{font-size:8px;color:var(--muted)}
+.spec .v{font-size:14px;font-weight:700;margin-top:7px}
+.ds{position:absolute;top:604px;left:16px;right:16px;height:64px;border-radius:18px;padding:11px 14px;display:flex;align-items:center}
+.ds .t{font-size:10px;font-weight:600}
+.ds .m{font-size:8px;color:var(--muted);margin-top:4px}
+.ds .a{margin-left:auto;font-size:9px;color:var(--gold);font-weight:700}
+.hint{position:absolute;left:16px;right:16px;text-align:center;font-size:8px;color:var(--muted)}
+/* models */
+.search{position:absolute;top:84px;left:16px;right:16px;height:40px;border-radius:13px;background:var(--surface);border:1px solid var(--outline);display:flex;align-items:center;gap:8px;padding:0 12px}
+.search span{font-size:9px;color:var(--muted)}
+.filters{position:absolute;top:136px;left:16px;right:16px;display:flex;gap:6px}
+.mcard{position:absolute;left:16px;right:16px;height:104px;border-radius:20px;background:var(--surface);border:1px solid var(--outline);padding:14px}
+.mcard .badge{position:absolute;left:14px;top:14px;width:38px;height:38px;border-radius:12px;background:var(--surface-high);display:grid;place-items:center;font-size:16px}
+.mcard .name{position:absolute;left:64px;right:110px;top:14px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard .meta{position:absolute;left:64px;top:33px;font-size:8.5px;color:var(--muted)}
+.mcard .mloss{position:absolute;right:14px;top:14px;font-size:8.5px;font-weight:600;text-align:right}
+.mcard .mb{position:absolute;left:64px;right:14px;top:56px;height:4px;background:var(--surface-high);border-radius:2px;overflow:hidden}
+.mcard .mb i{display:block;height:100%;border-radius:2px}
+.mcard .arch{position:absolute;left:64px;top:72px;font-size:8px;color:var(--muted)}
+.mcard .open{position:absolute;right:14px;top:72px;font-size:8px;color:var(--gold);font-weight:700}
+.storage{position:absolute;left:16px;top:530px;right:16px;height:78px;border-radius:18px;padding:12px 14px}
+.storage .t{font-size:10px;font-weight:600}
+.storage .m{font-size:8.5px;color:var(--muted);margin-top:5px}
+.storage .bar{height:5px;border-radius:3px;background:var(--surface-high);margin-top:12px;overflow:hidden}
+.storage .bar i{display:block;height:100%;width:13%;background:var(--green);border-radius:3px}
+/* train */
+.tabs{position:absolute;top:82px;left:16px;right:16px;height:38px;border-radius:13px;background:var(--surface);border:1px solid var(--outline);display:flex;padding:4px}
+.tab{flex:1;display:grid;place-items:center;font-size:9px;color:var(--muted);font-weight:500;border-radius:10px}
+.tab.on{background:var(--surface-high);color:var(--gold);font-weight:700}
+.preset{position:absolute;top:138px;left:16px;right:16px;height:148px;border-radius:22px;padding:14px}
+.preset .h{font-size:11px;font-weight:700}
+.preset .row{display:flex;margin-top:12px;gap:10px}
+.preset .cell{flex:1}
+.preset .k{font-size:8px;color:var(--muted)}
+.preset .v{font-size:11px;font-weight:700;margin-top:3px}
+.loss{position:absolute;top:302px;left:16px;right:16px;height:152px;border-radius:22px;padding:14px}
+.loss .h{font-size:11px;font-weight:700}
+.loss .v{position:absolute;right:14px;top:14px;font-size:9px;color:var(--green);font-weight:600}
+.bars{position:absolute;left:18px;right:18px;bottom:20px;height:90px;display:flex;align-items:flex-end;gap:8px}
+.bars i{flex:1;background:var(--gold-deep);border-radius:4px 4px 0 0;opacity:.75}
+.sample{position:absolute;top:470px;left:16px;right:16px;height:92px;border-radius:18px;padding:12px 14px}
+.sample .t{font-size:8px;color:var(--muted);font-weight:600}
+.sample .l{font-size:9px;margin-top:5px;font-family:'DejaVu Sans Mono',monospace;color:var(--text)}
+.sample .m{font-size:8px;color:var(--green);margin-top:8px}
+/* codex */
+.prompt{position:absolute;top:82px;left:16px;right:16px;height:104px;border-radius:20px;padding:14px}
+.prompt .l{font-size:8px;color:var(--muted);font-weight:600}
+.prompt .t{font-size:11px;font-weight:600;line-height:1.5;margin-top:6px}
+.prompt .pills{display:flex;gap:6px;margin-top:8px}
+.steps{position:absolute;top:220px;left:16px;right:16px}
+.step{display:flex;align-items:center;gap:10px;height:34px;font-size:9.5px}
+.step .c{width:14px;height:14px;border-radius:50%;background:var(--surface-high);display:grid;place-items:center;font-size:8px;color:var(--bg);font-weight:800}
+.step.done .c{background:var(--green)}
+.step.done span{color:var(--muted)}
+.diff{position:absolute;top:414px;left:16px;right:16px;height:174px;border-radius:20px;padding:12px 14px;overflow:hidden}
+.diff .t{font-size:8px;color:var(--muted);font-weight:600}
+.dline{font-family:'DejaVu Sans Mono',monospace;font-size:8px;line-height:1.9;padding:2px 5px;border-radius:3px;margin-top:3px}
+.dline.add{background:rgba(132,217,138,.10);color:var(--green)}
+.dline.del{background:rgba(255,107,107,.10);color:var(--red)}
+.diff .sum{font-size:8px;color:var(--muted);margin-top:8px}
+/* chat */
+.bubble{position:absolute;border-radius:18px;padding:12px 14px}
+.user{right:16px;top:88px;width:290px;background:var(--surface-high);font-size:9.5px;line-height:1.5}
+.agent{left:16px;top:164px;width:330px;height:250px;background:var(--surface);border:1px solid var(--outline)}
+.agent .av{position:absolute;left:12px;top:12px;width:26px;height:26px;border-radius:50%;background:var(--gold-deep);display:grid;place-items:center;color:var(--bg);font-weight:800;font-size:12px}
+.agent .nm{position:absolute;left:46px;top:13px;font-size:10px;font-weight:700}
+.agent .reason{position:absolute;left:14px;top:50px;right:14px;font-size:8.5px;line-height:1.5;color:var(--muted)}
+.tool{position:absolute;left:14px;right:14px;top:92px;height:52px;border-radius:12px;background:var(--bg-elev);padding:9px 12px}
+.tool .tn{font-size:9px;color:var(--lime);font-weight:700}
+.tool .tm{font-size:8px;color:var(--muted);margin-top:4px}
+.tool .ok{position:absolute;right:10px;top:9px;color:var(--green);font-weight:800;font-size:10px}
+.agent .ans{position:absolute;left:14px;right:14px;top:158px;font-size:9px;line-height:1.55}
+.agent .tok{position:absolute;left:14px;bottom:12px;font-size:7.5px;color:var(--muted)}
+.input{position:absolute;left:16px;right:16px;bottom:76px;height:56px;border-radius:18px;background:var(--surface);border:1px solid var(--outline);display:flex;align-items:center;padding:0 10px 0 16px;gap:8px}
+.input span{font-size:9.5px;color:var(--muted);flex:1}
+.send{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-deep));display:grid;place-items:center;color:var(--bg);font-weight:800;font-size:16px}
+/* llamatik */
+.console{position:absolute;top:84px;left:16px;right:16px;height:300px;border-radius:20px;background:#0A0C07;border:1px solid rgba(132,217,138,.18);padding:14px;overflow:hidden}
+.console .h{font-size:9px;color:var(--lime);font-weight:600}
+.console .live{position:absolute;right:14px;top:16px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.console .code{font-family:'DejaVu Sans Mono',monospace;font-size:8.5px;line-height:2.15;margin-top:10px;color:var(--text)}
+.console .code .m{color:var(--muted)}
+.console .code .g{color:var(--green)}
+.cursor{display:inline-block;width:7px;height:12px;background:var(--gold);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.tools{position:absolute;top:434px;left:16px;right:16px;display:flex;flex-direction:column;gap:12px}
+.toolcard{height:54px;border-radius:16px;padding:10px 14px;position:relative}
+.toolcard .td{position:absolute;left:14px;top:20px;width:8px;height:8px;border-radius:50%}
+.toolcard .tn{font-size:9.5px;font-weight:700;margin-left:20px}
+.toolcard .tm{font-size:8px;color:var(--muted);margin-left:20px;margin-top:3px}
+.toolcard .ok{position:absolute;right:14px;top:18px;font-weight:800}
+.memory{position:absolute;top:578px;left:16px;right:16px;height:76px;border-radius:18px;padding:12px 14px}
+.memory .t{font-size:9.5px;font-weight:600}
+.memory .m{font-size:8px;color:var(--muted);margin-top:5px}
+.memory .a{position:absolute;right:14px;bottom:12px;font-size:8px;color:var(--gold);font-weight:700}
+/* settings */
+.section-title{position:absolute;left:18px;font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.scard{position:absolute;left:16px;right:16px;border-radius:18px;padding:0 14px}
+.srow2{height:47px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--outline);font-size:9px}
+.srow2:last-child{border-bottom:0}
+.srow2 .sk{font-weight:500}
+.srow2 .sv{font-size:8px;color:var(--muted);text-align:right;max-width:200px}
+.about{position:absolute;left:16px;right:16px;top:670px;height:64px;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.about .am{width:30px;height:30px;border-radius:9px;overflow:hidden}
+.about .am img{width:100%;height:100%;object-fit:cover}
+.about .an{font-size:10px;font-weight:700}
+.about .av{font-size:8px;color:var(--muted);margin-top:4px}
+.about .al{margin-left:auto;font-size:8px;color:var(--gold);font-weight:700}
+@media (max-width:500px){body{padding:0;display:block}.phone{margin:0 auto}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.1.35.3.68.6 1 .3.3.7.4 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.7.6z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></symbol>
+</svg>
+
+<!-- HOME -->
+<section class="phone" data-screen="home">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header">
+    <div class="mark"><img src="../branding/girassol-icon-final.png" alt=""></div>
+    <div><div class="brand">Girassol</div><div class="tagline">pesquisa · dados · LoRA · agentes</div></div>
+    <div class="spacer"></div>
+    <div class="mem"><i class="dot"></i>6.1 GB</div>
+    <div class="icon-btn"><svg class="ico"><use href="#i-gear"/></svg></div>
+  </div>
+  <div class="hero">
+    <div style="display:flex;gap:6px"><span class="pill fill">AUTÔNOMO</span><span class="pill line">llama.cpp</span></div>
+    <h1>Pesquise. Aprenda.<br>Faça florescer.</h1>
+    <p>O agente pesquisa em 5 APIs gratuitas, monta o currículo, gera o dataset e redefine os hiperparâmetros.</p>
+    <div class="actions"><button class="btn">Pesquisar tema</button><button class="btn ghost">Abrir Codex</button></div>
+  </div>
+  <div class="sec" style="top:326px"><b>Visão do laboratório</b><span>tempo real</span></div>
+  <div class="grid" style="top:352px">
+    <div class="stat card"><i class="adot" style="background:var(--green)"></i><div class="k">RAM livre</div><div class="v">6.1 GB</div><div class="m">boost +1.2 GB</div></div>
+    <div class="stat card"><i class="adot" style="background:var(--lime)"></i><div class="k">Pesquisa</div><div class="v">5 APIs</div><div class="m">sem chave</div></div>
+    <div class="stat card"><i class="adot" style="background:var(--gold)"></i><div class="k">Pipeline</div><div class="v">4 etapas</div><div class="m">pronto</div></div>
+    <div class="stat card"><i class="adot" style="background:var(--orange)"></i><div class="k">Modelos</div><div class="v">3 GGUF</div><div class="m">arm64</div></div>
+  </div>
+  <div class="sec" style="top:548px"><b>Continuar</b><span>ver tudo</span></div>
+  <div class="continue card" style="top:574px">
+    <div class="ci">✦</div>
+    <div style="flex:1">
+      <div class="ct">SQL e dbt para engenharia de dados</div>
+      <div class="cm">28 fontes · dataset 312 pares · preset pronto</div>
+      <div class="bar"><i></i></div>
+    </div>
+  </div>
+  <div class="sec" style="top:670px"><b>Próximo passo</b><span>Codex</span></div>
+  <div class="continue card" style="top:696px;height:62px">
+    <div class="ci" style="width:34px;height:34px;font-size:15px">⌘</div>
+    <div style="flex:1"><div class="ct" style="font-size:10px">Adicionar cache LRU ao ModelStore</div><div class="cm">plano de 5 passos · sandbox</div></div>
+  </div>
+  <div class="bottom">
+    <div class="nav on"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div>
+  </div>
+</section>
+
+<!-- AUTODIDACT -->
+<section class="phone" data-screen="autodidact">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title">Autoestudo</div><div class="sub">pesquisa → currículo → dataset → preset</div></div><div class="spacer"></div><span class="pill fill">AO VIVO</span></div>
+  <div class="stages">
+    <div class="stage done"><i class="sd"></i><span class="sl">Pesquisa</span><span class="sn">01</span></div>
+    <div class="stage done"><i class="sd"></i><span class="sl">Síntese</span><span class="sn">02</span></div>
+    <div class="stage"><i class="sd"></i><span class="sl">Dataset</span><span class="sn">03</span></div>
+    <div class="stage"><i class="sd"></i><span class="sl">Preset</span><span class="sn">04</span></div>
+  </div>
+  <div class="research card">
+    <div class="h">Pesquisando · 3 provedores</div>
+    <div class="q">“SQL e dbt para engenharia de dados”</div>
+    <div class="ring"><span>72%</span></div>
+    <div class="eta">ETA 00:42</div>
+    <div class="rbar"><i></i></div>
+  </div>
+  <div class="slist">
+    <div class="sec" style="position:static;margin-bottom:6px"><b>Fontes consolidadas</b><span>3 fontes · 1 provedor</span></div>
+    <div class="srow"><i class="sd" style="background:var(--lime)"></i><span class="st">SQL Style Guide</span><span class="sm">sqlstyle.guide</span></div>
+    <div class="srow"><i class="sd" style="background:var(--green)"></i><span class="st">dbt Docs — Models</span><span class="sm">docs.getdbt.com</span></div>
+    <div class="srow"><i class="sd" style="background:var(--gold)"></i><span class="st">Data Engineering Design</span><span class="sm">openalex.org</span></div>
+  </div>
+  <div class="sec" style="top:510px"><b>Preset calculado</b><span>auto-tuner</span></div>
+  <div class="specs">
+    <div class="spec"><div class="k">rank</div><div class="v">16</div></div>
+    <div class="spec"><div class="k">epochs</div><div class="v">3</div></div>
+    <div class="spec"><div class="k">lr</div><div class="v">1.8e-4</div></div>
+    <div class="spec"><div class="k">ctx</div><div class="v">2048</div></div>
+  </div>
+  <div class="ds card"><div><div class="t">Dataset</div><div class="m">312 pares · 48 KB · chat JSONL</div></div><div class="a">Abrir</div></div>
+  <button class="btn wide" style="position:absolute;left:16px;right:16px;top:684px">Iniciar treino LoRA</button>
+  <div class="hint" style="top:737px">modelo base precisa estar em F32/F16</div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav on"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<!-- MODELS -->
+<section class="phone" data-screen="models">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title">Modelos</div><div class="sub">3 GGUF no dispositivo</div></div><div class="spacer"></div><div class="icon-btn" style="color:var(--gold);font-size:16px">+</div></div>
+  <div class="search"><svg class="ico" style="color:var(--muted)"><use href="#i-search"/></svg><span>Buscar modelo, quantização…</span></div>
+  <div class="filters"><span class="pill gold">Todos</span><span class="pill muted">Q4_K_M</span><span class="pill muted">Q5_K_M</span><span class="pill muted">F16</span></div>
+  <div class="mcard" style="top:168px"><div class="badge" style="color:var(--gold)">◈</div><div class="name">Qwen2.5-1.5B-Instruct</div><div class="meta">Q4_K_M · 1.1 GB</div><div class="mloss" style="color:var(--gold)">loss 0.842</div><div class="mb"><i style="width:82%;background:var(--gold)"></i></div><div class="arch">llama · 1.5B · 32k ctx</div><div class="open">abrir</div></div>
+  <div class="mcard" style="top:286px"><div class="badge" style="color:var(--lime)">◈</div><div class="name">Llama-3.2-1B-Instruct</div><div class="meta">Q5_K_M · 0.9 GB</div><div class="mloss" style="color:var(--lime)">loss 0.911</div><div class="mb"><i style="width:71%;background:var(--lime)"></i></div><div class="arch">llama · 1.2B · 128k ctx</div><div class="open">abrir</div></div>
+  <div class="mcard" style="top:404px"><div class="badge" style="color:var(--orange)">◈</div><div class="name">SmolLM2-360M</div><div class="meta">F16 · 0.7 GB</div><div class="mloss" style="color:var(--orange)">base p/ LoRA</div><div class="mb"><i style="width:94%;background:var(--orange)"></i></div><div class="arch">llama · 360M · 8k ctx</div><div class="open">abrir</div></div>
+  <div class="storage card"><div class="t">Armazenamento local</div><div class="m">2.7 GB usados · 41 GB livres</div><div class="bar"><i></i></div></div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav on"><i class="nd"></i>Modelos</div><div class="nav"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<!-- TRAIN -->
+<section class="phone" data-screen="train">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title">Laboratório</div><div class="sub">quantizar · imatrix · treinar</div></div><div class="spacer"></div><div class="mem" style="background:var(--surface)">job 0</div></div>
+  <div class="tabs"><div class="tab">Quantizar</div><div class="tab">Imatrix</div><div class="tab on">Treinar</div></div>
+  <div class="preset card"><div class="h">Preset do autoestudo <span class="pill fill" style="float:right;font-size:7px">F32/F16</span></div>
+    <div class="row"><div class="cell"><div class="k">rank</div><div class="v">16</div></div><div class="cell"><div class="k">alpha</div><div class="v">32</div></div></div>
+    <div class="row"><div class="cell"><div class="k">epochs</div><div class="v">3</div></div><div class="cell"><div class="k">lr</div><div class="v">1.8e-4</div></div></div>
+    <div class="row"><div class="cell"><div class="k">ctx</div><div class="v">2048</div></div><div class="cell"><div class="k">alvos</div><div class="v">q/k/v/o</div></div></div>
+  </div>
+  <div class="loss card"><div class="h">Loss · LoRA</div><div class="v">1.727 → 0.863</div>
+    <div class="bars"><i style="height:38%"></i><i style="height:44%"></i><i style="height:42%"></i><i style="height:52%"></i><i style="height:58%"></i><i style="height:63%"></i><i style="height:70%"></i><i style="height:68%"></i><i style="height:76%"></i><i style="height:82%"></i><i style="height:88%"></i><i style="height:94%;background:var(--green)"></i></div>
+  </div>
+  <div class="sample card"><div class="t">Última amostra</div><div class="l">SELECT customer_id, SUM(total)</div><div class="l">FROM orders GROUP BY 1;</div><div class="m">perplexity 2.41 · 38 tok/s</div></div>
+  <button class="btn wide" style="position:absolute;left:16px;right:16px;top:584px">Iniciar treino</button>
+  <button class="btn wide secondary" style="position:absolute;left:16px;right:16px;top:642px">Exportar adapter</button>
+  <div class="hint" style="top:700px">checkpoint automático a cada epoch</div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav on"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<!-- CODEX -->
+<section class="phone" data-screen="codex">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title">Codex</div><div class="sub">agente de código autônomo</div></div><div class="spacer"></div><span class="pill line">SANDBOX</span></div>
+  <div class="prompt card"><div class="l">TAREFA</div><div class="t">Adicionar cache LRU ao repositório<br>de modelos e cobrir com testes.</div><div class="pills"><span class="pill line">repo: girassol</span><span class="pill muted">branch: main</span></div></div>
+  <div class="sec" style="top:208px"><b>Plano</b><span>3/5 passos</span></div>
+  <div class="steps" style="top:232px">
+    <div class="step done"><div class="c">✓</div><span>Ler ModelStore.kt</span></div>
+    <div class="step done"><div class="c">✓</div><span>Criar LruCache com TTL</span></div>
+    <div class="step done"><div class="c">✓</div><span>Integrar no repositório</span></div>
+    <div class="step"><div class="c">4</div><span>Adicionar testes unitários</span></div>
+    <div class="step"><div class="c">5</div><span>Rodar gradle test</span></div>
+  </div>
+  <div class="diff card"><div class="t">app/src/main/java/.../ModelStore.kt</div>
+    <div class="dline add">+ private val cache = LruCache&lt;String, Model&gt;(32)</div>
+    <div class="dline add">+ fun get(path: String) = cache[path] ?: read(path)</div>
+    <div class="dline del">- fun get(path: String) = read(path)</div>
+    <div class="dline add">+ @Test fun evictsLeastRecentlyUsed() { ... }</div>
+    <div class="sum">+38 −4 · 2 arquivos</div>
+  </div>
+  <button class="btn wide" style="position:absolute;left:16px;right:16px;top:608px">Executar alterações</button>
+  <div class="hint" style="top:662px">o agente pede confirmação para shell e git push</div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav"><i class="nd"></i>Lab</div><div class="nav on"><i class="nd"></i>Codex</div><div class="nav"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<!-- CHAT -->
+<section class="phone" data-screen="chat">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title">Chat</div><div class="sub">ReAct · 12 ferramentas</div></div><div class="spacer"></div><span class="pill fill">ONLINE</span></div>
+  <div class="bubble user">Pesquise o estado da arte em<br>quantização 2-bit e resuma.</div>
+  <div class="bubble agent">
+    <div class="av">✦</div><div class="nm">Girassol</div><span class="pill line" style="position:absolute;right:12px;top:12px">research_web</span>
+    <div class="reason">Vou buscar em arXiv/OpenAlex e cruzar com<br>os resultados do Stack Overflow.</div>
+    <div class="tool"><div class="tn">research_web</div><div class="tm">arXiv · 8 resultados · 1.2 s</div><div class="ok">✓</div></div>
+    <div class="ans">Os métodos 2-bit atuais combinam codebooks<br>e merges de outliers. A perda fica em 2–4%<br>contra 4-bit, com ganho de memória de ~2×.</div>
+    <div class="tok">1.8k tokens · 38 tok/s</div>
+  </div>
+  <div class="card" style="position:absolute;left:16px;right:16px;top:430px;height:118px;padding:12px 14px">
+    <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.4px">FONTES CONSULTADAS</div>
+    <div class="srow" style="height:26px"><i class="sd" style="background:var(--lime)"></i><span class="st">arXiv · 2-bit quantization survey</span><span class="sm">2026</span></div>
+    <div class="srow" style="height:26px"><i class="sd" style="background:var(--green)"></i><span class="st">OpenAlex · outlier-aware PTQ</span><span class="sm">2025</span></div>
+    <div class="srow" style="height:26px"><i class="sd" style="background:var(--gold)"></i><span class="st">Stack Overflow · codebook merge</span><span class="sm">2026</span></div>
+  </div>
+  <div style="position:absolute;left:16px;right:16px;top:566px;display:flex;gap:6px;flex-wrap:wrap">
+    <span class="pill muted">comparar com 4-bit</span><span class="pill muted">benchmarks</span><span class="pill muted">aplicar no GGUF</span>
+  </div>
+  <div class="input"><span>Pergunte ou peça uma pesquisa…</span><div class="send">↑</div></div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav on"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<!-- LLAMATIK -->
+<section class="phone" data-screen="llamatik">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title" style="font-size:21px">Llamatik Runtime</div><div class="sub">sdk 2.2.2 · agent streaming</div></div><div class="spacer"></div><span class="pill fill">STREAMING</span></div>
+  <div class="console"><div class="h">agent.stream()</div><div class="live"></div>
+    <div class="code"><div class="m">&gt; tool: public_api_posts</div><div class="m">&gt; GET jsonplaceholder.typicode.com</div><div class="g">✓ 200 · 100 posts</div><div>&nbsp;</div><div>O endpoint devolve 100 posts.</div><div>Cada um tem userId, id, title e body.</div><div>Posso agrupar por userId ou filtrar</div><div>por título. O que você prefere?</div><div><span class="cursor"></span></div></div>
+  </div>
+  <div class="sec" style="top:406px"><b>Tools executadas</b><span>2 chamadas</span></div>
+  <div class="tools">
+    <div class="toolcard card"><div class="td" style="background:var(--lime)"></div><div class="tn">public_api_posts</div><div class="tm">Retrofit 3 · 200 OK · 184 ms</div><div class="ok" style="color:var(--lime)">✓</div></div>
+    <div class="toolcard card"><div class="td" style="background:var(--green)"></div><div class="tn">research_web</div><div class="tm">5 APIs · 12 fontes · 2.1 s</div><div class="ok" style="color:var(--green)">✓</div></div>
+  </div>
+  <div class="memory card"><div class="t">Memória persistente</div><div class="m">conversation.txt · 4.2 KB · consolidada</div><div class="a">consolidar</div></div>
+  <button class="btn wide" style="position:absolute;left:16px;right:16px;top:674px">Nova execução</button>
+  <div class="hint" style="top:728px;font-size:7.5px">core nativo do Llamatik excluído (conflito de SONAME)</div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav on"><i class="nd"></i>Chat</div><div class="nav"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<!-- SETTINGS -->
+<section class="phone" data-screen="settings">
+  <div class="status"><span>9:41</span><span class="right">5G ▮▮▮</span></div>
+  <div class="header" style="top:28px"><div><div class="title">Ajustes</div><div class="sub">runtime, pesquisa e treino</div></div></div>
+  <div class="section-title" style="top:86px">LLM local</div>
+  <div class="scard card" style="top:108px;height:151px">
+    <div class="srow2"><span class="sk">Endpoint</span><span class="sv">http://127.0.0.1:8080/v1</span></div>
+    <div class="srow2"><span class="sk">Modelo</span><span class="sv">qwen2.5-1.5b-instruct</span></div>
+    <div class="srow2"><span class="sk">API key</span><span class="sv">••••••••••••</span></div>
+  </div>
+  <div class="section-title" style="top:281px">Pesquisa</div>
+  <div class="scard card" style="top:303px;height:151px">
+    <div class="srow2"><span class="sk">Fontes</span><span class="sv">Wikipedia, OpenAlex, arXiv, SO</span></div>
+    <div class="srow2"><span class="sk">Cache</span><span class="sv">48 dossiês · 12 MB</span></div>
+    <div class="srow2"><span class="sk">Sem LLM</span><span class="sv">síntese extrativa</span></div>
+  </div>
+  <div class="section-title" style="top:476px">Treino</div>
+  <div class="scard card" style="top:498px;height:151px">
+    <div class="srow2"><span class="sk">Modelo base</span><span class="sv">SmolLM2-360M F16</span></div>
+    <div class="srow2"><span class="sk">Threads</span><span class="sv">4 de 8</span></div>
+    <div class="srow2"><span class="sk">Checkpoints</span><span class="sv">a cada epoch</span></div>
+  </div>
+  <div class="about card"><div class="am"><img src="../branding/girassol-icon-final.png" alt=""></div><div><div class="an">Girassol 1.3.1</div><div class="av">build 6 · arm64-v8a · Android 8+</div></div><div class="al">MIT</div></div>
+  <div class="bottom"><div class="nav"><i class="nd"></i>Início</div><div class="nav"><i class="nd"></i>Modelos</div><div class="nav"><i class="nd"></i>Lab</div><div class="nav"><i class="nd"></i>Codex</div><div class="nav"><i class="nd"></i>Chat</div><div class="nav on"><i class="nd"></i>Ajustes</div></div>
+</section>
+
+<script>
+const params = new URLSearchParams(location.search);
+const screen = params.get('s');
+if (screen) {
+  document.body.classList.add('single');
+  document.querySelectorAll('.phone').forEach(p => {
+    p.classList.toggle('on', p.dataset.screen === screen);
+  });
+}
+</script>
+</body>
+</html>

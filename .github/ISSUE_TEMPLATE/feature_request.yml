@@ -1,0 +1,30 @@
+name: Feature request
+description: Ideia para o Girassol
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Pesquisa / autoestudo
+        - GGUF / quantização
+        - Imatrix
+        - LoRA / treino
+        - Codex
+        - Chat / Llamatik
+        - UI / design
+        - Build / CI

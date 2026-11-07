@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1600px;height:900px;overflow:hidden;background:#070805;color:#FBF6E7;font-family:Inter,'DejaVu Sans',sans-serif}
+.cover{position:relative;width:1600px;height:900px;overflow:hidden;background:
+  radial-gradient(700px 600px at 82% 18%,rgba(242,193,78,.16),transparent 65%),
+  radial-gradient(700px 600px at 96% 92%,rgba(132,217,138,.10),transparent 65%),
+  #070805}
+.grid{position:absolute;inset:0;opacity:.18;background-image:linear-gradient(rgba(251,246,231,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(251,246,231,.06) 1px,transparent 1px);background-size:64px 64px;mask-image:linear-gradient(90deg,#000,transparent 70%)}
+.flower{position:absolute;right:-40px;top:90px;width:560px;height:560px;border-radius:50%;background:radial-gradient(circle at 50% 50%,rgba(242,193,78,.20),transparent 66%);filter:blur(8px)}
+.mark{position:absolute;left:104px;top:84px;width:150px;height:150px;border-radius:38px;overflow:hidden;box-shadow:0 30px 80px rgba(242,193,78,.22)}
+.mark img{width:100%;height:100%;display:block;object-fit:cover}
+.brand{position:absolute;left:104px;top:266px;font-size:92px;font-weight:800;letter-spacing:-4.5px;line-height:1}
+.tag{position:absolute;left:108px;top:372px;font-size:28px;font-weight:600;letter-spacing:-.5px;color:#F2C14E}
+.desc{position:absolute;left:108px;top:424px;width:720px;font-size:18px;line-height:1.55;color:#A2A78E}
+.pills{position:absolute;left:108px;top:512px;display:flex;gap:10px;flex-wrap:wrap;width:760px}
+.pill{border:1px solid #2E331F;background:#13160F;color:#FBF6E7;border-radius:99px;padding:9px 16px;font-size:14px;font-weight:500}
+.pill.gold{border-color:rgba(242,193,78,.45);color:#F2C14E}
+.pill.green{border-color:rgba(132,217,138,.45);color:#84D98A}
+.meta{position:absolute;left:108px;top:590px;font-size:14px;color:#A2A78E;letter-spacing:.3px}
+.cta{position:absolute;left:108px;top:630px;display:flex;gap:12px}
+.btn{background:linear-gradient(135deg,#F2C14E,#C6922A);color:#120E05;border-radius:15px;padding:16px 24px;font-size:15px;font-weight:700}
+.ghost{border:1px solid #2E331F;color:#FBF6E7;border-radius:15px;padding:16px 24px;font-size:15px;font-weight:500;background:#13160F}
+.stats{position:absolute;left:108px;top:742px;display:flex;gap:44px}
+.stat b{display:block;font-size:28px;letter-spacing:-1px}
+.stat span{display:block;font-size:12px;color:#A2A78E;margin-top:4px}
+.stat b.g{color:#84D98A}.stat b.y{color:#F2C14E}.stat b.l{color:#A9D96B}
+.right{position:absolute;right:96px;top:120px;width:510px}
+.card{position:absolute;background:#13160F;border:1px solid #2E331F;border-radius:26px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.c1{right:96px;top:120px;width:470px;height:300px}
+.c2{right:210px;top:360px;width:420px;height:310px}
+.c3{right:60px;top:590px;width:360px;height:180px}
+.ct{font-size:14px;font-weight:700}
+.cm{font-size:11px;color:#A2A78E;margin-top:6px}
+.ring{position:absolute;right:30px;top:36px;width:96px;height:96px;border-radius:50%;border:10px solid #1C2015;border-top-color:#F2C14E;border-right-color:#F2C14E;border-bottom-color:#F2C14E;transform:rotate(38deg)}
+.ring span{position:absolute;inset:0;display:grid;place-items:center;transform:rotate(-38deg);font-weight:800;font-size:22px}
+.bar{height:6px;background:#1C2015;border-radius:4px;margin-top:16px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#C6922A,#F2C14E)}
+.srow{display:flex;align-items:center;gap:10px;margin-top:13px;font-size:12px;color:#FBF6E7}
+.dot{width:7px;height:7px;border-radius:50%}
+.code{font-family:'DejaVu Sans Mono',monospace;font-size:11px;line-height:2;color:#A2A78E;margin-top:12px}
+.code b{color:#84D98A;font-weight:500}
+.badge{display:inline-flex;gap:6px;align-items:center;border:1px solid rgba(132,217,138,.35);color:#84D98A;border-radius:99px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.4px}
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="grid"></div><div class="flower"></div>
+  <div class="mark"><img src="../branding/girassol-icon-final.png" alt=""></div>
+  <div class="brand">Girassol</div>
+  <div class="tag">Pesquise. Aprenda. Faça florescer.</div>
+  <div class="desc">Estúdio Android de GGUF, importance matrix e LoRA nativo — com pesquisa autônoma, Codex e agentes no dispositivo.</div>
+  <div class="pills">
+    <span class="pill gold">GGUF</span><span class="pill">imatrix</span><span class="pill">quantização</span><span class="pill gold">LoRA nativo</span><span class="pill green">autoestudo</span><span class="pill">Codex</span><span class="pill">Llamatik 2.2.2</span>
+  </div>
+  <div class="meta">v1.3.1 · arm64-v8a · Android 8+ · 36 MB · 25 testes</div>
+  <div class="cta"><div class="btn">github.com/Enhikyy/girassol</div><div class="ghost">Sem servidor. Sem telemetria.</div></div>
+  <div class="stats">
+    <div class="stat"><b class="y">6</b><span>APIs gratuitas</span></div>
+    <div class="stat"><b class="g">4</b><span>etapas do pipeline</span></div>
+    <div class="stat"><b class="l">100%</b><span>no dispositivo</span></div>
+  </div>
+
+  <div class="card c1">
+    <div class="ct">Autoestudo</div><div class="cm">pesquisa → currículo → dataset → preset</div>
+    <div class="ring"><span>72%</span></div>
+    <div style="margin-top:22px;font-size:12px;color:#84D98A;font-weight:600">Pesquisando · 3 provedores</div>
+    <div class="bar"><i style="width:72%"></i></div>
+    <div class="srow"><span class="dot" style="background:#A9D96B"></span>SQL Style Guide<span style="margin-left:auto;color:#A2A78E;font-size:10px">sqlstyle.guide</span></div>
+    <div class="srow"><span class="dot" style="background:#84D98A"></span>dbt Docs — Models<span style="margin-left:auto;color:#A2A78E;font-size:10px">docs.getdbt.com</span></div>
+    <div class="srow"><span class="dot" style="background:#F2C14E"></span>Data Engineering Design<span style="margin-left:auto;color:#A2A78E;font-size:10px">openalex.org</span></div>
+  </div>
+
+  <div class="card c2">
+    <div class="ct">Treino LoRA</div><div class="cm">base congelada · adapter A/B</div>
+    <div style="display:flex;gap:26px;margin-top:18px">
+      <div><div style="font-size:10px;color:#A2A78E">rank</div><div style="font-size:20px;font-weight:700">16</div></div>
+      <div><div style="font-size:10px;color:#A2A78E">epochs</div><div style="font-size:20px;font-weight:700">3</div></div>
+      <div><div style="font-size:10px;color:#A2A78E">lr</div><div style="font-size:20px;font-weight:700">1.8e-4</div></div>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:8px;height:86px;margin-top:24px">
+      <i style="flex:1;height:30%;background:#C6922A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:38%;background:#C6922A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:36%;background:#C6922A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:46%;background:#C6922A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:54%;background:#C6922A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:62%;background:#C6922A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:70%;background:#84D98A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:82%;background:#84D98A;border-radius:4px 4px 0 0"></i><i style="flex:1;height:92%;background:#84D98A;border-radius:4px 4px 0 0"></i>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:#A2A78E"><span>epoch 1</span><span style="color:#84D98A">loss 1.727 → 0.863</span><span>epoch 3</span></div>
+  </div>
+
+  <div class="card c3">
+    <span class="badge">● AGENT STREAM</span>
+    <div class="code"><b>✓ tool: public_api_posts</b><br>200 · 100 posts · 184 ms<br>O endpoint devolve 100 posts.<br>Cada um tem userId, id, title e body.<br><span style="color:#F2C14E">▌</span></div>
+  </div>
+</div>
+</body>
+</html>
