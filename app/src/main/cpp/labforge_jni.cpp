@@ -952,9 +952,16 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                     cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
                     cp.no_perf = true;
 
-                    llama_context * ctx = llama_init_from_model(model, cp);
+                    llama_context * ctx = nullptr;
+                    try {
+                        ctx = llama_init_from_model(model, cp);
+                    } catch (const std::bad_alloc &) {
+                        err = "memória nativa insuficiente para buffers/gradientes LoRA; reduza contexto e rank";
+                    } catch (const std::exception & ex) {
+                        err = std::string("exceção ao criar contexto LoRA: ") + ex.what();
+                    }
                     if (!ctx) {
-                        err = "falha ao criar contexto";
+                        if (err.empty()) err = "falha ao criar contexto";
                     } else {
                         std::vector<llama_token> tokens(text.size() + 8);
                         int n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
@@ -1163,9 +1170,16 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
             cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
             cp.no_perf = false;
 
-            llama_context * ctx = llama_init_from_model(model, cp);
+            llama_context * ctx = nullptr;
+            try {
+                ctx = llama_init_from_model(model, cp);
+            } catch (const std::bad_alloc &) {
+                err = "memória nativa insuficiente para KV cache/contexto; o fallback compacto será tentado";
+            } catch (const std::exception & ex) {
+                err = std::string("exceção ao criar contexto de inferência: ") + ex.what();
+            }
             if (!ctx) {
-                err = "não foi possível alocar o contexto de inferência";
+                if (err.empty()) err = "não foi possível alocar o contexto de inferência";
             } else {
                 const llama_chat_message chat[] = {
                     { "system", system_text.c_str() },
