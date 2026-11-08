@@ -442,7 +442,7 @@ fun TrainPane(vm: LabViewModel) {
                 }
                 Spacer(Modifier.height(7.dp))
                 LineChart(vm.ramAvailableHistory, Modifier.fillMaxWidth().height(72.dp), color = Lab.Amber)
-                Text("Amostras a cada 3,5 s · parada cooperativa abaixo da reserva do sistema", fontSize = 11.sp, color = Lab.Muted)
+                Text("Amostras a cada 3,5 s · parada cooperativa abaixo da reserva do sistema", fontSize = 12.sp, color = Lab.Muted)
             }
         }
         if (vm.jobKind == "lora" || vm.jobKind == "full" || vm.jobTitle.startsWith("LoRA") || vm.jobTitle.startsWith("Fine-tuning")) {
