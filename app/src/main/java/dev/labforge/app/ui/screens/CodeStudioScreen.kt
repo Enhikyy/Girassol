@@ -53,10 +53,16 @@ fun CodeStudioScreen() {
     var mesh by remember { mutableStateOf<Mesh?>(null) }
     var rotation by remember { mutableFloatStateOf(0f) }
     var busy by remember { mutableStateOf(false) }
+    var workspaceFiles by remember { mutableStateOf(emptyList<String>()) }
+    var showFileMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(project) {
-        val f=WorkspaceFiles.resolve(project,fileName)
-        if(f.exists()) source=f.readText()
+        val loaded=withContext(Dispatchers.IO) {
+            workspaceFiles = WorkspaceFiles.listFiles(project)
+            val f=WorkspaceFiles.resolve(project,fileName)
+            if(f.isFile) f.readText() else null
+        }
+        if(loaded!=null) source=loaded
     }
     val importCode= rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch {
@@ -73,6 +79,7 @@ fun CodeStudioScreen() {
                     name to text
                 }
                 fileName=imported.first; source=imported.second
+                workspaceFiles=withContext(Dispatchers.IO){WorkspaceFiles.listFiles(project)}
                 status="Arquivo ${imported.first} importado para o workspace"
             }.onFailure{status="Importação falhou: ${it.message}"}
         }
@@ -104,6 +111,7 @@ fun CodeStudioScreen() {
                     }
                 }
                 if(selection!=null) { fileName=selection.first; source=selection.second }
+                workspaceFiles=withContext(Dispatchers.IO){WorkspaceFiles.listFiles(project)}
                 status="ZIP importado em ${imported.relativeTo(project).invariantSeparatorsPath}"
             }.onFailure { status="Importação ZIP falhou: ${it.message}" }
             busy=false
@@ -180,7 +188,8 @@ fun CodeStudioScreen() {
                     scope.launch { runCatching {
                         withContext(Dispatchers.IO){AndroidProjectScaffold.create(File(project,"NovoProjetoAndroid"))}
                         fileName="NovoProjetoAndroid/app/src/main/java/dev/example/generated/MainActivity.kt"
-                        source=WorkspaceFiles.resolve(project,fileName).readText()
+                        source=withContext(Dispatchers.IO){WorkspaceFiles.resolve(project,fileName).readText()}
+                        workspaceFiles=withContext(Dispatchers.IO){WorkspaceFiles.listFiles(project)}
                         status="Projeto Android criado no workspace; exporte o ZIP para abrir no Android Studio."
                     }.onFailure{status="Falha ao criar projeto: ${it.message}"} }
                 }){Icon(Icons.Rounded.AddBox,null);Spacer(Modifier.width(5.dp));Text("Novo Android")}
@@ -189,11 +198,39 @@ fun CodeStudioScreen() {
                 OutlinedButton(onClick={importProject.launch(arrayOf("application/zip","application/x-zip-compressed"))},enabled=!busy){Icon(Icons.Rounded.FolderOpen,null);Spacer(Modifier.width(5.dp));Text("Importar ZIP")}
                 OutlinedButton(onClick={exportProject.launch("GirassolWorkspace.zip")},enabled=!busy){Icon(Icons.Rounded.Archive,null);Spacer(Modifier.width(5.dp));Text("Projeto ZIP")}
             }
-            OutlinedTextField(value=fileName,onValueChange={fileName=it},label={Text("Arquivo")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            Box(Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick={showFileMenu=true},modifier=Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.FolderOpen,null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if(fileName.isBlank()) "Selecionar arquivo" else fileName,maxLines=1)
+                    Spacer(Modifier.weight(1f))
+                    Icon(Icons.Rounded.ExpandMore,null)
+                }
+                DropdownMenu(expanded=showFileMenu,onDismissRequest={showFileMenu=false}) {
+                    if(workspaceFiles.isEmpty()) {
+                        DropdownMenuItem(text={Text("Workspace vazio")},onClick={showFileMenu=false})
+                    }
+                    workspaceFiles.take(150).forEach { path ->
+                        DropdownMenuItem(
+                            text={Text(path,maxLines=1)},
+                            onClick={
+                                showFileMenu=false
+                                fileName=path
+                                scope.launch {
+                                    runCatching {
+                                        source=withContext(Dispatchers.IO){WorkspaceFiles.resolve(project,path).readText()}
+                                        status="Arquivo aberto: $path"
+                                    }.onFailure { status="Falha ao abrir arquivo: ${it.message}" }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
             OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.weight(1f).fillMaxWidth(),label={Text("Editor de código")},textStyle=MaterialTheme.typography.bodySmall.copy(fontFamily=FontFamily.Monospace),minLines=12)
             Button(onClick={
                 scope.launch { runCatching {
-                    withContext(Dispatchers.IO){val target=WorkspaceFiles.resolve(project,fileName); target.parentFile?.mkdirs(); target.writeText(source)}
+                    withContext(Dispatchers.IO){val target=WorkspaceFiles.resolve(project,fileName); target.parentFile?.mkdirs(); target.writeText(source); workspaceFiles=WorkspaceFiles.listFiles(project)}
                     status="Salvo em armazenamento privado do app"
                 }.onFailure{status="Falha ao salvar: ${it.message}"} }
             },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(8.dp));Text("Salvar no projeto")}
