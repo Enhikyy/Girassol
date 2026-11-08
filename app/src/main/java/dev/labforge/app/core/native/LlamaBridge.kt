@@ -80,7 +80,15 @@ object LlamaBridge {
         callback: NativeCallback?,
     ): TrainResult {
         if (!isAvailable) return TrainResult(false, 0, 0, 0.0, loadError ?: "nativo indisponível")
-        val json = nativeFinetune(model, output, dataset, epochs, lr, nCtx, nBatch, nUbatch, threads, filter, callback)
+        val json = runCatching {
+            nativeFinetune(model, output, dataset, epochs, lr, nCtx, nBatch, nUbatch, threads, filter, callback)
+        }.getOrElse { failure ->
+            Log.e(TAG, "native full fine-tuning call failed before returning a result", failure)
+            return TrainResult(
+                false, 0, 0, 0.0,
+                "falha na chamada JNI do fine-tuning: ${failure.message ?: failure.javaClass.simpleName}",
+            )
+        }
         return parseTrain(json)
     }
 
