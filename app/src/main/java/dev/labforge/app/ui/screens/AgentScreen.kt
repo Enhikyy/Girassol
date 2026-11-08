@@ -94,7 +94,7 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
                 Column(Modifier.weight(1f)) {
                     Text("Chat", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
-                        if (agentVm.running) agentVm.status else "estudante de TI · git · terminal · caderno",
+                        if (agentVm.running) agentVm.status else if (agentVm.hasLocalModel) "GGUF local · ferramentas · memória · Codex" else "agente · ferramentas · memória · terminal",
                         fontSize = 12.sp,
                         color = if (agentVm.running) Lab.Green else Lab.Muted,
                     )
@@ -132,7 +132,7 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
     }
 
     Column(Modifier.fillMaxSize()) {
-        if (vm.settings.apiKey.isBlank() && vm.settings.endpoint.contains("openai.com")) {
+        if (!agentVm.hasLocalModel && vm.settings.apiKey.isBlank() && vm.settings.endpoint.contains("openai.com")) {
             Box(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
                 GlassCard(padding = 11) {
                     Text(
