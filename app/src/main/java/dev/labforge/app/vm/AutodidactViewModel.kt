@@ -253,16 +253,19 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 stage = StudyStage.SYNTHESIS
                 status = if (llm != null) "sintetizando com o modelo…" else "sintetizando extrativamente (sem LLM)"
                 progress = 0.38f
+                val priorMemory = learningSnapshot.dreams.takeLast(5).joinToString("\n") {
+                    "- ${it.title}: ${it.insight} (confiança ${(it.confidence * 100).toInt()}%)"
+                }
                 val summary = if (llm != null) {
                     try {
-                        synthesize(llm, found)
+                        synthesize(llm, found, priorMemory)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
                         append("LLM falhou (${error.message}); usando resumo extrativo")
                         found.autoSummary
                     }
-                } else found.autoSummary
+                } else found.autoSummary + if (priorMemory.isBlank()) "" else "\n\nLições anteriores a verificar nas fontes atuais:\n" + priorMemory
                 append("Resumo: ${summary.take(280)}")
 
                 // 3. curriculum
@@ -438,14 +441,14 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------- LLM
 
-    private suspend fun synthesize(llm: LlmClient, b: ResearchBundle): String {
+    private suspend fun synthesize(llm: LlmClient, b: ResearchBundle, priorMemory: String): String {
         val corpus = b.docs.take(8).joinToString("\n\n") {
             "[${it.source}] ${it.title}\n${it.snippet.take(500)}\n${it.url}"
         }
         val reply = llm.chat(
             JSONArray().apply {
                 put(JSONObject().put("role", "system").put("content", "Você é um pesquisador técnico. Sintetize apenas o que está nas fontes, sem inventar. Responda em português."))
-                put(JSONObject().put("role", "user").put("content", "Tema: ${b.theme}\n\nFontes:\n$corpus\n\nFaça uma síntese em 5 tópicos objetivos, citando a fonte entre parênteses."))
+                put(JSONObject().put("role", "user").put("content", "Tema: ${b.theme}\n\nFontes:\n$corpus\n\nMemórias de ciclos anteriores (hipóteses, não fatos; confirme ou descarte com as fontes atuais):\n$priorMemory\n\nFaça uma síntese em 5 tópicos objetivos, citando a fonte entre parênteses e indicando quando uma memória anterior não for confirmada."))
             },
             null,
         )
