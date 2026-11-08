@@ -32,7 +32,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,8 +69,21 @@ fun LocalChatScreen(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var input by rememberSaveable { mutableStateOf("") }
+    var mmapAcknowledged by rememberSaveable { mutableStateOf(false) }
+    var showMmapWarning by rememberSaveable { mutableStateOf(false) }
+    var pendingMmapPrompt by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val model = labVm.selectedModel
+
+    fun submitLocalPrompt(prompt: String) {
+        if (model == null || prompt.isBlank()) return
+        if (!mmapAcknowledged) {
+            pendingMmapPrompt = prompt
+            showMmapWarning = true
+        } else {
+            chatVm.send(model.file.absolutePath, model.name, prompt)
+        }
+    }
 
     LaunchedEffect(chatVm.messages.size, selectedTab) {
         if (selectedTab == 0 && chatVm.messages.isNotEmpty()) {
@@ -206,7 +221,7 @@ fun LocalChatScreen(
                         keyboardActions = KeyboardActions(onSend = {
                             if (!chatVm.running && input.isNotBlank()) {
                                 if (model != null) {
-                                    chatVm.send(model.file.absolutePath, model.name, input)
+                                    submitLocalPrompt(input)
                                     input = ""
                                 }
                             }
@@ -224,7 +239,7 @@ fun LocalChatScreen(
                             if (chatVm.running) chatVm.stop()
                             else if (input.isNotBlank()) {
                                 if (model != null) {
-                                    chatVm.send(model.file.absolutePath, model.name, input)
+                                    submitLocalPrompt(input)
                                     input = ""
                                 }
                             }
@@ -268,5 +283,37 @@ fun LocalChatScreen(
                 }
             }
         }
+    }
+
+    if (showMmapWarning && model != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showMmapWarning = false
+                pendingMmapPrompt = ""
+            },
+            title = { Text("Aviso: modelo via mmap") },
+            text = {
+                Text(
+                    "O modelo será carregado por mapeamento direto do arquivo (mmap), fora do heap Java. " +
+                        "O desempenho pode variar e o Android ainda pode encerrar o app se a RAM física acabar. " +
+                        "O sistema poderá recuperar páginas do modelo sob pressão de memória. Deseja continuar?"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    mmapAcknowledged = true
+                    showMmapWarning = false
+                    val prompt = pendingMmapPrompt
+                    pendingMmapPrompt = ""
+                    if (prompt.isNotBlank()) chatVm.send(model.file.absolutePath, model.name, prompt)
+                }) { Text("Continuar") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showMmapWarning = false
+                    pendingMmapPrompt = ""
+                }) { Text("Cancelar") }
+            },
+        )
     }
 }
