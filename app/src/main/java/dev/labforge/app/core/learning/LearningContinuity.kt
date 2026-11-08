@@ -94,7 +94,7 @@ class LearningContinuity(private val file: File) {
                     items.takeLast(3).joinToString(" | ") { it.detail.take(160) }
             }
             val confidence = min(0.95f, 0.35f + evidence.size * 0.12f +
-                (evidence.map { it.importance }.average().toFloatOrNull() ?: 0f) * 0.15f)
+                (if (evidence.isEmpty()) 0f else evidence.map { it.importance }.average().toFloat()) * 0.15f)
             DreamTile(stableId(topic + "|" + now + "|" + kind), now, kind,
                 topic.ifBlank { "Aprendizado consolidado" }.take(90), insight.take(1200),
                 confidence, evidence.size)
