@@ -36,6 +36,7 @@
 #include <new>
 #include <exception>
 #include <limits>
+#include <cstdint>
 
 #define LOG_TAG "LabForgeNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
