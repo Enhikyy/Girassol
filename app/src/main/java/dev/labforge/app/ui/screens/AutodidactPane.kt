@@ -94,10 +94,11 @@ fun AutodidactPane(
         StudyStage.CURRICULUM to "Currículo",
         StudyStage.DATASET to "Dataset",
         StudyStage.TUNING to "Ajuste",
+        StudyStage.DREAM to "Consolidação",
     )
     val currentIndex = stages.indexOfFirst { it.first == study.stage }
     val doneCount = when (study.stage) {
-        StudyStage.DONE -> 6
+        StudyStage.DONE -> 7
         StudyStage.ERROR, StudyStage.IDLE -> 0
         else -> currentIndex.coerceAtLeast(0)
     }
