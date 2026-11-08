@@ -853,7 +853,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 ggml_opt_dataset_free(dataset);
 
                                 if (g_train_abort.load()) {
-                                    err = "treino interrompido; último checkpoint preservado em " + checkpoint_path;
+                                    std::ifstream checkpoint(checkpoint_path, std::ios::binary | std::ios::ate);
+                                    const bool checkpoint_valid = checkpoint.good() && checkpoint.tellg() > 0;
+                                    err = checkpoint_valid
+                                        ? "treino interrompido; último checkpoint preservado em " + checkpoint_path
+                                        : "treino interrompido antes da primeira época; nenhum checkpoint válido foi gerado";
                                 } else if (err.empty()) {
                                     printf("[lora] exportando adaptador final %s\n", out_path.c_str());
                                     ok = save_lora(adapter, model, lt.alpha, out_path, err);
