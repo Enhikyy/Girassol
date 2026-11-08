@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0 — 2026-11-08
+
+Pesquisa ampliada, ingestão de conteúdo e piloto automático.
+
+- Acrescenta Crossref, PubMed e Hugging Face Datasets às fontes sem chave; Brave Search e GitHub permanecem opcionais.
+- Downloader integrado: coleta páginas HTTPS textuais, normaliza HTML/JSON/XML/Markdown e incorpora conteúdo ao corpus usado pela síntese e pelo dataset.
+- Piloto automático repete pesquisa → download → síntese → currículo → dataset → autoajuste; métricas de tokens, fontes, downloads e exemplos são persistidas e exibidas em gráficos.
+- Corrige propagação de cancelamento das buscas, valida destinos alternativos do Git push e trata rejeições do servidor como falha.
+- Permite commits e operações Git na pasta clonada e registra ferramentas GitHub no runtime Llamatik.
+- CI deixa de ignorar falhas nos testes unitários; testes e build passam a bloquear a entrega.
+
+
 ## 1.5.0 — 2026-11-08
 
 Brave Search, GitHub para o agente e liquid glass.
