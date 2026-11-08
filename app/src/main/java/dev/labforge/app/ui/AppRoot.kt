@@ -184,7 +184,7 @@ fun AppRoot() {
                         }
                         Routes.LAB -> LabScreen(vm, agentVm, initialTab = labTab)
                         Routes.CODEX -> CodexScreen(codexVm) { go(Routes.AGENT) }
-                        Routes.STUDIO -> CodeStudioScreen()
+                        Routes.STUDIO -> CodeStudioScreen { go(Routes.CODEX) }
                         Routes.AGENT -> AgentScreen(agentVm, vm) { go(Routes.CODEX) }
                         Routes.LLAMATIK -> LlamatikScreen { go(llamatikBack) }
                         Routes.SETTINGS -> SettingsScreen(vm) { go(Routes.LLAMATIK) }
