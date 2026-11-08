@@ -1,5 +1,6 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
@@ -76,8 +77,10 @@ class ReActAgent(
                 llm.chat(messages, toolSpecs) { text, reasoning ->
                     onEvent(AgentEvent.Token(text, reasoning))
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
-                onEvent(AgentEvent.Failure(t.message ?: "falha na chamada do modelo"))
+                onEvent(AgentEvent.Failure(t.stackTraceToString().take(9000)))
                 return ""
             }
 
