@@ -121,14 +121,14 @@ fun AutodidactPane(
                         .background(Lab.Cyan.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.Search, null, tint = Lab.Cyan, modifier = Modifier.size(22.dp))
+                    SunflowerSpinner(28.dp, 24)
                 }
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Pesquisa autônoma", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
+                    Text("Pesquisa autônoma", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
                         "GitHub prioritário · README de repositórios + fontes acadêmicas · downloads · RAG · dataset · auto-tuning",
-                        fontSize = 12.sp, color = Lab.Muted, lineHeight = 14.sp,
+                        fontSize = 13.sp, color = Lab.Muted, lineHeight = 17.sp,
                     )
                 }
                 if (study.llmReady) Pill("LLM", Lab.Violet, filled = true) else Pill("extrativo", Lab.Amber)
@@ -387,13 +387,13 @@ fun AutodidactPane(
         val dueSkillIds = study.dueSkillIds()
         if (skillSnapshot.skills.isNotEmpty()) {
             Spacer(Modifier.height(18.dp))
-            SectionHeader("Árvore de habilidades", "${skillSnapshot.skills.size} habilidades · ${dueSkillIds.size} revisões pendentes")
+            SectionHeader("Árvore de competências", "${skillSnapshot.skills.size} nós · ${dueSkillIds.size} revisões disponíveis")
             Spacer(Modifier.height(8.dp))
             GlassCard {
                 val mastered = skillSnapshot.skills.count { it.mastery >= 0.75f }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatTile("dominadas", mastered.toString(), Lab.Green, Modifier.weight(1f))
-                    StatTile("para revisar", dueSkills.size.toString(), Lab.Amber, Modifier.weight(1f))
+                    StatTile("para revisar", dueSkillIds.size.toString(), Lab.Amber, Modifier.weight(1f))
                     StatTile("memórias", skillSnapshot.experiences.size.toString(), Lab.Violet, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(10.dp))
@@ -401,7 +401,7 @@ fun AutodidactPane(
                     Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(skill.title, fontSize = 13.sp, color = Lab.Text, modifier = Modifier.weight(1f), maxLines = 2)
-                            Text("${(skill.mastery * 100).toInt()}%", fontSize = 12.sp, color = Lab.Cyan)
+                            Text("nível ${skill.level} · ${(skill.mastery * 100).toInt()}%", fontSize = 12.sp, color = Lab.Cyan)
                         }
                         Spacer(Modifier.height(4.dp))
                         Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Lab.SurfaceHigh)) {
