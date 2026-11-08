@@ -35,5 +35,31 @@ class LearningContinuityTest {
         assertEquals("failure-review", dream.dreams.single().kind)
         assertTrue(dream.dreams.single().insight.contains("JNIEnv"))
         assertEquals(1, LearningContinuity(file).snapshot().dreams.size)
+    } 
+    @Test fun repeatedDreamDoesNotDuplicateProcessedExperiences() {
+        val file = File(Files.createTempDirectory("girassol-dream-dedupe").toFile(), "learning.json")
+        val engine = LearningContinuity(file)
+        engine.record("cycle", "Kotlin", "Pesquisa e dataset construídos", 0.8f)
+        engine.dream(now = 1_000L)
+        engine.record("cycle", "Kotlin", "Segundo ciclo reforçou a mesma competência", 0.9f)
+        val second = engine.dream(now = 2_000L)
+        assertEquals(1, second.dreams.size)
+        val repeated = engine.dream(now = 3_000L)
+        assertEquals("dream calls without new experiences must be idempotent", 1, repeated.dreams.size)
     }
+
+    @Test fun curriculumBuildsPrerequisiteEdgesAndDueReviewsRespectThem() {
+        val file = File(Files.createTempDirectory("girassol-skill-tree").toFile(), "learning.json")
+        val engine = LearningContinuity(file)
+        val skills = engine.syncCurriculum("Kotlin", listOf("Sintaxe", "Coroutines", "Compose")).skills
+        assertEquals(3, skills.size)
+        assertTrue(skills[0].prerequisites.isEmpty())
+        assertEquals(listOf(skills[0].id), skills[1].prerequisites)
+        assertEquals(listOf(skills[1].id), skills[2].prerequisites)
+        assertEquals(listOf(skills[0].id), engine.due(now = 0L).map { it.id })
+        repeat(5) { engine.review(skills[0].id, 5, now = 0L) }
+        assertTrue(engine.snapshot().skills.first().mastery >= 0.6f)
+        assertTrue(engine.due(now = 0L).any { it.id == skills[1].id })
+    }
+
 }
