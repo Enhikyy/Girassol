@@ -171,18 +171,16 @@ object JobEngine {
         if (isRunning) return
         init(context)
         require(input.isFile && input.length() > 0L) { "GGUF de entrada inexistente ou vazio" }
-        val firstBudget = MemoryGuard.check(context, input.length(), "quantize")
-        if (!firstBudget.ok) MemoryGuard.trim()
-        val budget = if (firstBudget.ok) firstBudget else MemoryGuard.check(context, input.length(), "quantize")
-        if (!begin(context, "quantize", "Quantizando ${input.name}", budget.message, output)) return
-        append("[ram] ${budget.message}")
-        if (!budget.ok) {
-            finish(false, "Quantização não iniciada: ${budget.message}", null)
-            return
-        }
+        val initialBudget = MemoryGuard.check(context, input.length(), "quantize")
+        if (!begin(context, "quantize", "Quantizando ${input.name}", initialBudget.message, output)) return
+        append("[ram] ${initialBudget.message}")
 
         current = scope.launch(Dispatchers.IO) {
             try {
+                if (!initialBudget.ok) {
+                    append("[ram] orçamento inicial insuficiente; tentando recuperar cache e memória de apps em segundo plano antes do pré-voo final")
+                    MemoryGuard.trim()
+                }
                 val boost = MemoryBooster.boost(context)
                 append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
                 val afterBoost = MemoryGuard.check(context, input.length(), "quantize")
