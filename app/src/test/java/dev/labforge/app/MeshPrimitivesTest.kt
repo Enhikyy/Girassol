@@ -24,6 +24,25 @@ class MeshPrimitivesTest {
         assertTrue(sphere.vertices.all { kotlin.math.abs(kotlin.math.sqrt(it.x*it.x+it.y*it.y+it.z*it.z)-2f)<0.0001f })
     }
 
+
+    @Test fun sphereAndCubeTrianglesHaveOutwardWinding() {
+        val sphere=MeshPrimitives.uvSphere(radius=1f,rings=8,segments=16)
+        sphere.triangles.forEach { tri ->
+            val a=sphere.vertices[tri.a]
+            val b=sphere.vertices[tri.b]
+            val c=sphere.vertices[tri.c]
+            val ab=b-a
+            val ac=c-a
+            val nx=ab.y*ac.z-ab.z*ac.y
+            val ny=ab.z*ac.x-ab.x*ac.z
+            val nz=ab.x*ac.y-ab.y*ac.x
+            val cx=(a.x+b.x+c.x)/3f
+            val cy=(a.y+b.y+c.y)/3f
+            val cz=(a.z+b.z+c.z)/3f
+            assertTrue(nx*cx+ny*cy+nz*cz >= -0.00001f)
+        }
+    }
+
     @Test fun rejectsInvalidOrExcessiveGeometry() {
         assertTrue(runCatching { MeshPrimitives.cube(0f) }.isFailure)
         assertTrue(runCatching { MeshPrimitives.uvSphere(rings=3,segments=2) }.isFailure)
