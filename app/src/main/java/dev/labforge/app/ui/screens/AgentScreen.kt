@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -93,8 +94,8 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
                 Column(Modifier.weight(1f)) {
                     Text("Chat", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
-                        if (agentVm.running) agentVm.status else "estudante de TI · git · terminal · caderno",
-                        fontSize = 11.sp,
+                        if (agentVm.running) agentVm.status else if (agentVm.hasLocalModel) "GGUF local · ferramentas · memória · Codex" else "agente · ferramentas · memória · terminal",
+                        fontSize = 12.sp,
                         color = if (agentVm.running) Lab.Green else Lab.Muted,
                     )
                 }
@@ -107,13 +108,14 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
             Spacer(Modifier.height(8.dp))
             TokenMeter(agentVm)
             Spacer(Modifier.height(8.dp))
-            Segmented(listOf("Chat", "Terminal", "Caderno"), tab, Modifier.fillMaxWidth()) { tab = it }
+            Segmented(listOf("Chat", "Terminal", "Caderno", "Logs"), tab, Modifier.fillMaxWidth()) { tab = it }
             Spacer(Modifier.height(4.dp))
         }
         when (tab) {
             0 -> ChatPane(agentVm, vm, onOpenCodex)
             1 -> TerminalPane(agentVm)
-            else -> NotebookPane(agentVm)
+            2 -> NotebookPane(agentVm)
+            else -> LogsPane(agentVm)
         }
     }
 }
@@ -130,12 +132,12 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
     }
 
     Column(Modifier.fillMaxSize()) {
-        if (vm.settings.apiKey.isBlank() && vm.settings.endpoint.contains("openai.com")) {
+        if (!agentVm.hasLocalModel && vm.settings.apiKey.isBlank() && vm.settings.endpoint.contains("openai.com")) {
             Box(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
                 GlassCard(padding = 11) {
                     Text(
                         "Configure endpoint e API key em Ajustes para o agente pensar. Endpoints locais (Ollama/LM Studio) não precisam de key.",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = Lab.Amber,
                         lineHeight = 14.sp,
                     )
@@ -151,7 +153,7 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
             if (agentVm.messages.isEmpty()) {
                 item {
                     GlassCard {
-                        Text("Peça uma tarefa. Exemplos:", fontSize = 11.sp, color = Lab.Muted)
+                        Text("Peça uma tarefa. Exemplos:", fontSize = 12.sp, color = Lab.Muted)
                         Spacer(Modifier.height(8.dp))
                         listOf(
                             "Crie um script que converte JSONL em texto de treino e teste com um arquivo de exemplo.",
@@ -169,7 +171,7 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
                             ) {
                                 Icon(Icons.Rounded.AutoAwesome, null, tint = Lab.Violet, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(s, fontSize = 11.sp, color = Lab.Text, lineHeight = 15.sp)
+                                Text(s, fontSize = 12.sp, color = Lab.Text, lineHeight = 15.sp)
                             }
                         }
                     }
@@ -260,7 +262,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text(
                 m.text,
-                fontSize = 11.5.sp,
+                fontSize = 12.5.sp,
                 color = Lab.Muted,
                 lineHeight = 17.sp,
                 fontStyle = FontStyle.Italic,
@@ -283,7 +285,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text(
                     m.toolName.ifBlank { "tool" },
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Text,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -299,7 +301,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
                 Spacer(Modifier.height(5.dp))
                 Text(
                     m.toolArgs.take(180),
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Muted,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 2,
@@ -308,7 +310,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(
                 m.text.take(if (expanded) 6000 else 320),
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = if (m.ok) Color(0xFFB9C6E8) else Lab.Red.copy(alpha = 0.9f),
                 fontFamily = FontFamily.Monospace,
                 lineHeight = 14.sp,
@@ -319,14 +321,14 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.SmartToy, null, tint = Lab.Cyan, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("resultado", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
+                Text("resultado", fontSize = 12.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(7.dp))
             Text(m.text, fontSize = 12.sp, color = Lab.Text, lineHeight = 18.sp)
             Spacer(Modifier.height(8.dp))
             Text(
                 "abrir no Codex →",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = Lab.Violet,
                 modifier = Modifier.clickable {
                     Handoff.toCodex = m.text
@@ -343,10 +345,10 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
                 .border(1.dp, Lab.Red.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                 .padding(11.dp),
         ) {
-            Text(m.text, fontSize = 11.sp, color = Lab.Red, lineHeight = 15.sp)
+            Text(m.text, fontSize = 12.sp, color = Lab.Red, lineHeight = 15.sp)
         }
 
-        AgentMessage.Role.SYSTEM -> Text(m.text, fontSize = 11.sp, color = Lab.Muted)
+        AgentMessage.Role.SYSTEM -> Text(m.text, fontSize = 12.sp, color = Lab.Muted)
     }
 }
 
@@ -367,7 +369,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
                         .clickable { agentVm.gitAction(action) }
                         .padding(horizontal = 10.dp, vertical = 7.dp),
                 ) {
-                    Text("git $action", fontSize = 11.sp, color = Lab.Cyan, fontFamily = FontFamily.Monospace)
+                    Text("git $action", fontSize = 12.sp, color = Lab.Cyan, fontFamily = FontFamily.Monospace)
                 }
             }
         }
@@ -375,7 +377,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
             Spacer(Modifier.height(8.dp))
             Text(
                 agentVm.gitOut.take(800),
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = Lab.Muted,
                 fontFamily = FontFamily.Monospace,
                 lineHeight = 13.sp,
@@ -396,7 +398,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
                         .background(Lab.Surface)
                         .clickable { command = q }
                         .padding(horizontal = 9.dp, vertical = 6.dp),
-                ) { Text(q, fontSize = 11.sp, color = Lab.Muted, fontFamily = FontFamily.Monospace) }
+                ) { Text(q, fontSize = 12.sp, color = Lab.Muted, fontFamily = FontFamily.Monospace) }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -409,13 +411,13 @@ private fun TerminalPane(agentVm: AgentViewModel) {
                     .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
                     .padding(horizontal = 11.dp, vertical = 11.dp),
             ) {
-                Text("$ ", fontSize = 11.sp, color = Lab.Green, fontFamily = FontFamily.Monospace)
+                Text("$ ", fontSize = 12.sp, color = Lab.Green, fontFamily = FontFamily.Monospace)
                 BasicTextField(
                     value = command,
                     onValueChange = { command = it },
                     modifier = Modifier.weight(1f),
                     textStyle = androidx.compose.ui.text.TextStyle(
-                        fontSize = 11.sp, color = Lab.Text, fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp, color = Lab.Text, fontFamily = FontFamily.Monospace,
                     ),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
@@ -454,7 +456,7 @@ private fun NotebookPane(agentVm: AgentViewModel) {
                         Text("Caderno vazio", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.Medium)
                         Text(
                             "Quando o agente resolve um bug, ele grava a solução aqui com memory_save.",
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = Lab.Muted,
                             lineHeight = 15.sp,
                         )
@@ -491,9 +493,72 @@ private fun NotebookPane(agentVm: AgentViewModel) {
                             }
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(l.body.take(420), fontSize = 11.sp, color = Lab.Muted, lineHeight = 15.sp)
+                        Text(l.body.take(420), fontSize = 12.sp, color = Lab.Muted, lineHeight = 15.sp)
                     }
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun LogsPane(agentVm: AgentViewModel) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Registro de execução", fontSize = 14.sp, color = Lab.Text, fontWeight = FontWeight.SemiBold)
+                Text("${agentVm.activityLog.size} eventos · cronologia local", fontSize = 11.sp, color = Lab.Muted)
+            }
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Lab.Surface)
+                    .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(9.dp))
+                    .clickable { agentVm.clearActivityLog() }
+                    .padding(horizontal = 11.dp, vertical = 7.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Delete, null, tint = Lab.Muted, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Limpar", fontSize = 11.sp, color = Lab.Muted)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (agentVm.activityLog.isEmpty()) {
+                item {
+                    GlassCard {
+                        Text("Sem eventos nesta sessão. Os logs de modelo, tokens, ferramentas, terminal, Git e falhas aparecerão aqui.", fontSize = 12.sp, color = Lab.Muted, lineHeight = 16.sp)
+                    }
+                }
+            }
+            itemsIndexed(agentVm.activityLog, key = { index, line -> "${index}_$line" }) { _, line ->
+                val error = line.contains("[ERROR]")
+                val warning = line.contains("[WARN]")
+                Text(
+                    line,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(if (error) Lab.Red.copy(alpha = 0.08f) else Lab.Surface.copy(alpha = 0.45f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = when {
+                        error -> Lab.Red
+                        warning -> Lab.Amber
+                        line.contains("[TOOL]") -> Lab.Cyan
+                        else -> Lab.Muted
+                    },
+                )
             }
         }
     }
@@ -517,18 +582,18 @@ private fun TokenMeter(agentVm: AgentViewModel) {
     ) {
         Text(
             "tokens nativos ${agentVm.localPromptTokens}",
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             color = Lab.Cyan,
             fontFamily = FontFamily.Monospace,
         )
-        Text("  ·  ", fontSize = 11.sp, color = Lab.Outline)
+        Text("  ·  ", fontSize = 12.sp, color = Lab.Outline)
         Text(
             "envio ${agentVm.promptTokens} · recebido ${agentVm.completionTokens}",
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             color = Lab.Muted,
             fontFamily = FontFamily.Monospace,
         )
         Spacer(Modifier.weight(1f))
-        Text(tps, fontSize = 11.sp, color = Lab.Green, fontFamily = FontFamily.Monospace)
+        Text(tps, fontSize = 12.sp, color = Lab.Green, fontFamily = FontFamily.Monospace)
     }
 }

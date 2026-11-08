@@ -23,4 +23,12 @@ class ResearchDownloaderTest {
         val markdown = "# Dataset\n\n- item A\n- item B"
         assertEquals(markdown, ResearchDownloader.toPlainText(markdown, "text/markdown"))
     }
+    @Test
+    fun githubResearchPrefersReadmeFromMainAndMasterBranches() {
+        val candidates = ResearchDownloader.githubReadmeCandidates("https://github.com/ggml-org/llama.cpp")
+        assertEquals(6, candidates.size)
+        assertEquals("https://raw.githubusercontent.com/ggml-org/llama.cpp/main/README.md", candidates.first())
+        assertTrue(candidates.last().endsWith("/master/README"))
+        assertTrue(ResearchDownloader.githubReadmeCandidates("https://example.com/owner/repo").isEmpty())
+    }
 }

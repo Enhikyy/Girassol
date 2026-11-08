@@ -5,6 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -12,15 +15,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 object Lab {
-    val Bg = Color(0xFF070805)
-    val BgElev = Color(0xFF0C0E09)
-    val Surface = Color(0xFF13160F)
-    val SurfaceHigh = Color(0xFF1C2015)
-    val Outline = Color(0xFF3A4028)
+    /** True black lowers OLED pixel emission; saved preference is applied by AppRoot. */
+    var pureBlack by mutableStateOf(false)
+
+    val Bg: Color get() = if (pureBlack) Color.Black else Color(0xFF070805)
+    val BgElev: Color get() = if (pureBlack) Color.Black else Color(0xFF0C0E09)
+    val Surface: Color get() = if (pureBlack) Color(0xFF050505) else Color(0xFF13160F)
+    val SurfaceHigh: Color get() = if (pureBlack) Color(0xFF0B0B0B) else Color(0xFF1C2015)
+    val Outline: Color get() = if (pureBlack) Color(0xFF242424) else Color(0xFF3A4028)
     val Text = Color(0xFFFBF6E7)
     val Muted = Color(0xFFB4B89F)
     val OnPrimary = Color(0xFF1A1405)
-    val Field = Color(0xFF0F110B)
+    val Field: Color get() = if (pureBlack) Color.Black else Color(0xFF0F110B)
     val Violet = Color(0xFFF2C14E)
     val VioletDeep = Color(0xFFC6922A)
     val Indigo = Color(0xFFE6A93C)
@@ -31,7 +37,7 @@ object Lab {
     val Red = Color(0xFFFF6B6B)
 }
 
-private val scheme = darkColorScheme(
+private fun colorScheme() = darkColorScheme(
     primary = Lab.Violet,
     onPrimary = Lab.OnPrimary,
     primaryContainer = Lab.VioletDeep,
@@ -57,16 +63,16 @@ private val typography = Typography(
     titleLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 17.sp),
     titleMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 15.sp),
     bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 15.sp, lineHeight = 22.sp),
-    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 13.sp, lineHeight = 19.sp),
-    bodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 12.sp, lineHeight = 16.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 14.sp, lineHeight = 21.sp),
+    bodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 14.sp, lineHeight = 21.sp),
     labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.2.sp),
-    labelMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp),
-    labelSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.6.sp),
+    labelMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.3.sp),
+    labelSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.4.sp),
 )
 
 @Composable
 fun LabForgeTheme(content: @Composable () -> Unit) {
     @Suppress("UNUSED_EXPRESSION")
     isSystemInDarkTheme()
-    MaterialTheme(colorScheme = scheme, typography = typography, content = content)
+    MaterialTheme(colorScheme = colorScheme(), typography = typography, content = content)
 }

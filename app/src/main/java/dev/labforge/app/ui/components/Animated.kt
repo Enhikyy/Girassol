@@ -65,8 +65,9 @@ fun AnimatedAuroraBackground(content: @Composable () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .then(if (haze != null) Modifier.hazeSource(haze) else Modifier)
-                .background(Brush.verticalGradient(listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06)))),
+                .background(Brush.verticalGradient(if (Lab.pureBlack) listOf(Color.Black, Color.Black, Color.Black) else listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06)))),
         ) {
+            if (Lab.pureBlack) return@Canvas
             val c4 = Offset(size.width * (0.20f + 0.60f * c), size.height * (0.62f + 0.10f * b))
             drawCircle(
                 brush = Brush.radialGradient(
@@ -159,7 +160,7 @@ fun ProgressRing(
                 color = Lab.Text,
             )
             if (caption != null) {
-                Text(caption, fontSize = 11.sp, color = Lab.Muted)
+                Text(caption, fontSize = 12.sp, color = Lab.Muted)
             }
         }
     }
@@ -206,7 +207,7 @@ fun DonutChart(
                 Text(centerLabel, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
             }
             if (centerCaption != null) {
-                Text(centerCaption, fontSize = 11.sp, color = Lab.Muted)
+                Text(centerCaption, fontSize = 12.sp, color = Lab.Muted)
             }
         }
     }
@@ -295,38 +296,50 @@ fun ShimmerBox(modifier: Modifier = Modifier) {
 
 /** Small rotating sunflower used while a job/research runs. */
 @Composable
-fun SunflowerSpinner(size: Dp = 44.dp, petals: Int = 12) {
+fun SunflowerSpinner(size: Dp = 44.dp, petals: Int = 24) {
     val t = rememberInfiniteTransition(label = "sun")
     val angle by t.animateFloat(
         0f, 360f,
         infiniteRepeatable(tween(9000, easing = LinearEasing)),
         label = "rot",
     )
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-        Canvas(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer { rotationZ = angle },
-        ) {
-            val c = Offset(this.size.width / 2, this.size.height / 2)
-            val petalLen = this.size.minDimension * 0.44f
-            val petalW = this.size.minDimension * 0.11f
-            repeat(petals) { i ->
-                rotate(degrees = i * 360f / petals, pivot = c) {
+    val bloom by t.animateFloat(
+        0.94f, 1.04f,
+        infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bloom",
+    )
+    Box(
+        Modifier.size(size).graphicsLayer {
+            rotationZ = angle
+            scaleX = bloom
+            scaleY = bloom
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val center = Offset(this.size.width / 2f, this.size.height / 2f)
+            val base = this.size.minDimension
+            val count = petals.coerceIn(6, 36)
+            val petalWidth = base * if (count >= 20) 0.075f else 0.11f
+            repeat(count) { index ->
+                val alternate = if (index % 2 == 0) 1f else 0.84f
+                val length = base * 0.43f * alternate
+                val color = if (index % 3 == 0) Lab.Amber else if (index % 3 == 1) Lab.Violet else Lab.Pink
+                rotate(degrees = index * 360f / count, pivot = center) {
                     drawRoundRect(
-                        brush = Brush.verticalGradient(listOf(Lab.Violet, Lab.Indigo)),
-                        topLeft = Offset(c.x - petalW / 2, c.y - petalLen),
-                        size = Size(petalW, petalLen * 0.55f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(petalW),
+                        brush = Brush.verticalGradient(listOf(color, color.copy(alpha = 0.68f))),
+                        topLeft = Offset(center.x - petalWidth / 2f, center.y - length),
+                        size = Size(petalWidth, length * 0.56f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(petalWidth),
                     )
                 }
             }
         }
         Box(
             Modifier
-                .size(size * 0.34f)
+                .size(size * 0.32f)
                 .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(Lab.SurfaceHigh, Color(0xFF1A1305)))),
+                .background(Brush.radialGradient(listOf(Color(0xFFFFE082), Color(0xFF7A4A18), Color(0xFF34200B)))),
         )
     }
 }
@@ -335,7 +348,7 @@ fun SunflowerSpinner(size: Dp = 44.dp, petals: Int = 12) {
 fun MiniMetric(label: String, value: String, accent: Color = Lab.Cyan) {
     Column(Modifier.padding(2.dp)) {
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = accent)
-        Text(label, fontSize = 11.sp, color = Lab.Muted)
+        Text(label, fontSize = 12.sp, color = Lab.Muted)
     }
 }
 

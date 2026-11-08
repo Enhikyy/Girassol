@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,9 +65,10 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var apiKey by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
     var temperature by remember { mutableStateOf(0.2f) }
-    var maxSteps by remember { mutableStateOf(15) }
+    var maxSteps by remember { mutableStateOf(0) }
     var braveKey by remember { mutableStateOf("") }
     var githubToken by remember { mutableStateOf("") }
+    var pureBlackOled by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var boosting by remember { mutableStateOf(false) }
@@ -80,6 +82,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
         maxSteps = vm.settings.maxSteps
         braveKey = vm.settings.braveApiKey
         githubToken = vm.settings.githubToken
+        pureBlackOled = vm.settings.pureBlackOled
     }
 
     Column(
@@ -90,7 +93,25 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     ) {
         Spacer(Modifier.height(18.dp))
         Text("Ajustes", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-        Text("modelo do agente, motor nativo e sandbox", fontSize = 11.sp, color = Lab.Muted)
+        Text("modelo do agente, motor nativo e sandbox", fontSize = 12.sp, color = Lab.Muted)
+
+        Spacer(Modifier.height(14.dp))
+        GlassCard(padding = 14) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Pure Black OLED", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
+                    Text("Fundo preto real para telas AMOLED; reduz pixels acesos em áreas escuras.", fontSize = 12.sp, color = Lab.Muted)
+                }
+                Switch(
+                    checked = pureBlackOled,
+                    onCheckedChange = { enabled ->
+                        pureBlackOled = enabled
+                        Lab.pureBlack = enabled
+                        vm.updateSettings { it.copy(pureBlackOled = enabled) }
+                    },
+                )
+            }
+        }
 
         Spacer(Modifier.height(20.dp))
         SectionHeader("Cérebro do agente", "API compatível com OpenAI")
@@ -104,12 +125,12 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Spacer(Modifier.height(6.dp))
             Text(
                 "URL final: ${LlmClient.describeNormalized(endpoint)}",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = Lab.Muted,
                 fontFamily = FontFamily.Monospace,
             )
             Spacer(Modifier.height(14.dp))
-            Text("Temperatura · %.2f".format(temperature), fontSize = 11.sp, color = Lab.Muted)
+            Text("Temperatura · %.2f".format(temperature), fontSize = 12.sp, color = Lab.Muted)
             Slider(
                 value = temperature,
                 onValueChange = { temperature = it },
@@ -125,7 +146,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Text("Pesquisa e GitHub", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
             Text(
                 "Brave Search entra no autoestudo como fonte extra. O token do GitHub libera busca de código, push, issues e PRs pelo agente. Ficam só neste aparelho.",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = Lab.Muted,
             )
             Spacer(Modifier.height(10.dp))
@@ -147,6 +168,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                         maxSteps = maxSteps,
                         braveApiKey = braveKey.trim(),
                         githubToken = githubToken.trim(),
+                        pureBlackOled = pureBlackOled,
                     )
                 }
                 testResult = "ajustes salvos"
@@ -162,13 +184,13 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         testResult ?: "Dica: use um endpoint local (Ollama/LM Studio) para privacidade total.",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = if (testResult?.contains("erro", true) == true) Lab.Red else Lab.Muted,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
                         if (testing) "testando…" else "testar",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = Lab.Cyan,
                         modifier = Modifier.padding(start = 8.dp),
                     )
@@ -196,7 +218,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             ) {
                 Text(
                     if (testing) "Testando conexão…" else "Testar conexão",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Cyan,
                     fontWeight = FontWeight.Medium,
                 )
@@ -229,7 +251,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Spacer(Modifier.width(10.dp))
                 Text(
                     vm.store.root.absolutePath,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Text,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f),
@@ -270,16 +292,16 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             ) {
                 Text(
                     if (boosting) "Liberando…" else "Forçar liberação de RAM",
-                    fontSize = 11.sp, color = Lab.Violet, fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp, color = Lab.Violet, fontWeight = FontWeight.SemiBold,
                 )
             }
             boostResult?.let { r ->
                 Spacer(Modifier.height(7.dp))
                 Text(
                     "+${r.freedMb} MB · ${r.appsTouched} apps tocados · ${r.cachesMb} MB de cache",
-                    fontSize = 11.sp, color = Lab.Green,
+                    fontSize = 12.sp, color = Lab.Green,
                 )
-                Text(r.note, fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp)
+                Text(r.note, fontSize = 12.sp, color = Lab.Muted, lineHeight = 12.sp)
             }
         }
 
@@ -290,7 +312,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Text(
                 "O agente consulta essas fontes em paralelo e guarda tudo no RAG local. " +
                     "Nenhuma conta, chave ou cadastro.",
-                fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
+                fontSize = 12.sp, color = Lab.Muted, lineHeight = 14.sp,
             )
             Spacer(Modifier.height(9.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -319,7 +341,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 "Camada de agente oficial (ToolRegistry, AgentExecutor, PersistentMemory, AgentStreamChunk) " +
                     "com a tool REST Retrofit e a pesquisa gratuita. O core nativo fica desativado para não " +
                     "colidir com o llama.cpp de treino.",
-                fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
+                fontSize = 12.sp, color = Lab.Muted, lineHeight = 14.sp,
             )
             Spacer(Modifier.height(9.dp))
             Box(
@@ -331,7 +353,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                     .clickable { onOpenLlamatik() }
                     .padding(11.dp),
                 contentAlignment = Alignment.Center,
-            ) { Text("Abrir Llamatik Runtime", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold) }
+            ) { Text("Abrir Llamatik Runtime", fontSize = 12.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold) }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -349,7 +371,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                             "Motor de quantização, treino, tokenização e adaptadores: llama.cpp (MIT). Git: Eclipse JGit. " +
                             "UI: Jetpack Compose. Jobs rodam em foreground service para sobreviver ao background. " +
                             "Nenhum dado sai do aparelho, exceto as chamadas ao endpoint do agente.",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         lineHeight = 15.sp,
                         color = Lab.Muted,
                     )

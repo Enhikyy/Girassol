@@ -74,6 +74,7 @@ object KeyedResearchApis {
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val topics = o.optJSONArray("topics")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+            val stars = o.optInt("stargazers_count")
             val lang = o.optString("language").takeIf { it.isNotBlank() && it != "null" }
             val desc = o.optString("description").takeIf { it != "null" }.orEmpty()
             val snippet = buildString {
@@ -88,7 +89,8 @@ object KeyedResearchApis {
                 snippet = snippet.take(1200),
                 source = "GitHub",
                 year = o.optString("pushed_at").take(4).toIntOrNull(),
-                score = 1.0 + (6 - i) * 0.1,
+                // GitHub repositories lead the autonomous implementation-research ranking.
+                score = 2.4 + minOf(stars / 100_000.0, 0.7) + (6 - i) * 0.08,
             )
         }
     }
