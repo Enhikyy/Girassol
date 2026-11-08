@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +68,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var maxSteps by remember { mutableStateOf(15) }
     var braveKey by remember { mutableStateOf("") }
     var githubToken by remember { mutableStateOf("") }
+    var pureBlackOled by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var boosting by remember { mutableStateOf(false) }
@@ -80,6 +82,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
         maxSteps = vm.settings.maxSteps
         braveKey = vm.settings.braveApiKey
         githubToken = vm.settings.githubToken
+        pureBlackOled = vm.settings.pureBlackOled
     }
 
     Column(
@@ -91,6 +94,24 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
         Spacer(Modifier.height(18.dp))
         Text("Ajustes", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
         Text("modelo do agente, motor nativo e sandbox", fontSize = 12.sp, color = Lab.Muted)
+
+        Spacer(Modifier.height(14.dp))
+        GlassCard(padding = 14) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Pure Black OLED", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
+                    Text("Fundo preto real para telas AMOLED; reduz pixels acesos em áreas escuras.", fontSize = 12.sp, color = Lab.Muted)
+                }
+                Switch(
+                    checked = pureBlackOled,
+                    onCheckedChange = { enabled ->
+                        pureBlackOled = enabled
+                        Lab.pureBlack = enabled
+                        vm.updateSettings { it.copy(pureBlackOled = enabled) }
+                    },
+                )
+            }
+        }
 
         Spacer(Modifier.height(20.dp))
         SectionHeader("Cérebro do agente", "API compatível com OpenAI")
@@ -147,6 +168,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                         maxSteps = maxSteps,
                         braveApiKey = braveKey.trim(),
                         githubToken = githubToken.trim(),
+                        pureBlackOled = pureBlackOled,
                     )
                 }
                 testResult = "ajustes salvos"
