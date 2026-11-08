@@ -11,7 +11,10 @@ class ResearchReferenceCatalogTest {
         val matches = ResearchReferenceCatalog.matching("Kimi Delta Attention KDA")
         val names = matches.map { it.name.lowercase() }
         assertTrue(names.any { "kimi linear" in it || "kda" in it })
-        assertTrue(matches.all { it.license == "MIT" || it.license == "Apache-2.0" })
+        val ingestable = matches.filter { it.ingestReadme }
+        assertTrue(ingestable.isNotEmpty())
+        assertTrue(ingestable.all { it.license == "MIT" || it.license == "Apache-2.0" })
+        assertTrue(matches.any { !it.ingestReadme })
     }
 
     @Test
