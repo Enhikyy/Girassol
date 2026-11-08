@@ -3,7 +3,6 @@ package dev.labforge.app.ui.components
 import android.content.Context
 import android.view.Choreographer
 import android.view.SurfaceView
-import com.google.android.filament.Skybox
 import com.google.android.filament.utils.ModelViewer
 import com.google.android.filament.utils.Utils
 import kotlinx.coroutines.CancellationException
@@ -108,9 +107,6 @@ class FilamentModelSurfaceView(context: Context) : SurfaceView(context) {
                 }
                 if (model.asset == null) error("Filament não conseguiu interpretar o arquivo ou encontrar seus recursos.")
                 model.transformToUnitCube()
-                model.scene.skybox = model.engine.createSkybox(
-                    Skybox.Builder().color(0.035f, 0.04f, 0.055f, 1f).build(model.engine)
-                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
