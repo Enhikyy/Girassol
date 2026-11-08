@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -107,13 +108,14 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
             Spacer(Modifier.height(8.dp))
             TokenMeter(agentVm)
             Spacer(Modifier.height(8.dp))
-            Segmented(listOf("Chat", "Terminal", "Caderno"), tab, Modifier.fillMaxWidth()) { tab = it }
+            Segmented(listOf("Chat", "Terminal", "Caderno", "Logs"), tab, Modifier.fillMaxWidth()) { tab = it }
             Spacer(Modifier.height(4.dp))
         }
         when (tab) {
             0 -> ChatPane(agentVm, vm, onOpenCodex)
             1 -> TerminalPane(agentVm)
-            else -> NotebookPane(agentVm)
+            2 -> NotebookPane(agentVm)
+            else -> LogsPane(agentVm)
         }
     }
 }
@@ -494,6 +496,69 @@ private fun NotebookPane(agentVm: AgentViewModel) {
                         Text(l.body.take(420), fontSize = 12.sp, color = Lab.Muted, lineHeight = 15.sp)
                     }
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun LogsPane(agentVm: AgentViewModel) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Registro de execução", fontSize = 14.sp, color = Lab.Text, fontWeight = FontWeight.SemiBold)
+                Text("${agentVm.activityLog.size} eventos · cronologia local", fontSize = 11.sp, color = Lab.Muted)
+            }
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Lab.Surface)
+                    .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(9.dp))
+                    .clickable { agentVm.clearActivityLog() }
+                    .padding(horizontal = 11.dp, vertical = 7.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Delete, null, tint = Lab.Muted, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Limpar", fontSize = 11.sp, color = Lab.Muted)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (agentVm.activityLog.isEmpty()) {
+                item {
+                    GlassCard {
+                        Text("Sem eventos nesta sessão. Os logs de modelo, tokens, ferramentas, terminal, Git e falhas aparecerão aqui.", fontSize = 12.sp, color = Lab.Muted, lineHeight = 16.sp)
+                    }
+                }
+            }
+            itemsIndexed(agentVm.activityLog, key = { index, line -> "${index}_$line" }) { _, line ->
+                val error = line.contains("[ERROR]")
+                val warning = line.contains("[WARN]")
+                Text(
+                    line,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(if (error) Lab.Red.copy(alpha = 0.08f) else Lab.Surface.copy(alpha = 0.45f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = when {
+                        error -> Lab.Red
+                        warning -> Lab.Amber
+                        line.contains("[TOOL]") -> Lab.Cyan
+                        else -> Lab.Muted
+                    },
+                )
             }
         }
     }
