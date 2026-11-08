@@ -6,6 +6,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+data class AgentTurn(val role: String, val content: String)
+
 sealed interface AgentEvent {
     data class Step(val index: Int, val max: Int) : AgentEvent
     data class Thought(val text: String) : AgentEvent
@@ -27,10 +29,11 @@ sealed interface AgentEvent {
 class ReActAgent(
     private val workspace: File,
     private val lessons: LessonStore,
-    private val llm: LlmClient,
+    private val llm: AgentLlm,
     private val maxSteps: Int = 15,
     private val systemOverride: String? = null,
     private val settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
+    private val history: List<AgentTurn> = emptyList(),
     private val onEvent: (AgentEvent) -> Unit,
 ) {
     private val tools = defaultTools(workspace, lessons, settings)
@@ -49,6 +52,14 @@ class ReActAgent(
                 put("role", "system")
                 put("content", systemOverride ?: systemPrompt(notebook))
             })
+            history.takeLast(12).forEach { turn ->
+                if (turn.role == "user" || turn.role == "assistant") {
+                    put(JSONObject().apply {
+                        put("role", turn.role)
+                        put("content", turn.content)
+                    })
+                }
+            }
             put(JSONObject().apply {
                 put("role", "user")
                 put("content", task)
