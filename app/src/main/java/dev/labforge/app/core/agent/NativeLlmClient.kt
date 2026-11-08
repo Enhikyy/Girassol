@@ -1,6 +1,6 @@
 package dev.labforge.app.core.agent
 
-import android.util.Log
+import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.native.NativeChatCallback
 import kotlinx.coroutines.Dispatchers
@@ -79,7 +79,7 @@ class NativeLlmClient(
                 }
 
                 override fun onLog(line: String) {
-                    Log.i("GirassolNativeChat", line)
+                    AppLog.info("NATIVE-AGENT", line)
                     onNativeLog?.invoke(line)
                 }
 

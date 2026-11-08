@@ -3,6 +3,7 @@ package dev.labforge.app.core.job
 import android.content.Context
 import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.native.NativeCallback
+import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.service.GirassolService
 import dev.labforge.app.service.MemoryBooster
 import dev.labforge.app.service.MemoryGuard
@@ -98,6 +99,7 @@ object JobEngine {
         }
         val timestamp = synchronized(logClock) { logClock.format(Date()) }
         val record = "[$timestamp][$level][${Thread.currentThread().name}] $line\n"
+        AppLog.write(level, "JOB", line)
         synchronized(logBuffer) {
             logBuffer.append(record)
             if (logBuffer.length > MAX_LOG_CHARS) {
@@ -152,6 +154,8 @@ object JobEngine {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        AppLog.initialize(context)
+        AppLog.info("JOB", "JobEngine inicializado · cores=" + Runtime.getRuntime().availableProcessors())
     }
 
     // ------------------------------------------------------------------ quantize

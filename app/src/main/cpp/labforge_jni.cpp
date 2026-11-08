@@ -60,13 +60,111 @@ static int  g_pipe_wr = -1;
 static std::atomic<bool> g_capture_run{false};
 static std::thread g_reader;
 
-static std::string jstr(JNIEnv * env, jstring s) {
-    if (!s) return {};
-    const char * c = env->GetStringUTFChars(s, nullptr);
-    std::string out = c ? c : "";
-    if (c) env->ReleaseStringUTFChars(s, c);
+static void append_utf8(std::string & out, uint32_t cp) {
+    if (cp <= 0x7f) {
+        out.push_back((char) cp);
+    } else if (cp <= 0x7ff) {
+        out.push_back((char) (0xc0 | (cp >> 6)));
+        out.push_back((char) (0x80 | (cp & 0x3f)));
+    } else if (cp <= 0xffff) {
+        out.push_back((char) (0xe0 | (cp >> 12)));
+        out.push_back((char) (0x80 | ((cp >> 6) & 0x3f)));
+        out.push_back((char) (0x80 | (cp & 0x3f)));
+    } else {
+        out.push_back((char) (0xf0 | (cp >> 18)));
+        out.push_back((char) (0x80 | ((cp >> 12) & 0x3f)));
+        out.push_back((char) (0x80 | ((cp >> 6) & 0x3f)));
+        out.push_back((char) (0x80 | (cp & 0x3f)));
+    }
+}
+
+static jstring utf8_to_jstring(JNIEnv * env, const std::string & value) {
+    std::vector<jchar> utf16;
+    utf16.reserve(value.size());
+    size_t i = 0;
+    while (i < value.size()) {
+        const unsigned char first = (unsigned char) value[i];
+        uint32_t cp = 0xfffd;
+        size_t width = 1;
+        if (first < 0x80) {
+            cp = first;
+        } else if (first >= 0xc2 && first <= 0xdf) {
+            width = 2; cp = first & 0x1f;
+        } else if (first >= 0xe0 && first <= 0xef) {
+            width = 3; cp = first & 0x0f;
+        } else if (first >= 0xf0 && first <= 0xf4) {
+            width = 4; cp = first & 0x07;
+        }
+        bool valid = i + width <= value.size();
+        for (size_t j = 1; valid && j < width; ++j) {
+            const unsigned char next = (unsigned char) value[i + j];
+            if ((next & 0xc0) != 0x80) { valid = false; break; }
+            cp = (cp << 6) | (next & 0x3f);
+        }
+        if (!valid || (width == 3 && cp < 0x800) || (width == 4 && cp < 0x10000) ||
+            cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+            utf16.push_back((jchar) 0xfffd);
+            ++i;
+            continue;
+        }
+        i += width;
+        if (cp <= 0xffff) {
+            utf16.push_back((jchar) cp);
+        } else {
+            cp -= 0x10000;
+            utf16.push_back((jchar) (0xd800 + (cp >> 10)));
+            utf16.push_back((jchar) (0xdc00 + (cp & 0x3ff)));
+        }
+    }
+    static const jchar empty = 0;
+    return env->NewString(utf16.empty() ? &empty : utf16.data(), (jsize) utf16.size());
+}
+
+static std::string jstr(JNIEnv * env, jstring value) {
+    if (!value) return {};
+    const jsize length = env->GetStringLength(value);
+    const jchar * chars = env->GetStringChars(value, nullptr);
+    if (!chars) return {};
+    std::string out;
+    out.reserve((size_t) length * 3);
+    for (jsize i = 0; i < length; ++i) {
+        uint32_t cp = chars[i];
+        if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < length &&
+            chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {
+            cp = 0x10000 + (((cp - 0xd800) << 10) | (chars[++i] - 0xdc00));
+        } else if (cp >= 0xd800 && cp <= 0xdfff) {
+            cp = 0xfffd;
+        }
+        append_utf8(out, cp);
+    }
+    env->ReleaseStringChars(value, chars);
     return out;
 }
+
+static size_t complete_utf8_prefix(const std::string & value) {
+    size_t pos = 0;
+    size_t complete = 0;
+    while (pos < value.size()) {
+        const unsigned char c = (unsigned char) value[pos];
+        size_t width = 1;
+        if (c >= 0xc2 && c <= 0xdf) width = 2;
+        else if (c >= 0xe0 && c <= 0xef) width = 3;
+        else if (c >= 0xf0 && c <= 0xf4) width = 4;
+        if (pos + width > value.size()) break;
+        bool valid = true;
+        for (size_t j = 1; j < width; ++j) {
+            if (((unsigned char) value[pos + j] & 0xc0) != 0x80) { valid = false; break; }
+        }
+        if (!valid) width = 1;
+        pos += width;
+        complete = pos;
+    }
+    return complete;
+}
+
+static std::string g_token_pending;
+static std::mutex g_token_pending_mutex;
+
 
 static std::string json_escape(const std::string & in) {
     std::string out;
@@ -88,14 +186,13 @@ static std::string json_escape(const std::string & in) {
 
 static void emit_log(const std::string & line) {
     if (!g_cb_obj || !g_cb_log || line.empty() || !g_vm) return;
-    // JNIEnv is thread-local: the pipe reader must get its own environment.
     JNIEnv * env = nullptr;
     bool attached = false;
     if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
         if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
         attached = true;
     }
-    jstring js = env->NewStringUTF(line.c_str());
+    jstring js = utf8_to_jstring(env, line);
     if (js) {
         env->CallVoidMethod(g_cb_obj, g_cb_log, js);
         if (env->ExceptionCheck()) env->ExceptionClear();
@@ -104,15 +201,24 @@ static void emit_log(const std::string & line) {
     if (attached) g_vm->DetachCurrentThread();
 }
 
-static void emit_token(const std::string & piece) {
-    if (!g_cb_obj || !g_cb_token || piece.empty() || !g_vm) return;
+static void emit_token(const std::string & piece, bool final = false) {
+    if (!g_cb_obj || !g_cb_token || !g_vm) return;
+    std::string safe;
+    {
+        std::lock_guard<std::mutex> guard(g_token_pending_mutex);
+        g_token_pending += piece;
+        const size_t count = final ? g_token_pending.size() : complete_utf8_prefix(g_token_pending);
+        if (count == 0) return;
+        safe.assign(g_token_pending.data(), count);
+        g_token_pending.erase(0, count);
+    }
     JNIEnv * env = nullptr;
     bool attached = false;
     if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
         if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
         attached = true;
     }
-    jstring js = env->NewStringUTF(piece.c_str());
+    jstring js = utf8_to_jstring(env, safe);
     if (js) {
         env->CallVoidMethod(g_cb_obj, g_cb_token, js);
         if (env->ExceptionCheck()) env->ExceptionClear();
@@ -974,6 +1080,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
 
     capture_start(env, cb);
     g_chat_abort = false;
+    { std::lock_guard<std::mutex> guard(g_token_pending_mutex); g_token_pending.clear(); }
 
     std::string err;
     int prompt_tokens = 0;
@@ -1104,6 +1211,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                                     }
                                 }
                             }
+                            emit_token("", true);
                             if (g_chat_abort.load()) err = "geração interrompida pelo utilizador";
                             llama_sampler_free(sampler);
                         }
@@ -1116,6 +1224,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
         llama_backend_free();
     }
 
+    emit_token("", true);
     fflush(stdout);
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - started).count();
@@ -1127,7 +1236,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
         ",\"completion_tokens\":" + std::to_string(completion_tokens) +
         ",\"elapsed_ms\":" + std::to_string(elapsed) +
         ",\"error\":\"" + json_escape(err) + "\"}";
-    return env->NewStringUTF(json.c_str());
+    return utf8_to_jstring(env, json);
 }
 
 extern "C" JNIEXPORT void JNICALL

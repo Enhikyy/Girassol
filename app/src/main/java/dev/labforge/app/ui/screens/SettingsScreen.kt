@@ -65,7 +65,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var apiKey by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
     var temperature by remember { mutableStateOf(0.2f) }
-    var maxSteps by remember { mutableStateOf(15) }
+    var maxSteps by remember { mutableStateOf(0) }
     var braveKey by remember { mutableStateOf("") }
     var githubToken by remember { mutableStateOf("") }
     var pureBlackOled by remember { mutableStateOf(false) }

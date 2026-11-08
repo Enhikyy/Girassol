@@ -20,6 +20,7 @@ import dev.labforge.app.core.agent.NativeLlmClient
 import dev.labforge.app.core.agent.ReActAgent
 import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.native.LlamaBridge
+import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
 import dev.labforge.app.core.term.ShellSession
@@ -75,6 +76,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val logFileLock = Any()
     private val activityLogFile = File(store.agentDir, "agent-activity.log")
     private fun log(level: String, message: String) {
+        AppLog.write(level, "AGENT", message)
         val line = "[${synchronized(logClock) { logClock.format(Date()) }}][${level.uppercase(Locale.ROOT)}] $message"
         activityLog = (activityLog + line).takeLast(600)
         viewModelScope.launch(Dispatchers.IO) {
@@ -128,6 +130,8 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private var bufStamp = 0L
 
     init {
+        AppLog.initialize(app)
+        AppLog.info("AGENT", "AgentViewModel inicializado")
         viewModelScope.launch {
             lessonList = withContext(Dispatchers.IO) { lessons.all() }
         }
