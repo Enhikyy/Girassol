@@ -37,7 +37,7 @@ class NativeLlmClient(
                 append("\n\nFERRAMENTAS (nome(args): descrição):\n")
                 append(toolCatalog.take((systemBudget - systemBase.length - 48).coerceAtLeast(0)))
                 append("\nUse ferramenta respondendo com JSON: ")
-                append("""{"tool_calls":[{"name":"nome_exato","arguments":{}}],"content":"""} )
+                append("{\"tool_calls\":[{\"name\":\"nome_exato\",\"arguments\":{}}],\"content\":\"\"}")
                 append(". Arguments deve ser objeto JSON; aguarde resultados antes de continuar.")
             }
         }
