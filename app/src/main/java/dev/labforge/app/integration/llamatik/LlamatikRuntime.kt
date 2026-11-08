@@ -18,9 +18,11 @@ import com.llamatik.sdk.framework.MemoryStorage
 import com.llamatik.sdk.framework.PersistentMemory
 import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.agent.LlmClient
+import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.settings.SettingsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.parseToJsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -131,6 +134,10 @@ object LlamatikRuntime {
             registry.registerBuiltIns()
             registry.register(PublicApiToolAdapter())
             registry.register(ResearchAgentTool(appContext))
+            val githubWorkspace = ModelStore(appContext).workspace()
+            dev.labforge.app.core.agent.gitHubTools(githubWorkspace, "").forEach { tool ->
+                registry.register(GitHubAgentToolAdapter(appContext, tool.name))
+            }
             tools = registry
 
             val permissions = ToolPermissionRepository(settings)
@@ -296,6 +303,41 @@ object LlamatikRuntime {
         if (!initialized) return "runtime not initialized"
         persistMemory()
         return "memória consolidada: ${memory.size()} mensagens"
+    }
+
+
+    /** Adapts Girassol GitHub tools to the Llamatik SDK contract. */
+    private class GitHubAgentToolAdapter(
+        context: Context,
+        private val toolName: String,
+    ) : AgentTool {
+        private val app = context.applicationContext
+        private val workspace = ModelStore(app).workspace()
+        private val metadata = dev.labforge.app.core.agent.gitHubTools(workspace, "")
+            .first { it.name == toolName }
+
+        override val id: String = toolName
+        override val displayName: String = toolName
+        override val description: String = metadata.description
+        override val schema: JsonObject =
+            Json.parseToJsonElement(metadata.parameters().toString()) as JsonObject
+
+        override fun isSupported() = true
+
+        override suspend fun execute(input: JsonObject): AgentToolResult {
+            return try {
+                val currentSettings = SettingsRepository(app).settings.first()
+                val delegate = dev.labforge.app.core.agent.gitHubTools(workspace, currentSettings.githubToken)
+                    .first { it.name == toolName }
+                val result = delegate.execute(JSONObject(input.toString()))
+                if (result.ok) AgentToolResult.Success(result.output)
+                else AgentToolResult.Failure(result.output)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                AgentToolResult.Failure(error.message ?: "GitHub tool failed")
+            }
+        }
     }
 
     /** PublicApiTool is in integration.api; kept as adapter to avoid duplicate ids. */
