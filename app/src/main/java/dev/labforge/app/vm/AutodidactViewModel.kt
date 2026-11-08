@@ -167,7 +167,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var datasetStats by mutableStateOf<DatasetStats?>(null)
         private set
-    var autoTrain by mutableStateOf(false)
+    var autoTrain by mutableStateOf(true)
     var autopilotMode by mutableStateOf(false)
     var autopilotIntervalMinutes by mutableStateOf(30)
     var autopilotRunning by mutableStateOf(false)
@@ -181,6 +181,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
     private var job: Job? = null
     private var autopilotJob: Job? = null
+    private var lastTrainingFinishedAt: Long = 0L
 
     init {
         viewModelScope.launch {
@@ -203,6 +204,24 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 val cfg = settingsRepo.settings.first()
                 cfg.apiKey.isNotBlank() || !cfg.endpoint.contains("openai.com")
             }.getOrDefault(false)
+        }
+
+        viewModelScope.launch {
+            JobEngine.state.collect { jobState ->
+                if (jobState.kind == "lora" && jobState.done && jobState.finishedAt > lastTrainingFinishedAt) {
+                    lastTrainingFinishedAt = jobState.finishedAt
+                    learningSnapshot = withContext(Dispatchers.IO) {
+                        learning.record(
+                            if (jobState.success) "success" else "failure",
+                            theme.ifBlank { jobState.title },
+                            "LoRA: ${jobState.summary}",
+                            if (jobState.success) 0.92f else 0.98f,
+                        )
+                        learning.dream()
+                    }
+                    append(if (jobState.success) "Treino LoRA concluído e registrado na memória." else "Falha LoRA armazenada para revisão no próximo ciclo.")
+                }
+            }
         }
     }
 
@@ -399,15 +418,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 if (autoTrain) {
                     val model = AppSelection.modelPath?.let(::File)?.takeIf { it.isFile }
                     val ds = proj.txt
-                    val modelAllowed = model?.let { m ->
-                        val meta = runCatching { store.readModel(m).meta }.getOrNull()
-                        val label = meta?.quantLabel ?: ""
-                        label.contains("F32") || label.contains("F16") || label.contains("BF16") ||
-                            meta?.quantMix?.keys?.all { it.label in setOf("F32", "F16", "BF16") } == true
-                    } ?: false
-                    if (model != null && ds != null && !modelAllowed) {
-                        append("Auto-treino ignorado: o modelo precisa estar em F32/F16 para o LoRA nativo.")
-                    } else if (model != null && ds != null) {
+                    if (model != null && ds != null) {
                         val out = File(store.outputsDir, "${model.nameWithoutExtension}-auto-lora-r${rec.rank}.gguf")
                         append("Auto-treino: iniciando LoRA em ${model.name}")
                         JobEngine.startLora(
