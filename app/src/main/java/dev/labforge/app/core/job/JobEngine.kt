@@ -65,9 +65,7 @@ object JobEngine {
     private var lastFlushedRevision = -1L
     private var current: Job? = null
 
-    private companion object {
-        const val MAX_LOG_CHARS = 300_000
-    }
+    private const val MAX_LOG_CHARS = 300_000
 
     /** Guards the check-then-set in [begin] so two callers cannot both start a job. */
     private val startLock = Any()
