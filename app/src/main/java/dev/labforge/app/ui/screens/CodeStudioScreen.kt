@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.labforge.app.core.geometry.Mesh
 import dev.labforge.app.core.geometry.MeshIO
+import dev.labforge.app.core.studio.AndroidProjectScaffold
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -121,6 +122,12 @@ fun CodeStudioScreen() {
         }
         if(mode==0) {
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick={
+                    scope.launch { runCatching {
+                        withContext(Dispatchers.IO){AndroidProjectScaffold.create(File(root,"NovoProjetoAndroid"))}
+                        status="Projeto Android criado em NovoProjetoAndroid; exporte o ZIP para abrir no Android Studio."
+                    }.onFailure{status="Falha ao criar projeto: ${it.message}"} }
+                }){Icon(Icons.Rounded.AddBox,null);Spacer(Modifier.width(5.dp));Text("Novo Android")}
                 OutlinedButton(onClick={importCode.launch(arrayOf("text/*","application/json","application/xml"))}){Icon(Icons.Rounded.FolderOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir")}
                 OutlinedButton(onClick={exportCode.launch(fileName)}){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(5.dp));Text("Exportar")}
                 OutlinedButton(onClick={exportProject.launch("GirassolWorkspace.zip")}){Icon(Icons.Rounded.Archive,null);Spacer(Modifier.width(5.dp));Text("Projeto ZIP")}
