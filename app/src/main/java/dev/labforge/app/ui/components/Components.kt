@@ -159,7 +159,7 @@ fun Pill(text: String, color: Color = Lab.Violet, filled: Boolean = false) {
         Text(
             text,
             color = color,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -251,7 +251,7 @@ fun StatTile(label: String, value: String, accent: Color = Lab.Violet, modifier:
     ) {
         Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
         Spacer(Modifier.height(3.dp))
-        Text(label, fontSize = 11.sp, color = Lab.Muted, maxLines = 1)
+        Text(label, fontSize = 12.sp, color = Lab.Muted, maxLines = 1)
     }
 }
 
@@ -352,7 +352,7 @@ fun Console(
                 .verticalScroll(scroll)
                 .padding(12.dp),
             fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             lineHeight = 16.sp,
             color = Color(0xFFB9E7C9),
         )
@@ -473,10 +473,10 @@ fun KeyValueRow(key: String, value: String, accent: Color = Lab.Text) {
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Text(key, fontSize = 11.5.sp, color = Lab.Muted, modifier = Modifier.weight(0.42f))
+        Text(key, fontSize = 12.5.sp, color = Lab.Muted, modifier = Modifier.weight(0.42f))
         Text(
             value,
-            fontSize = 11.5.sp,
+            fontSize = 12.5.sp,
             color = accent,
             modifier = Modifier.weight(0.58f),
             fontFamily = FontFamily.Monospace,
