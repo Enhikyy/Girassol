@@ -7,14 +7,21 @@ import org.junit.Test
 
 class MemoryGuardTest {
     @Test
-    fun fourGbPhoneRejectsLargeLoraBeforeNativeAllocation() {
+    fun fourGbPhoneCanUseMmapBaseWhenAdapterWorkingSetFits() {
         val budget = MemoryGuard.evaluate(
             totalGb = 4.0, availableGb = 1.4, modelBytes = 1_500_000_000L,
             mode = "lora", nCtx = 256, rank = 4,
         )
-        assertFalse(budget.ok)
-        assertTrue(budget.message.contains("bloqueado"))
+        assertTrue(budget.ok)
         assertTrue(budget.requiredGb > budget.reserveGb)
+    }
+
+    @Test
+    fun mmapLoraBudgetDoesNotTreatEntireBaseModelAsResidentHeap() {
+        val small = MemoryGuard.evaluate(4.0, 2.0, 200_000_000L, "lora", 256, 4)
+        val large = MemoryGuard.evaluate(4.0, 2.0, 8_000_000_000L, "lora", 256, 4)
+        assertTrue(large.requiredGb - small.requiredGb < 0.20)
+        assertTrue(large.ok)
     }
 
     @Test
