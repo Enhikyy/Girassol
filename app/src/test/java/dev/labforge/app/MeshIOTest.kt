@@ -39,21 +39,23 @@ class MeshIOTest {
     }
 
     @Test fun rejectsNonFiniteCoordinates() {
-        assertTrue(runCatching { MeshIO.readObj("v NaN 0 0\\nv 1 0 0\\nv 0 1 0\\nf 1 2 3") }.isFailure)
+        val source = listOf("v NaN 0 0", "v 1 0 0", "v 0 1 0", "f 1 2 3").joinToString(System.lineSeparator())
+        assertTrue(runCatching { MeshIO.readObj(source) }.isFailure)
     }
 
     @Test fun rejectsZeroObjIndex() {
-        assertTrue(runCatching { MeshIO.readObj("v 0 0 0\\nv 1 0 0\\nv 0 1 0\\nf 0 2 3") }.isFailure)
+        val source = listOf("v 0 0 0", "v 1 0 0", "v 0 1 0", "f 0 2 3").joinToString(System.lineSeparator())
+        assertTrue(runCatching { MeshIO.readObj(source) }.isFailure)
     }
 
     @Test fun rejectsOversizedFaceBeforeTriangulating() {
-        val vertices = (1..260).joinToString("\\n") { "v ${it} 0 0" }
+        val vertices = (1..260).joinToString(System.lineSeparator()) { "v $it 0 0" }
         val face = "f " + (1..260).joinToString(" ")
-        assertTrue(runCatching { MeshIO.readObj(vertices + "\\n" + face) }.isFailure)
+        assertTrue(runCatching { MeshIO.readObj(vertices + System.lineSeparator() + face) }.isFailure)
     }
 
     @Test fun negativeObjIndicesResolveFromEnd() {
-        val mesh=MeshIO.readObj("v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1")
+        val mesh=MeshIO.readObj(listOf("v 0 0 0", "v 1 0 0", "v 0 1 0", "f -3 -2 -1").joinToString(System.lineSeparator()))
         assertEquals(1,mesh.triangles.size)
         assertEquals(2,mesh.triangles.single().c)
     }
