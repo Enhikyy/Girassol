@@ -420,7 +420,19 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 if (autoTrain) {
                     val model = AppSelection.modelPath?.let(::File)?.takeIf { it.isFile }
                     val ds = proj.txt
-                    if (model != null && ds != null) {
+                    val modelAllowed = model?.let { m ->
+                        val meta = runCatching { store.readModel(m).meta }.getOrNull()
+                        val label = meta?.quantLabel ?: ""
+                        label.contains("F32") || label.contains("F16") || label.contains("BF16") ||
+                            meta?.quantMix?.keys?.all { it.label in setOf("F32", "F16", "BF16") } == true
+                    } ?: false
+                    if (model != null && ds != null && !modelAllowed) {
+                        append("Auto-treino adiado: o motor LoRA nativo exige GGUF F32/F16/BF16; selecione um modelo compatível.")
+                        learningSnapshot = withContext(Dispatchers.IO) {
+                            learning.record("failure", themeValue, "Auto-treino não iniciado: modelo base quantizado incompatível com LoRA nativo.", 0.9f)
+                            learning.dream()
+                        }
+                    } else if (model != null && ds != null) {
                         val out = File(store.outputsDir, "${model.nameWithoutExtension}-auto-lora-r${rec.rank}.gguf")
                         append("Auto-treino: iniciando LoRA em ${model.name}")
                         JobEngine.startLora(
