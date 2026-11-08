@@ -206,7 +206,10 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     val outputTokens = when (contextSize) { 512 -> 128; 768 -> 192; else -> 384 }
                     val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
-                    backend = NativeLlmClient(localModel.absolutePath, contextSize, threads, outputTokens, cfg.temperature.toFloat())
+                    backend = NativeLlmClient(
+                        localModel.absolutePath, contextSize, threads, outputTokens, cfg.temperature.toFloat(),
+                        onNativeLog = { line -> log("NATIVE", line) },
+                    )
                     log("INFO", "Backend nativo llama.cpp: ${localModel.name}, ctx=$contextSize, threads=$threads, RAM livre=${memory.availMem / (1024 * 1024)} MiB")
                 } else {
                     backend = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
