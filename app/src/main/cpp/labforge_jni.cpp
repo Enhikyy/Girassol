@@ -1046,11 +1046,12 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                     n = llama_tokenize(vocab, formatted.c_str(), (int32_t) formatted.size(),
                                        tokens.data(), (int32_t) tokens.size(), false, true);
                 }
-                const int reserved = std::max(16, (int) max_tokens);
+                const int available_output = ctx_len - n - 1;
+                const int generation_limit = std::min((int) max_tokens, available_output);
                 if (n <= 0) {
                     err = "tokenização do prompt falhou";
-                } else if (n + reserved >= ctx_len) {
-                    err = "o histórico excede a janela de contexto; reduza o histórico ou use um contexto maior";
+                } else if (generation_limit < 1) {
+                    err = "o prompt preencheu toda a janela de contexto; reduza o histórico";
                 } else {
                     tokens.resize((size_t) n);
                     prompt_tokens = n;
@@ -1074,7 +1075,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                                 llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
                             }
 
-                            for (int i = 0; i < max_tokens && !g_chat_abort.load(); ++i) {
+                            for (int i = 0; i < generation_limit && !g_chat_abort.load(); ++i) {
                                 const llama_token token = llama_sampler_sample(sampler, ctx, -1);
                                 if (llama_vocab_is_eog(vocab, token)) break;
 
@@ -1094,7 +1095,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                                     emit_token(piece);
                                     completion_tokens++;
                                 }
-                                if (i + 1 < max_tokens && !g_chat_abort.load()) {
+                                if (i + 1 < generation_limit && !g_chat_abort.load()) {
                                     llama_batch next = llama_batch_get_one(const_cast<llama_token *>(&token), 1);
                                     const int next_decode = llama_decode(ctx, next);
                                     if (next_decode != 0) {
