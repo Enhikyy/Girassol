@@ -26,20 +26,21 @@ class NativeLlmClient(
         onDelta: ((text: String, reasoning: Boolean) -> Unit)?,
     ): LlmReply = withContext(Dispatchers.IO) {
         val system = messages.optJSONObject(0)?.optString("content").orEmpty()
+        val toolCatalog = tools?.let(::compactToolCatalog).orEmpty()
+        val promptCharBudget = ((nCtx - maxTokens - 96).coerceAtLeast(96) * 2.5).toInt()
+        val systemBudget = (promptCharBudget * 0.58).toInt().coerceAtLeast(160)
+        val userBudget = (promptCharBudget - systemBudget).coerceAtLeast(128)
+        val systemBase = system.take((systemBudget * 0.62).toInt())
         val systemWithTools = buildString {
-            append(system)
-            if (tools != null && tools.length() > 0) {
-                append("\n\nFERRAMENTAS DISPONÍVEIS (execute somente pelo protocolo abaixo):\n")
-                append(tools.toString())
-                append(
-                    "\n\nQuando precisar de ferramentas, responda com um único objeto JSON, sem markdown: " +
-                    """{"tool_calls":[{"name":"nome_exato","arguments":{}}],"content":"""} +
-                    ". O campo arguments deve ser um objeto JSON. " +
-                    "Não invente resultados: espere a saída de cada ferramenta antes de continuar. " +
-                    "Quando não precisar de ferramenta, responda em texto normal."
-                )
+            append(systemBase)
+            if (toolCatalog.isNotBlank()) {
+                append("\n\nFERRAMENTAS (nome(args): descrição):\n")
+                append(toolCatalog.take((systemBudget - systemBase.length - 48).coerceAtLeast(0)))
+                append("\nUse ferramenta respondendo com JSON: ")
+                append("""{"tool_calls":[{"name":"nome_exato","arguments":{}}],"content":"""} )
+                append(". Arguments deve ser objeto JSON; aguarde resultados antes de continuar.")
             }
-        }.take(4_800)
+        }
 
         val transcript = buildString {
             for (i in 1 until messages.length()) {
@@ -58,7 +59,8 @@ class NativeLlmClient(
                 }
             }
             append("\nASSISTENTE:")
-        }.takeLast(5_800)
+        }.takeLast(userBudget)
+
 
         val output = StringBuilder()
         val result = LlamaBridge.generateLocal(
@@ -92,6 +94,19 @@ class NativeLlmClient(
             promptTokens = result.promptTokens,
             completionTokens = result.completionTokens,
         )
+    }
+
+    private fun compactToolCatalog(tools: JSONArray): String = buildString {
+        for (i in 0 until tools.length()) {
+            val spec = tools.optJSONObject(i) ?: continue
+            val fn = spec.optJSONObject("function") ?: spec
+            val name = fn.optString("name")
+            if (name.isBlank()) continue
+            val description = fn.optString("description").replace(Regex("\\s+"), " ").take(150)
+            val properties = fn.optJSONObject("parameters")?.optJSONObject("properties")
+            val arguments = properties?.keys()?.asSequence()?.toList()?.joinToString(",").orEmpty()
+            append(name).append('(').append(arguments).append("): ").append(description).append('\n')
+        }
     }
 
     private data class ParsedToolResponse(
