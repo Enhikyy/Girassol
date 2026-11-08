@@ -46,6 +46,7 @@ enum class StudyStage(val label: String, val icon: String) {
     CURRICULUM("Currículo", "≡"),
     DATASET("Dataset", "▤"),
     TUNING("Ajustando", "⚙"),
+    DREAM("Consolidando", "☼"),
     DONE("Concluído", "✓"),
     ERROR("Falhou", "!"),
 }
@@ -382,10 +383,14 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 cycleHistory = completedCycles
                 history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
 
+                stage = StudyStage.DREAM
+                status = "consolidando experiências, resultados e falhas para o próximo ciclo…"
+                progress = 0.96f
                 learningSnapshot = withContext(Dispatchers.IO) {
                     learning.record("cycle", themeValue, "Ciclo concluído com " + total + " exemplos e " + found.docs.size + " fontes", 0.85f)
                     learning.dream()
                 }
+                append("Memória consolidada · ${learningSnapshot.dreams.size} padrões preservados · ${learningSnapshot.skills.size} competências acompanhadas")
                 stage = StudyStage.DONE
                 progress = 1f
                 status = "concluído · ${total} pares · ~$tokens tokens"
