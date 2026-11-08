@@ -47,6 +47,7 @@ class KeyedResearchTest {
         assertEquals("ggml-org/llama.cpp", docs.single().title)
         assertEquals(2026, docs.single().year)
         assertTrue(docs.single().snippet.contains("gguf"))
+        assertTrue(docs.single().score > 2.0)
     }
 
     @Test

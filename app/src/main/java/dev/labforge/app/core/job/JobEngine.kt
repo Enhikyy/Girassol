@@ -3,6 +3,7 @@ package dev.labforge.app.core.job
 import android.content.Context
 import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.native.NativeCallback
+import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.service.GirassolService
 import dev.labforge.app.service.MemoryBooster
 import dev.labforge.app.service.MemoryGuard
@@ -18,6 +19,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class JobState(
     val running: Boolean = false,
@@ -29,6 +33,7 @@ data class JobState(
     val progress: Float = 0f,
     val summary: String = "",
     val loss: List<Float> = emptyList(),
+    val ramAvailableGb: List<Float> = emptyList(),
     val output: String? = null,
     val startedAt: Long = 0L,
     val finishedAt: Long = 0L,
@@ -41,7 +46,7 @@ data class JobState(
 object JobEngine {
 
     private val errorHandler = CoroutineExceptionHandler { _, error ->
-        append("[erro] ${error.message}")
+        append("[erro] ${error.stackTraceToString()}")
         _state.update {
             it.copy(
                 running = false, done = true, success = false,
@@ -56,8 +61,12 @@ object JobEngine {
     val state: StateFlow<JobState> = _state
 
     private val logBuffer = StringBuilder()
-    private var lastFlushed = -1
+    private val logClock = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    private var logRevision = 0L
+    private var lastFlushedRevision = -1L
     private var current: Job? = null
+
+    private const val MAX_LOG_CHARS = 300_000
 
     /** Guards the check-then-set in [begin] so two callers cannot both start a job. */
     private val startLock = Any()
@@ -67,9 +76,9 @@ object JobEngine {
             while (isActive) {
                 delay(260)
                 val snapshot = synchronized(logBuffer) {
-                    if (logBuffer.length == lastFlushed) null
+                    if (logRevision == lastFlushedRevision) null
                     else {
-                        lastFlushed = logBuffer.length
+                        lastFlushedRevision = logRevision
                         logBuffer.toString()
                     }
                 }
@@ -79,14 +88,33 @@ object JobEngine {
     }
 
     fun append(line: String) {
+        val lower = line.lowercase(Locale.ROOT)
+        val level = when {
+            lower.contains("error") || lower.contains("fatal") || lower.contains("falha") -> "ERROR"
+            lower.contains("warn") || lower.contains("pressão crítica") -> "WARN"
+            lower.startsWith("[ram]") -> "RAM"
+            lower.startsWith("[train]") || lower.startsWith("[lora]") -> "TRAIN"
+            lower.startsWith("[auto]") -> "AUTO"
+            else -> "INFO"
+        }
+        val timestamp = synchronized(logClock) { logClock.format(Date()) }
+        val record = "[$timestamp][$level][${Thread.currentThread().name}] $line\n"
+        AppLog.write(level, "JOB", line)
         synchronized(logBuffer) {
-            if (logBuffer.length < 400_000) logBuffer.append(line).append('\n')
+            logBuffer.append(record)
+            if (logBuffer.length > MAX_LOG_CHARS) {
+                val excess = logBuffer.length - MAX_LOG_CHARS
+                val boundary = logBuffer.indexOf("\n", excess.coerceAtMost(logBuffer.length - 1))
+                if (boundary >= 0) logBuffer.delete(0, boundary + 1)
+                else logBuffer.delete(0, excess)
+            }
+            logRevision++
         }
     }
 
     fun clear() {
-        synchronized(logBuffer) { logBuffer.setLength(0) }
-        lastFlushed = -1
+        synchronized(logBuffer) { logBuffer.setLength(0); logRevision++ }
+        lastFlushedRevision = -1L
         _state.value = JobState()
     }
 
@@ -98,7 +126,7 @@ object JobEngine {
         synchronized(startLock) {
             if (_state.value.running) return false
             synchronized(logBuffer) { logBuffer.setLength(0) }
-            lastFlushed = -1
+            lastFlushedRevision = -1L
             _state.value = JobState(
                 running = true, kind = kind, title = title, progress = 0.02f,
                 startedAt = System.currentTimeMillis(), output = output?.absolutePath,
@@ -116,6 +144,7 @@ object JobEngine {
                 output = output?.absolutePath ?: it.output,
             )
         }
+        append("[job] finalizado success=$success; duração=${if (_state.value.startedAt > 0) System.currentTimeMillis() - _state.value.startedAt else 0} ms; resumo=$summary")
         current = null
         val ctx = appContext
         if (ctx != null) GirassolService.stop(ctx)
@@ -125,6 +154,8 @@ object JobEngine {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        AppLog.initialize(context)
+        AppLog.info("JOB", "JobEngine inicializado · cores=" + Runtime.getRuntime().availableProcessors())
     }
 
     // ------------------------------------------------------------------ quantize
@@ -139,139 +170,172 @@ object JobEngine {
     ) {
         if (isRunning) return
         init(context)
-        val budget = MemoryGuard.check(context, input.length(), "quantize")
-        if (!begin(context, "quantize", "Quantizando ${input.name}", budget.message, output)) return
-        append("[ram] ${budget.message}")
-        if (!budget.ok) MemoryGuard.trim()
+        require(input.isFile && input.length() > 0L) { "GGUF de entrada inexistente ou vazio" }
+        val initialBudget = MemoryGuard.check(context, input.length(), "quantize")
+        if (!begin(context, "quantize", "Quantizando ${input.name}", initialBudget.message, output)) return
+        append("[ram] ${initialBudget.message}")
 
-        current = scope.launch {
-            val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
-            val cb = object : NativeCallback {
-                override fun onLog(line: String) = append(line)
-                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+        current = scope.launch(Dispatchers.IO) {
+            try {
+                if (!initialBudget.ok) {
+                    append("[ram] orçamento inicial insuficiente; tentando recuperar cache e memória de apps em segundo plano antes do pré-voo final")
+                    MemoryGuard.trim()
+                }
+                val boost = MemoryBooster.boost(context)
+                append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
+                val afterBoost = MemoryGuard.check(context, input.length(), "quantize")
+                append("[ram] reavaliação após otimização: ${afterBoost.message}")
+                if (!afterBoost.ok) {
+                    finish(false, "Quantização adiada para proteger a memória: ${afterBoost.message}", null)
+                    return@launch
+                }
+                val cb = object : NativeCallback {
+                    override fun onLog(line: String) = append(line)
+                    override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+                }
+                _state.update { it.copy(progress = 0.08f) }
+                val result = LlamaBridge.quantize(
+                    input = input.absolutePath,
+                    output = output.absolutePath,
+                    ftype = ftype,
+                    imatrix = imatrix?.absolutePath,
+                    threads = threads.coerceIn(1, 4),
+                    callback = cb,
+                )
+                val summary = if (result.ok) {
+                    "Concluído · ${dev.labforge.app.ui.components.humanBytes(result.bytes)} → ${output.name}"
+                } else result.error ?: "falha na quantização"
+                finish(result.ok, summary, output.takeIf { result.ok })
+            } catch (error: Throwable) {
+                append("[erro] quantização interrompida: ${error.message ?: error.javaClass.simpleName}")
+                finish(false, "Falha na quantização: ${error.message ?: error.javaClass.simpleName}", null)
             }
-            _state.update { it.copy(progress = 0.08f) }
-            val r = LlamaBridge.quantize(
-                input = input.absolutePath,
-                output = output.absolutePath,
-                ftype = ftype,
-                imatrix = imatrix?.absolutePath,
-                threads = threads,
-                callback = cb,
-            )
-            val summary = if (r.ok) {
-                "Concluído · ${dev.labforge.app.ui.components.humanBytes(r.bytes)} → ${output.name}"
-            } else r.error ?: "falha na quantização"
-            finish(r.ok, summary, output.takeIf { r.ok })
         }
     }
 
     // --------------------------------------------------------------- LoRA train
 
     fun startLora(
-        context: Context,
-        model: File,
-        output: File,
-        dataset: File,
-        epochs: Int,
-        lr: Float,
-        nCtx: Int,
-        threads: Int,
-        rank: Int,
-        alpha: Float,
-        targets: String,
+        context: Context, model: File, output: File, dataset: File, epochs: Int, lr: Float,
+        nCtx: Int, threads: Int, rank: Int, alpha: Float, targets: String,
     ) {
         if (isRunning) return
         init(context)
-        val budget = MemoryGuard.check(context, model.length(), "lora")
-        if (!begin(context, "lora", "LoRA · ${model.name}", budget.message, output)) return
-        append("[ram] ${budget.message}")
+        val initial = MemoryGuard.check(context, model.length(), "lora", nCtx, rank)
+        if (!begin(context, "lora", "LoRA · ${model.name}", initial.message, output)) return
+        append("[ram] ${initial.message}")
 
-        current = scope.launch {
-            val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB antes do LoRA")
-            val cb = object : NativeCallback {
-                override fun onLog(line: String) = append(line)
-                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
-                    if (loss.isFinite() && loss > 0) {
-                        _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
-                    }
-                    if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
-                    if (epoch > 0) _state.update { it.copy(title = "LoRA · epoch $epoch/$epochs") }
+        current = scope.launch(Dispatchers.IO) {
+            try {
+                val boost = runCatching { MemoryBooster.boost(context) }.getOrNull()
+                if (boost != null) append("[ram] liberados ${boost.freedMb} MB antes do LoRA")
+                else append("[ram] limpeza de memória indisponível; fazendo nova avaliação")
+
+                val plan = MemoryGuard.loraPlan(context, model.length(), nCtx, rank, threads, targets)
+                append("[ram] ${plan.budget.message}")
+                if (!plan.budget.ok) {
+                    finish(false, plan.budget.message, null)
+                    return@launch
                 }
+                if (plan.adjusted) {
+                    append("[auto] perfil móvel aplicado: ctx=${plan.nCtx}, rank=${plan.rank}, threads=${plan.threads}, alvos=${plan.targets}")
+                }
+                append(
+                    "[lora] início: modelo=${model.name} (${model.length()} bytes) · " +
+                        "dataset=${dataset.name} (${dataset.length()} bytes) · epochs=${epochs.coerceIn(1, 5)} · " +
+                        "lr=$lr · destino=${output.absolutePath}"
+                )
+
+                val monitor = scope.launch(Dispatchers.IO) {
+                    while (isActive) {
+                        val live = MemoryGuard.check(context, model.length(), "lora", plan.nCtx, plan.rank)
+                        _state.update { state ->
+                            state.copy(ramAvailableGb = (state.ramAvailableGb + live.availableGb.toFloat()).takeLast(40))
+                        }
+                        append(
+                            "[ram] amostra LoRA: livre=${"%.2f".format(live.availableGb)} GB · " +
+                                "total=${"%.2f".format(live.totalGb)} GB · reserva=${"%.2f".format(live.reserveGb)} GB · " +
+                                "estimado=${"%.2f".format(live.requiredGb)} GB · modelo=${model.length()} bytes · " +
+                                "ctx=${plan.nCtx} · rank=${plan.rank} · threads=${plan.threads}"
+                        )
+                        if (live.availableGb < live.reserveGb + 0.12) {
+                            append("[ram] pressão crítica detectada (${"%.2f".format(live.availableGb)} GB livres); solicitando parada segura após a época atual")
+                            LlamaBridge.requestTrainingStop()
+                            break
+                        }
+                        delay(3500)
+                    }
+                }
+                val result = try {
+                    LlamaBridge.loraTrain(
+                        model = model.absolutePath, output = output.absolutePath, dataset = dataset.absolutePath,
+                        epochs = epochs.coerceIn(1, 5), lr = lr, nCtx = plan.nCtx, threads = plan.threads,
+                        rank = plan.rank, alpha = plan.rank.toFloat(), targets = plan.targets, callback = object : NativeCallback {
+                            override fun onLog(line: String) = append(line)
+                            override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
+                                if (loss.isFinite() && loss > 0) _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
+                                if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
+                                if (epoch > 0) _state.update { it.copy(title = "LoRA · epoch $epoch/${epochs.coerceIn(1, 5)}") }
+                            }
+                        },
+                    )
+                } finally { monitor.cancel() }
+                val summary = if (result.ok) {
+                    "Adaptador LoRA salvo · ${result.tensors} tensores · loss %.4f".format(result.loss)
+                } else result.error ?: "falha no treino LoRA; verifique o checkpoint parcial"
+                finish(result.ok, summary, output.takeIf { result.ok })
+            } catch (error: Throwable) {
+                append("[erro] LoRA exception: ${error.stackTraceToString()}")
+                finish(false, "Falha no treinamento LoRA: ${error.message ?: error.javaClass.simpleName}", null)
             }
-            val r = LlamaBridge.loraTrain(
-                model = model.absolutePath,
-                output = output.absolutePath,
-                dataset = dataset.absolutePath,
-                epochs = epochs,
-                lr = lr,
-                nCtx = nCtx,
-                threads = threads,
-                rank = rank,
-                alpha = alpha,
-                targets = targets,
-                callback = cb,
-            )
-            val summary = if (r.ok) {
-                "Adaptador LoRA salvo · ${r.tensors} tensores · loss %.4f".format(r.loss)
-            } else r.error ?: "falha no treino LoRA"
-            finish(r.ok, summary, output.takeIf { r.ok })
         }
     }
-
     // ------------------------------------------------------------- full finetune
 
     fun startFinetune(
-        context: Context,
-        model: File,
-        output: File,
-        dataset: File,
-        epochs: Int,
-        lr: Float,
-        nCtx: Int,
-        nBatch: Int,
-        nUbatch: Int,
-        threads: Int,
-        filter: String,
+        context: Context, model: File, output: File, dataset: File, epochs: Int, lr: Float,
+        nCtx: Int, nBatch: Int, nUbatch: Int, threads: Int, filter: String,
     ) {
         if (isRunning) return
         init(context)
-        val budget = MemoryGuard.check(context, model.length(), "full")
+        val budget = MemoryGuard.check(context, model.length(), "full", nCtx)
         if (!begin(context, "full", "Fine-tuning · ${model.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
+        if (!budget.ok) {
+            finish(false, budget.message, null)
+            return
+        }
 
-        current = scope.launch {
-            val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB antes do full FT")
-            val cb = object : NativeCallback {
-                override fun onLog(line: String) = append(line)
-                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
-                    if (loss.isFinite() && loss > 0) {
-                        _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
-                    }
-                    if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
-                    if (epoch > 0) _state.update { it.copy(title = "Fine-tuning · epoch $epoch/$epochs") }
+        current = scope.launch(Dispatchers.IO) {
+            try {
+                val boost = runCatching { MemoryBooster.boost(context) }.getOrNull()
+                if (boost != null) append("[ram] liberados ${boost.freedMb} MB antes do full FT")
+                val afterBoost = MemoryGuard.check(context, model.length(), "full", nCtx)
+                if (!afterBoost.ok) {
+                    finish(false, afterBoost.message, null)
+                    return@launch
                 }
+                val result = LlamaBridge.finetune(
+                    model = model.absolutePath, output = output.absolutePath, dataset = dataset.absolutePath,
+                    epochs = epochs.coerceIn(1, 3), lr = lr, nCtx = nCtx, nBatch = minOf(nBatch, 64),
+                    nUbatch = minOf(nUbatch, 64), threads = threads.coerceIn(1, 4), filter = filter,
+                    callback = object : NativeCallback {
+                        override fun onLog(line: String) = append(line)
+                        override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
+                            if (loss.isFinite() && loss > 0) _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
+                            if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
+                            if (epoch > 0) _state.update { it.copy(title = "Fine-tuning · epoch $epoch/${epochs.coerceIn(1, 3)}") }
+                        }
+                    },
+                )
+                val summary = if (result.ok) {
+                    "Modelo treinado · loss final %.4f · ${result.sequences} sequências".format(result.loss)
+                } else result.error ?: "falha no treino"
+                finish(result.ok, summary, output.takeIf { result.ok })
+            } catch (error: Throwable) {
+                append("[erro] fine-tuning exception: ${error.stackTraceToString()}")
+                finish(false, "Falha no fine-tuning: ${error.message ?: error.javaClass.simpleName}", null)
             }
-            val r = LlamaBridge.finetune(
-                model = model.absolutePath,
-                output = output.absolutePath,
-                dataset = dataset.absolutePath,
-                epochs = epochs,
-                lr = lr,
-                nCtx = nCtx,
-                nBatch = nBatch,
-                nUbatch = nUbatch,
-                threads = threads,
-                filter = filter,
-                callback = cb,
-            )
-            val summary = if (r.ok) {
-                "Modelo treinado · loss final %.4f · ${r.sequences} sequências".format(r.loss)
-            } else r.error ?: "falha no treino"
-            finish(r.ok, summary, output.takeIf { r.ok })
         }
     }
 }

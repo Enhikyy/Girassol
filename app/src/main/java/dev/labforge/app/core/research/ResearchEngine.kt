@@ -56,7 +56,8 @@ class ResearchEngine(
         val clean = theme.trim()
         require(clean.length >= 3) { "tema muito curto" }
 
-        onStage(Stage("Pesquisando", "9 fontes gratuitas" + (if (keys.github.isNotBlank()) " + GitHub" else "") + (if (keys.brave.isNotBlank()) " + Brave Search" else "")))
+        val curated = ResearchReferenceCatalog.researchDocs(clean)
+        onStage(Stage("Pesquisando", "GitHub prioritário · ${curated.size} referências técnicas licenciadas + APIs gratuitas" + (if (keys.github.isNotBlank()) " + GitHub Search" else "") + (if (keys.brave.isNotBlank()) " + Brave Search" else "")))
         val jobs = listOf(
             async { safeSearch { FreeResearchApis.wikipedia(clean) } },
             async { safeSearch { FreeResearchApis.wikipedia(clean, "en") } },
@@ -71,7 +72,7 @@ class ResearchEngine(
             async { safeSearch { KeyedResearchApis.githubRepos(clean, keys.github) } },
             async { safeSearch { KeyedResearchApis.brave(clean, keys.brave) } },
         )
-        var docs = jobs.awaitAll().flatten()
+        var docs = jobs.awaitAll().flatten() + curated
 
         if (docs.size < 5) {
             onStage(Stage("Ampliando busca", "poucos resultados, tentando variações do tema"))

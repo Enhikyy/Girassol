@@ -1,3 +1,45 @@
+# Girassol 1.8.0 — stack de pesquisa e continuidade de autoaprendizado
+
+# Correção de estabilidade LoRA — 2026-11-08
+
+- Corrige corrupção de heap nativo na inicialização dos adaptadores: matrizes LoRA A/B retangulares agora têm buffers de inicialização independentes e dimensões validadas antes das cópias JNI/ggml.
+- Envolve a operação JNI LoRA em captura de exceções C++ e libera contexto, modelo e backend parcialmente inicializados antes de retornar um erro estruturado ao Kotlin.
+- Adiciona preflight arquitetural de 200 MiB para o working set auxiliar do LoRA (adaptadores, gradientes/Adam, ativações, contexto e staging de dataset), excluindo os pesos-base mapeados por mmap.
+- Perfil A22/4 GB: rank 2, contexto 128 (com redução nativa até 64), uma thread e atenção sem FFN como padrão; dataset de treino passa a usar janela rotativa de 128 KiB.
+- Logs mostram o orçamento nativo calculado, parâmetros adaptados, bytes do modelo/dataset e amostras de RAM durante o job.
+- O limite de 200 MiB é um orçamento estimado para buffers adicionais do treinamento, não uma garantia de RSS total nem um limite para o tamanho do GGUF mmap.
+
+
+- Integra catálogo GitHub-first por tópico: labml, LLaMA Factory, MuonClip, Kimi Linear/KDA, Flash Linear Attention, UI-Voyager, lau-agent-dream e ZenBrain como referências técnicas, com filtragem por licença.
+- Preserva referências sem licença, indisponíveis, ou com licença restritiva apenas como metadados; não baixa nem incorpora seus READMEs/código.
+- Integra pesquisa de repositórios e READMEs licenciados na pesquisa, síntese e dataset.
+- Reforça `LearningContinuity`: árvore de competências com pré-requisitos, revisões espaçadas e consolidação idempotente sem repetir a mesma experiência em cada ciclo ocioso.
+- O treino LoRA passa a estar ativado por padrão ao concluir um ciclo; resultado e falhas nativas são registados como evidência para a memória e revisões futuras. A execução continua sujeita ao orçamento adaptativo de RAM.
+- Adiciona etapa explícita de consolidação/sono, flor radial de 24 pétalas com animação leve e painel de competências mais legível.
+- Documenta a tradução nativa em Compose das referências Figma, sem redistribuir assets de terceiros.
+- Mantém o autoestudo local mesmo sem LLM; memória e dataset não significam alteração de pesos até que um LoRA seja concluído com sucesso.
+
+# Girassol 1.7.0 — estabilidade de treinamento e autoaprendizado
+
+- Corrige o uso de `JNIEnv` entre threads nativas, que podia encerrar o processo durante o fluxo de logs do treinamento.
+- Evita carregar o dataset inteiro na RAM nativa: o corpus fica completo no armazenamento e cada ciclo de treino lê uma janela rotativa limitada.
+- LoRA adaptativo para aparelhos com pouca RAM: contexto, rank, alvos e threads reduzidos; bloqueio preventivo de jobs cujo orçamento ultrapasse a memória disponível.
+- Monitora pressão de RAM durante o treino, solicita parada cooperativa ao fim da época e preserva checkpoint LoRA por época.
+- Pesquisa autônoma com GitHub em primeiro lugar, priorização por estrelas/atividade e ingestão do README de projetos para fundamentar síntese e dataset.
+- Alternância Pure Black OLED persistente; animações de fundo suspensas nesse modo para reduzir trabalho gráfico, com gráficos de barras e linhas animados.
+- Acrescenta árvore de habilidades persistente, revisão espaçada e painel de domínio por tópico. 
+- Adiciona consolidação offline de experiências, agrupamento de padrões e revisão de falhas com evidências/confiança.
+- Preserva o piloto automático, o autoaprendizado iterativo e os recursos já existentes. Não há limite artificial de tamanho do APK definido pelo projeto.
+
+## Observação de hardware
+Em aparelhos com 4 GB, o perfil seguro prioriza LoRA pequeno e ciclos curtos; fine-tuning completo fica bloqueado quando a memória total/disponível não atende ao orçamento. Isso evita confundir “APK sem limite de tamanho” com memória RAM ilimitada.
+
+# Girassol 1.6.1 — Refinamento de interface
+
+- Melhorias de legibilidade e escala tipográfica nas telas principais.
+- Ajustes de hierarquia de títulos, metadados e rótulos para leitura em telas móveis.
+- Preservação do motor nativo, modelos, pesquisa, ferramentas de agente, dados e fluxos existentes.
+
 # Changelog
 
 ## 1.6.0 — 2026-11-08

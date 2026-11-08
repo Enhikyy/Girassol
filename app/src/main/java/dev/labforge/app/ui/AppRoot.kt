@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SmartToy
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,8 +67,10 @@ import androidx.compose.ui.unit.IntOffset
 import dev.labforge.app.ui.components.Segmented
 import dev.labforge.app.ui.screens.AgentScreen
 import dev.labforge.app.ui.screens.CodexScreen
+import dev.labforge.app.ui.screens.CodeStudioScreen
 import dev.labforge.app.ui.screens.HomeScreen
 import dev.labforge.app.ui.screens.LabScreen
+import dev.labforge.app.ui.screens.LocalChatScreen
 import dev.labforge.app.ui.screens.LlamatikScreen
 import dev.labforge.app.ui.screens.ModelDetailScreen
 import dev.labforge.app.ui.screens.ModelsScreen
@@ -75,13 +79,16 @@ import dev.labforge.app.ui.theme.Lab
 import dev.labforge.app.vm.AgentViewModel
 import dev.labforge.app.vm.CodexViewModel
 import dev.labforge.app.vm.LabViewModel
+import dev.labforge.app.vm.LocalChatViewModel
 
 object Routes {
     const val HOME = "home"
+    const val CHAT = "chat"
     const val MODELS = "models"
     const val MODEL = "model"
     const val LAB = "lab"
     const val CODEX = "codex"
+    const val STUDIO = "studio"
     const val AGENT = "agent"
     const val LLAMATIK = "llamatik"
     const val SETTINGS = "settings"
@@ -91,8 +98,10 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab(Routes.HOME, "Início", Icons.Rounded.Home),
+    Tab(Routes.CHAT, "Chat", Icons.Rounded.Chat),
     Tab(Routes.MODELS, "Modelos", Icons.Rounded.Widgets),
     Tab(Routes.LAB, "Lab", Icons.Rounded.Science),
+    Tab(Routes.STUDIO, "Studio", Icons.Rounded.Code),
     Tab(Routes.AGENT, "Agentes", Icons.Rounded.SmartToy),
     Tab(Routes.SETTINGS, "Ajustes", Icons.Rounded.Settings),
 )
@@ -102,6 +111,11 @@ fun AppRoot() {
     val vm: LabViewModel = viewModel()
     val agentVm: AgentViewModel = viewModel()
     val codexVm: CodexViewModel = viewModel()
+    val chatVm: LocalChatViewModel = viewModel()
+
+    LaunchedEffect(vm.settings.pureBlackOled) {
+        Lab.pureBlack = vm.settings.pureBlackOled
+    }
 
     var route by rememberSaveable { mutableStateOf(Routes.HOME) }
     var arg by rememberSaveable { mutableStateOf("") }
@@ -152,6 +166,16 @@ fun AppRoot() {
                     label = "screens",
                 ) { (current, _) ->
                     when (current) {
+                        Routes.CHAT -> LocalChatScreen(
+                            chatVm = chatVm,
+                            labVm = vm,
+                            onOpenModels = { go(Routes.MODELS) },
+                            onOpenAgent = { prompt ->
+                                chatVm.stop()
+                                if (prompt.isNotBlank()) agentVm.send("Continue esta conversa usando as ferramentas nativas do Agente quando necessário. Preserve o contexto abaixo e priorize o pedido mais recente:\n\n" + prompt)
+                                go(Routes.AGENT)
+                            },
+                        )
                         Routes.HOME -> HomeScreen(vm, agentVm, { r -> go(r) }) { labTab = it; go(Routes.LAB) }
                         Routes.MODELS -> ModelsScreen(vm) { p -> go(Routes.MODEL, p) }
                         Routes.MODEL -> ModelDetailScreen(vm, arg, onBack = { go(Routes.MODELS) }) {
@@ -160,6 +184,7 @@ fun AppRoot() {
                         }
                         Routes.LAB -> LabScreen(vm, agentVm, initialTab = labTab)
                         Routes.CODEX -> CodexScreen(codexVm) { go(Routes.AGENT) }
+                        Routes.STUDIO -> CodeStudioScreen { go(Routes.CODEX) }
                         Routes.AGENT -> AgentScreen(agentVm, vm) { go(Routes.CODEX) }
                         Routes.LLAMATIK -> LlamatikScreen { go(llamatikBack) }
                         Routes.SETTINGS -> SettingsScreen(vm) { go(Routes.LLAMATIK) }
@@ -208,7 +233,7 @@ private fun JobStrip(title: String, progress: Float, eta: String, onClick: () ->
         )
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 11.sp, color = Lab.Text, maxLines = 1, fontWeight = FontWeight.Medium)
+            Text(title, fontSize = 12.sp, color = Lab.Text, maxLines = 1, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(4.dp))
             Box(
                 Modifier
@@ -226,7 +251,7 @@ private fun JobStrip(title: String, progress: Float, eta: String, onClick: () ->
             }
         }
         Spacer(Modifier.width(10.dp))
-        Text("~$eta", fontSize = 11.sp, color = Lab.Muted)
+        Text("~$eta", fontSize = 12.sp, color = Lab.Muted)
     }
 }
 
@@ -281,7 +306,7 @@ private fun BottomBar(current: String, onSelect: (String) -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     tab.label,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = labelColor,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,

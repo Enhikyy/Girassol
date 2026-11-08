@@ -19,10 +19,11 @@ data class AppSettings(
     val apiKey: String = "",
     val model: String = "gpt-4o-mini",
     val temperature: Double = 0.2,
-    val maxSteps: Int = 15,
+    val maxSteps: Int = 0,
     val autoCommit: Boolean = true,
     val braveApiKey: String = "",
     val githubToken: String = "",
+    val pureBlackOled: Boolean = false,
 )
 
 fun AppSettings.researchKeys() = dev.labforge.app.core.research.ResearchKeys(braveApiKey, githubToken)
@@ -38,6 +39,7 @@ class SettingsRepository(private val context: Context) {
         val autoCommit = booleanPreferencesKey("auto_commit")
         val braveApiKey = stringPreferencesKey("brave_api_key")
         val githubToken = stringPreferencesKey("github_token")
+        val pureBlackOled = booleanPreferencesKey("pure_black_oled")
     }
 
     private fun read(p: Preferences) = AppSettings(
@@ -45,10 +47,11 @@ class SettingsRepository(private val context: Context) {
         apiKey = p[Keys.apiKey] ?: "",
         model = p[Keys.model] ?: "gpt-4o-mini",
         temperature = p[Keys.temperature] ?: 0.2,
-        maxSteps = p[Keys.maxSteps] ?: 15,
+        maxSteps = p[Keys.maxSteps] ?: 0,
         autoCommit = p[Keys.autoCommit] ?: true,
         braveApiKey = p[Keys.braveApiKey] ?: "",
         githubToken = p[Keys.githubToken] ?: "",
+        pureBlackOled = p[Keys.pureBlackOled] ?: false,
     )
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { read(it) }
@@ -67,6 +70,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.autoCommit] = next.autoCommit
             p[Keys.braveApiKey] = next.braveApiKey
             p[Keys.githubToken] = next.githubToken
+            p[Keys.pureBlackOled] = next.pureBlackOled
         }
     }
 }

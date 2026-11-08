@@ -72,7 +72,7 @@ fun ModelsScreen(vm: LabViewModel, onOpen: (String) -> Unit) {
                 Text("Modelos", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                 Text(
                     "${vm.models.size} arquivos GGUF no cofre",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Muted,
                 )
             }
@@ -155,13 +155,13 @@ fun ModelsScreen(vm: LabViewModel, onOpen: (String) -> Unit) {
                                 Spacer(Modifier.height(3.dp))
                                 Text(
                                     "${m.meta?.parameterLabel ?: "?"} params · ${m.meta?.architecture ?: "?"} · ${humanBytes(m.sizeBytes)}",
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     color = Lab.Muted,
                                     maxLines = 1,
                                 )
                                 if (m.error != null) {
                                     Spacer(Modifier.height(4.dp))
-                                    Text(m.error, fontSize = 11.sp, color = Lab.Red, maxLines = 2)
+                                    Text(m.error, fontSize = 12.sp, color = Lab.Red, maxLines = 2)
                                 }
                             }
                             Column(horizontalAlignment = Alignment.End) {
