@@ -225,6 +225,11 @@ object JobEngine {
                 if (plan.adjusted) {
                     append("[auto] perfil móvel aplicado: ctx=${plan.nCtx}, rank=${plan.rank}, threads=${plan.threads}, alvos=${plan.targets}")
                 }
+                append(
+                    "[lora] início: modelo=${model.name} (${model.length()} bytes) · " +
+                        "dataset=${dataset.name} (${dataset.length()} bytes) · epochs=${epochs.coerceIn(1, 5)} · " +
+                        "lr=$lr · destino=${output.absolutePath}"
+                )
 
                 val monitor = scope.launch(Dispatchers.IO) {
                     while (isActive) {
@@ -232,6 +237,12 @@ object JobEngine {
                         _state.update { state ->
                             state.copy(ramAvailableGb = (state.ramAvailableGb + live.availableGb.toFloat()).takeLast(40))
                         }
+                        append(
+                            "[ram] amostra LoRA: livre=${"%.2f".format(live.availableGb)} GB · " +
+                                "total=${"%.2f".format(live.totalGb)} GB · reserva=${"%.2f".format(live.reserveGb)} GB · " +
+                                "estimado=${"%.2f".format(live.requiredGb)} GB · modelo=${model.length()} bytes · " +
+                                "ctx=${plan.nCtx} · rank=${plan.rank} · threads=${plan.threads}"
+                        )
                         if (live.availableGb < live.reserveGb + 0.12) {
                             append("[ram] pressão crítica detectada (${"%.2f".format(live.availableGb)} GB livres); solicitando parada segura após a época atual")
                             LlamaBridge.requestTrainingStop()
