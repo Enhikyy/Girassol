@@ -59,7 +59,7 @@ object MeshPrimitives {
 
         for (segment in 0 until segments) {
             val next = (segment + 1) % segments
-            triangles += Triangle(0,index(1,segment),index(1,next))
+            triangles += Triangle(0,index(1,next),index(1,segment))
         }
         for (ring in 1 until rings - 1) {
             for (segment in 0 until segments) {
@@ -68,14 +68,14 @@ object MeshPrimitives {
                 val b = index(ring,next)
                 val c = index(ring + 1,segment)
                 val d = index(ring + 1,next)
-                triangles += Triangle(a,c,b)
-                triangles += Triangle(b,c,d)
+                triangles += Triangle(a,b,c)
+                triangles += Triangle(b,d,c)
             }
         }
         val lastRing = rings - 1
         for (segment in 0 until segments) {
             val next = (segment + 1) % segments
-            triangles += Triangle(index(lastRing,segment),bottom,index(lastRing,next))
+            triangles += Triangle(index(lastRing,segment),index(lastRing,next),bottom)
         }
         return Mesh(vertices,triangles)
     }
