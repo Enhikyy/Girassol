@@ -25,10 +25,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import dev.labforge.app.core.Handoff
 import dev.labforge.app.core.geometry.Mesh
 import dev.labforge.app.core.geometry.MeshIO
 import dev.labforge.app.core.geometry.MeshPrimitives
+import dev.labforge.app.ui.components.FilamentModelSurfaceView
 import dev.labforge.app.core.studio.AndroidProjectScaffold
 import dev.labforge.app.core.studio.WorkspaceFiles
 import dev.labforge.app.core.model.ModelStore
@@ -58,6 +60,7 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
     var status by remember { mutableStateOf("Workspace local pronto") }
     var mode by remember { mutableIntStateOf(0) }
     var mesh by remember { mutableStateOf<Mesh?>(null) }
+    var gltfFile by remember { mutableStateOf<File?>(null) }
     var rotation by remember { mutableFloatStateOf(0f) }
     var busy by remember { mutableStateOf(false) }
     var workspaceFiles by remember { mutableStateOf(emptyList<String>()) }
@@ -131,20 +134,60 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
     val importMesh=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch { busy=true
             runCatching {
-                val temp=withContext(Dispatchers.IO) {
-                    val ext=Uri.decode(uri.lastPathSegment ?: "model.obj").substringAfterLast('.').lowercase()
-                    require(ext=="obj" || ext=="stl") { "Use apenas OBJ ou STL" }
-                    val f=File(context.cacheDir,"mesh-${System.nanoTime()}.$ext")
+                val imported=withContext(Dispatchers.IO) {
+                    val displayName=Uri.decode(uri.lastPathSegment ?: "model.obj").substringAfterLast('/').substringAfterLast(92.toChar())
+                    val ext=displayName.substringAfterLast('.', "").lowercase()
+                    require(ext in setOf("obj","stl","glb","gltf")) { "Formato suportado: OBJ, STL, GLB ou glTF" }
+                    val limit=when(ext) {
+                        "glb" -> 64L*1024L*1024L
+                        "gltf" -> 4L*1024L*1024L
+                        else -> 32L*1024L*1024L
+                    }
+                    val f=File(context.cacheDir,"girassol-model-\${System.nanoTime()}.$ext")
                     try {
                         context.contentResolver.openInputStream(uri)?.use { input ->
-                            f.outputStream().buffered().use { output -> WorkspaceFiles.copyBounded(input,output,32L*1024L*1024L) }
-                        } ?: error("Não foi possível ler a malha")
+                            f.outputStream().buffered().use { output -> WorkspaceFiles.copyBounded(input,output,limit) }
+                        } ?: error("Não foi possível ler o modelo")
                         f
                     } catch(failure:Throwable) { f.delete(); throw failure }
                 }
-                mesh=withContext(Dispatchers.Default){MeshIO.read(temp).normalized()}
-                status="Malha carregada: ${mesh?.vertices?.size} vértices · ${mesh?.triangles?.size} triângulos"
-            }.onFailure{status="Falha ao abrir 3D: ${it.message}"}
+                if(imported.extension.lowercase() in setOf("glb","gltf")) {
+                    gltfFile=imported
+                    mesh=null
+                    status=if(imported.extension.equals("gltf",true))
+                        "glTF JSON importado. Para buffers/texturas externos, importe o pacote ZIP com a pasta completa."
+                    else "GLB importado; abrindo no Filament (PBR, texturas e animações quando presentes)."
+                } else {
+                    mesh=withContext(Dispatchers.Default){MeshIO.read(imported).normalized()}
+                    gltfFile=null
+                    status="Malha carregada: \${mesh?.vertices?.size} vértices · \${mesh?.triangles?.size} triângulos"
+                }
+            }.onFailure{status="Falha ao abrir 3D: \${it.message}"}
+            busy=false
+        }
+    }
+    val importGltfPackage=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch { busy=true
+            runCatching {
+                val model=withContext(Dispatchers.IO) {
+                    val root=File(context.cacheDir,"girassol-gltf-packages").apply { mkdirs() }
+                    val archive=File(context.cacheDir,"gltf-package-\${System.nanoTime()}.zip")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            archive.outputStream().buffered().use { output ->
+                                WorkspaceFiles.copyBounded(input,output,WorkspaceFiles.MAX_ARCHIVE_BYTES)
+                            }
+                        } ?: error("Não foi possível abrir o pacote ZIP")
+                        val extracted=archive.inputStream().use { WorkspaceFiles.importZip(it,root) }
+                        extracted.walkTopDown().filter { it.isFile && it.extension.lowercase() in setOf("glb","gltf") }
+                            .sortedBy { it.path }.firstOrNull()
+                            ?: error("O ZIP não contém .glb ou .gltf")
+                    } finally { archive.delete() }
+                }
+                gltfFile=model
+                mesh=null
+                status="Pacote glTF carregado: \${model.name}. Recursos externos serão resolvidos dentro da pasta extraída."
+            }.onFailure { status="Falha ao importar pacote glTF: \${it.message}" }
             busy=false
         }
     }
@@ -265,16 +308,26 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
             },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.Build,null);Spacer(Modifier.width(8.dp));Text("Verificar toolchain para APK")}
         } else {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Button(onClick={importMesh.launch(arrayOf("model/obj","model/stl","application/octet-stream"))},enabled=!busy){Icon(Icons.Rounded.FileOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir OBJ/STL")}
+                Button(onClick={importMesh.launch(arrayOf("model/obj","model/stl","model/gltf-binary","model/gltf+json","application/octet-stream"))},enabled=!busy){Icon(Icons.Rounded.FileOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir 3D")}
+                OutlinedButton(onClick={importGltfPackage.launch(arrayOf("application/zip","application/x-zip-compressed"))},enabled=!busy){Icon(Icons.Rounded.Archive,null);Spacer(Modifier.width(5.dp));Text("Pacote glTF ZIP")}
+                OutlinedButton(onClick={gltfFile=null;mesh=null;status="Visualizador limpo"}){Icon(Icons.Rounded.Close,null);Spacer(Modifier.width(5.dp));Text("Limpar")}
                 OutlinedButton(onClick={mesh=MeshPrimitives.cube(); status="Cubo criado: 8 vértices · 12 triângulos"}){Icon(Icons.Rounded.AddBox,null);Spacer(Modifier.width(5.dp));Text("Cubo")}
                 OutlinedButton(onClick={mesh=MeshPrimitives.uvSphere(); status="Esfera UV criada localmente"}){Icon(Icons.Rounded.Circle,null);Spacer(Modifier.width(5.dp));Text("Esfera")}
                 OutlinedButton(onClick={exportMesh.launch("mesh.obj")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("OBJ")}
                 OutlinedButton(onClick={exportStl.launch("mesh.stl")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("STL")}
             }
             Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.45f),RoundedCornerShape(22.dp)).padding(8.dp),contentAlignment=Alignment.Center) {
+                val modelFile=gltfFile
                 val m=mesh
-                if(m==null) Text("Importe um arquivo OBJ ou STL para visualizar a malha",color=MaterialTheme.colorScheme.onSurfaceVariant)
-                else MeshPreview(m,rotation,Modifier.fillMaxSize())
+                when {
+                    modelFile!=null -> AndroidView(
+                        factory={ ctx -> FilamentModelSurfaceView(ctx).also { surface -> surface.onLoadError={ message -> status=message } } },
+                        update={ surface -> surface.onLoadError={ message -> status=message }; surface.show(modelFile) },
+                        modifier=Modifier.fillMaxSize(),
+                    )
+                    m!=null -> MeshPreview(m,rotation,Modifier.fillMaxSize())
+                    else -> Text("Importe OBJ/STL para wireframe ou GLB/glTF para renderização PBR nativa",color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Slider(value=rotation,onValueChange={rotation=it},valueRange=0f..(2f*PI.toFloat()))
             mesh?.let{Text("${it.vertices.size} vértices · ${it.triangles.size} triângulos",style=MaterialTheme.typography.labelMedium)}
