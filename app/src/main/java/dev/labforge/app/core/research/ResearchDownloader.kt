@@ -121,7 +121,7 @@ class ResearchDownloader(
                     return null
                 }
                 destination.writeText(normalized, Charsets.UTF_8)
-                DownloadedText(normalized, destination.length())
+                return DownloadedText(normalized, destination.length())
             } catch (error: Throwable) {
                 temporary.delete()
                 if (committed) destination.delete()
