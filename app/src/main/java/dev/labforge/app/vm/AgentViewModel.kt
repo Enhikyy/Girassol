@@ -72,11 +72,36 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private val logClock = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    private val logFileLock = Any()
+    private val activityLogFile = File(store.agentDir, "agent-activity.log")
     private fun log(level: String, message: String) {
-        activityLog = (activityLog + "[${logClock.format(Date())}][${level.uppercase(Locale.ROOT)}] $message")
-            .takeLast(600)
+        val line = "[${synchronized(logClock) { logClock.format(Date()) }}][${level.uppercase(Locale.ROOT)}] $message"
+        activityLog = (activityLog + line).takeLast(600)
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                synchronized(logFileLock) {
+                    activityLogFile.parentFile?.mkdirs()
+                    if (activityLogFile.length() > 2L * 1024 * 1024) {
+                        val previous = File(activityLogFile.parentFile, "agent-activity.previous.log")
+                        previous.delete()
+                        activityLogFile.renameTo(previous)
+                    }
+                    activityLogFile.appendText(line + "\n")
+                }
+            }
+        }
     }
-    fun clearActivityLog() { activityLog = emptyList() }
+    fun clearActivityLog() {
+        activityLog = emptyList()
+        viewModelScope.launch(Dispatchers.IO) {
+            synchronized(logFileLock) {
+                activityLogFile.delete()
+                File(activityLogFile.parentFile, "agent-activity.previous.log").delete()
+            }
+        }
+    }
+    val hasLocalModel: Boolean
+        get() = AppSelection.modelPath?.let { File(it).isFile } == true
 
     // native token accounting
     var localPromptTokens by mutableStateOf(0)
@@ -105,6 +130,10 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             lessonList = withContext(Dispatchers.IO) { lessons.all() }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val persisted = runCatching { activityLogFile.readLines().takeLast(600) }.getOrDefault(emptyList())
+            withContext(Dispatchers.Main) { activityLog = persisted }
         }
         viewModelScope.launch {
             while (true) {
