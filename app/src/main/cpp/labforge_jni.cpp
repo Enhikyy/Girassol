@@ -82,21 +82,20 @@ static std::string json_escape(const std::string & in) {
 }
 
 static void emit_log(const std::string & line) {
-    if (!g_cb_obj || !g_cb_log) return;
-    if (line.empty()) return;
-    JNIEnv * env = g_call_env;
+    if (!g_cb_obj || !g_cb_log || line.empty() || !g_vm) return;
+    // JNIEnv is thread-local: the pipe reader must get its own environment.
+    JNIEnv * env = nullptr;
     bool attached = false;
-    if (!env) {
-        if (!g_vm) return;
-        if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
-            if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
-            attached = true;
-        }
+    if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        attached = true;
     }
     jstring js = env->NewStringUTF(line.c_str());
-    env->CallVoidMethod(g_cb_obj, g_cb_log, js);
-    if (env->ExceptionCheck()) env->ExceptionClear();
-    env->DeleteLocalRef(js);
+    if (js) {
+        env->CallVoidMethod(g_cb_obj, g_cb_log, js);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(js);
+    }
     if (attached) g_vm->DetachCurrentThread();
 }
 
