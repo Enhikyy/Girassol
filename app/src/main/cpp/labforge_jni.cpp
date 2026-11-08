@@ -982,10 +982,23 @@ static bool save_lora(const std::shared_ptr<llama_adapter_lora> & adapter, llama
         gguf_add_tensor(g, kv.second.a);
         gguf_add_tensor(g, kv.second.b);
     }
-    const bool ok = gguf_write_to_file(g, path.c_str(), false);
+    // Serialize to a sibling temporary file first. A failed write never corrupts
+    // the last complete checkpoint/adapter; rename publishes the new GGUF atomically.
+    const std::string temporary_path = path + ".tmp";
+    std::remove(temporary_path.c_str());
+    const bool serialized = gguf_write_to_file(g, temporary_path.c_str(), false);
     gguf_free(g);
-    if (!ok) err = "falha ao escrever o adaptador GGUF";
-    return ok;
+    if (!serialized) {
+        std::remove(temporary_path.c_str());
+        err = "falha ao escrever o adaptador GGUF temporário";
+        return false;
+    }
+    if (std::rename(temporary_path.c_str(), path.c_str()) != 0) {
+        std::remove(temporary_path.c_str());
+        err = "falha ao publicar atomicamente o adaptador GGUF";
+        return false;
+    }
+    return true;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
