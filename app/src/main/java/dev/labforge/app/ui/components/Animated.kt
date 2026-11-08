@@ -143,7 +143,7 @@ fun ProgressRing(
                 color = Lab.Text,
             )
             if (caption != null) {
-                Text(caption, fontSize = 8.sp, color = Lab.Muted)
+                Text(caption, fontSize = 11.sp, color = Lab.Muted)
             }
         }
     }
@@ -190,7 +190,7 @@ fun DonutChart(
                 Text(centerLabel, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
             }
             if (centerCaption != null) {
-                Text(centerCaption, fontSize = 8.sp, color = Lab.Muted)
+                Text(centerCaption, fontSize = 11.sp, color = Lab.Muted)
             }
         }
     }
@@ -319,7 +319,7 @@ fun SunflowerSpinner(size: Dp = 44.dp, petals: Int = 12) {
 fun MiniMetric(label: String, value: String, accent: Color = Lab.Cyan) {
     Column(Modifier.padding(2.dp)) {
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = accent)
-        Text(label, fontSize = 8.sp, color = Lab.Muted)
+        Text(label, fontSize = 11.sp, color = Lab.Muted)
     }
 }
 

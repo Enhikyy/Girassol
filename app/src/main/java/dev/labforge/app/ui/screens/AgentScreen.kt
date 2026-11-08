@@ -87,14 +87,14 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
                         .background(Brush.linearGradient(listOf(Lab.Cyan.copy(alpha = 0.8f), Lab.Violet))),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.SmartToy, null, tint = Color.White, modifier = Modifier.size(21.dp))
+                    Icon(Icons.Rounded.SmartToy, null, tint = Lab.OnPrimary, modifier = Modifier.size(21.dp))
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Chat", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
                         if (agentVm.running) agentVm.status else "estudante de TI · git · terminal · caderno",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = if (agentVm.running) Lab.Green else Lab.Muted,
                     )
                 }
@@ -135,7 +135,7 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
                 GlassCard(padding = 11) {
                     Text(
                         "Configure endpoint e API key em Ajustes para o agente pensar. Endpoints locais (Ollama/LM Studio) não precisam de key.",
-                        fontSize = 9.5.sp,
+                        fontSize = 11.sp,
                         color = Lab.Amber,
                         lineHeight = 14.sp,
                     )
@@ -169,7 +169,7 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
                             ) {
                                 Icon(Icons.Rounded.AutoAwesome, null, tint = Lab.Violet, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(s, fontSize = 10.5.sp, color = Lab.Text, lineHeight = 15.sp)
+                                Text(s, fontSize = 11.sp, color = Lab.Text, lineHeight = 15.sp)
                             }
                         }
                     }
@@ -231,7 +231,7 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
                 Icon(
                     if (agentVm.running) Icons.Rounded.Stop else Icons.Rounded.Send,
                     null,
-                    tint = Color.White,
+                    tint = Lab.OnPrimary,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -251,7 +251,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
                     .background(Brush.linearGradient(listOf(Lab.Violet.copy(alpha = 0.85f), Lab.VioletDeep)))
                     .padding(12.dp),
             ) {
-                Text(m.text, fontSize = 12.5.sp, color = Color.White, lineHeight = 18.sp)
+                Text(m.text, fontSize = 14.sp, color = Lab.OnPrimary, lineHeight = 20.sp)
             }
         }
 
@@ -299,7 +299,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
                 Spacer(Modifier.height(5.dp))
                 Text(
                     m.toolArgs.take(180),
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     color = Lab.Muted,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 2,
@@ -308,7 +308,7 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(
                 m.text.take(if (expanded) 6000 else 320),
-                fontSize = 9.5.sp,
+                fontSize = 11.sp,
                 color = if (m.ok) Color(0xFFB9C6E8) else Lab.Red.copy(alpha = 0.9f),
                 fontFamily = FontFamily.Monospace,
                 lineHeight = 14.sp,
@@ -319,14 +319,14 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.SmartToy, null, tint = Lab.Cyan, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("resultado", fontSize = 9.5.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
+                Text("resultado", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(7.dp))
             Text(m.text, fontSize = 12.sp, color = Lab.Text, lineHeight = 18.sp)
             Spacer(Modifier.height(8.dp))
             Text(
                 "abrir no Codex →",
-                fontSize = 9.5.sp,
+                fontSize = 11.sp,
                 color = Lab.Violet,
                 modifier = Modifier.clickable {
                     Handoff.toCodex = m.text
@@ -343,10 +343,10 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
                 .border(1.dp, Lab.Red.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                 .padding(11.dp),
         ) {
-            Text(m.text, fontSize = 10.5.sp, color = Lab.Red, lineHeight = 15.sp)
+            Text(m.text, fontSize = 11.sp, color = Lab.Red, lineHeight = 15.sp)
         }
 
-        AgentMessage.Role.SYSTEM -> Text(m.text, fontSize = 10.sp, color = Lab.Muted)
+        AgentMessage.Role.SYSTEM -> Text(m.text, fontSize = 11.sp, color = Lab.Muted)
     }
 }
 
@@ -367,7 +367,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
                         .clickable { agentVm.gitAction(action) }
                         .padding(horizontal = 10.dp, vertical = 7.dp),
                 ) {
-                    Text("git $action", fontSize = 9.5.sp, color = Lab.Cyan, fontFamily = FontFamily.Monospace)
+                    Text("git $action", fontSize = 11.sp, color = Lab.Cyan, fontFamily = FontFamily.Monospace)
                 }
             }
         }
@@ -375,7 +375,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
             Spacer(Modifier.height(8.dp))
             Text(
                 agentVm.gitOut.take(800),
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Lab.Muted,
                 fontFamily = FontFamily.Monospace,
                 lineHeight = 13.sp,
@@ -396,7 +396,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
                         .background(Lab.Surface)
                         .clickable { command = q }
                         .padding(horizontal = 9.dp, vertical = 6.dp),
-                ) { Text(q, fontSize = 9.sp, color = Lab.Muted, fontFamily = FontFamily.Monospace) }
+                ) { Text(q, fontSize = 11.sp, color = Lab.Muted, fontFamily = FontFamily.Monospace) }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -405,7 +405,7 @@ private fun TerminalPane(agentVm: AgentViewModel) {
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF08080D))
+                    .background(Color(0xFF0B0C08))
                     .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
                     .padding(horizontal = 11.dp, vertical = 11.dp),
             ) {
@@ -427,14 +427,14 @@ private fun TerminalPane(agentVm: AgentViewModel) {
             Spacer(Modifier.width(8.dp))
             Box(
                 Modifier
-                    .size(42.dp)
+                    .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Lab.Violet)
                     .clickable {
                         if (command.isNotBlank()) { agentVm.runTerminal(command); command = "" }
                     },
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
+            ) { Icon(Icons.Rounded.PlayArrow, "Enviar", tint = Lab.OnPrimary, modifier = Modifier.size(20.dp)) }
         }
         Spacer(Modifier.height(10.dp))
     }
@@ -454,7 +454,7 @@ private fun NotebookPane(agentVm: AgentViewModel) {
                         Text("Caderno vazio", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.Medium)
                         Text(
                             "Quando o agente resolve um bug, ele grava a solução aqui com memory_save.",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Lab.Muted,
                             lineHeight = 15.sp,
                         )
@@ -491,7 +491,7 @@ private fun NotebookPane(agentVm: AgentViewModel) {
                             }
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text(l.body.take(420), fontSize = 10.5.sp, color = Lab.Muted, lineHeight = 15.sp)
+                        Text(l.body.take(420), fontSize = 11.sp, color = Lab.Muted, lineHeight = 15.sp)
                     }
                 }
             }
@@ -517,18 +517,18 @@ private fun TokenMeter(agentVm: AgentViewModel) {
     ) {
         Text(
             "tokens nativos ${agentVm.localPromptTokens}",
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = Lab.Cyan,
             fontFamily = FontFamily.Monospace,
         )
-        Text("  ·  ", fontSize = 9.sp, color = Lab.Outline)
+        Text("  ·  ", fontSize = 11.sp, color = Lab.Outline)
         Text(
             "envio ${agentVm.promptTokens} · recebido ${agentVm.completionTokens}",
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             color = Lab.Muted,
             fontFamily = FontFamily.Monospace,
         )
         Spacer(Modifier.weight(1f))
-        Text(tps, fontSize = 9.sp, color = Lab.Green, fontFamily = FontFamily.Monospace)
+        Text(tps, fontSize = 11.sp, color = Lab.Green, fontFamily = FontFamily.Monospace)
     }
 }

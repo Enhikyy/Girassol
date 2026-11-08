@@ -8,9 +8,9 @@ const C = {
   bgElev: "#0C0E09",
   surface: "#13160F",
   surfaceHigh: "#1C2015",
-  outline: "#2E331F",
+  outline: "#3A4028",
   text: "#FBF6E7",
-  muted: "#A2A78E",
+  muted: "#B4B89F",
   gold: "#F2C14E",
   goldDeep: "#C6922A",
   lime: "#A9D96B",
@@ -116,7 +116,7 @@ function text(parent, name, value, x, y, w, size, color, weight = "regular", opt
   node.name = name;
   parent.appendChild(node);
   node.fontName = FONT[weight];
-  node.fontSize = size;
+  node.fontSize = Math.max(size, 11); // readable floor, mirrors the app
   node.fills = [solid(color)];
   node.characters = value;
   node.x = x;
@@ -251,16 +251,15 @@ function bottomNav(p, active) {
     ["Início", "home"],
     ["Modelos", "models"],
     ["Lab", "lab"],
-    ["Codex", "codex"],
-    ["Chat", "chat"],
+    ["Agentes", "agents"],
     ["Ajustes", "settings"],
   ];
-  const width = 366 / 6;
+  const width = 366 / tabs.length;
   tabs.forEach(([label], i) => {
     const on = i === active;
     const x = i * width;
     ellipse(bar, `dot ${label}`, x + width / 2 - 3, 9, 6, 6, on ? C.gold : C.muted);
-    text(bar, label, label, x, 23, width, 8, on ? C.gold : C.muted, on ? "semibold" : "medium", {
+    text(bar, label, label, x, 23, width, 11, on ? C.gold : C.muted, on ? "semibold" : "medium", {
       align: "CENTER",
     });
   });
@@ -628,7 +627,7 @@ function screenChat(page, x, y) {
   send.fills = [gradient([[0, C.gold], [1, C.goldDeep]])];
   text(send, "arrow", "↑", 0, 6, 36, 16, C.bg, "bold", { align: "CENTER" });
 
-  bottomNav(p, 4);
+  bottomNav(p, 3);
 }
 
 function screenLlamatik(page, x, y) {
@@ -686,7 +685,7 @@ function screenLlamatik(page, x, y) {
 }
 
 function screenSettings(page, x, _y) {
-  const p = phone(page, "Ajustes", x, y);
+  const p = phone(page, "Ajustes", x, _y);
   text(p, "title", "Ajustes", 18, 28, 180, 23, C.text, "bold", { spacing: -0.5 });
   text(p, "sub", "runtime, pesquisa e treino", 18, 56, 250, 9, C.muted, "regular");
 
@@ -723,11 +722,11 @@ function screenSettings(page, x, _y) {
 
   const about = card(p, "About", 16, 670, 358, 64, { radius: 18 });
   mark(about, 14, 16, 28);
-  text(about, "name", "Girassol 1.3.1", 54, 12, 180, 10, C.text, "semibold");
+  text(about, "name", "Girassol 1.4.0", 54, 12, 180, 10, C.text, "semibold");
   text(about, "meta", "build 6 · arm64-v8a · Android 8+", 54, 30, 240, 8, C.muted, "regular");
   text(about, "lic", "MIT", 300, 24, 44, 8, C.gold, "semibold", { align: "RIGHT" });
 
-  bottomNav(p, 5);
+  bottomNav(p, 4);
 }
 
 function screenCover(page) {
@@ -768,7 +767,7 @@ function screenCover(page) {
     x += w + 10;
   });
 
-  text(c, "version", "v1.3.1  ·  arm64-v8a  ·  Android 8+  ·  36 MB", 114, 660, 620, 12, C.muted, "regular");
+  text(c, "version", "v1.4.0  ·  arm64-v8a  ·  Android 8+  ·  36 MB", 114, 660, 620, 12, C.muted, "regular");
   button(c, "github.com/Enhikyy/girassol", 114, 704, 300, 48);
   text(c, "no server", "sem servidor  ·  sem telemetria  ·  MIT", 114, 774, 500, 11, C.muted, "regular");
 
@@ -844,14 +843,14 @@ function screenHomePreview(p) {
     style.paints = [solid(hex)];
   });
 
-  const coverPage = figma.createPage();
+  // Starter plans allow only 3 pages: reuse an empty current page for the cover and
+  // place the flow board on the screens page, below the phones.
+  const coverPage = figma.currentPage.children.length === 0 ? figma.currentPage : figma.createPage();
   coverPage.name = "00 · Capa";
   const systemPage = figma.createPage();
   systemPage.name = "01 · Design System";
   const screensPage = figma.createPage();
   screensPage.name = "02 · Telas";
-  const flowPage = figma.createPage();
-  flowPage.name = "03 · Fluxo";
 
   if (figma.setCurrentPageAsync) await figma.setCurrentPageAsync(coverPage);
   else figma.currentPage = coverPage;
@@ -864,7 +863,7 @@ function screenHomePreview(p) {
   frame(systemPage, "Design System", 0, 0, 1600, 1100, C.bg, 0);
   mark(systemPage, 80, 70, 64);
   text(systemPage, "title", "Girassol — Design System", 160, 78, 900, 34, C.text, "bold", { spacing: -1 });
-  text(systemPage, "sub", "sunflower lab · dark UI · 1.3.1", 160, 122, 600, 12, C.muted, "regular");
+  text(systemPage, "sub", "sunflower lab · dark UI · 1.4.0", 160, 122, 600, 12, C.muted, "regular");
 
   text(systemPage, "colors", "Cores", 80, 200, 300, 16, C.text, "semibold");
   styleDefs.forEach(([name, hex], i) => {
@@ -908,7 +907,7 @@ function screenHomePreview(p) {
   // screens
   if (figma.setCurrentPageAsync) await figma.setCurrentPageAsync(screensPage);
   else figma.currentPage = screensPage;
-  text(screensPage, "title", "Telas · 1.3.1", 80, 50, 500, 28, C.text, "bold", { spacing: -1 });
+  text(screensPage, "title", "Telas · 1.4.0", 80, 50, 500, 28, C.text, "bold", { spacing: -1 });
   text(screensPage, "sub", "390 × 844 · dark · arm64", 80, 88, 400, 11, C.muted, "regular");
   const screens = [
     [screenHome, "Home"],
@@ -927,9 +926,7 @@ function screenHomePreview(p) {
   });
 
   // flow
-  if (figma.setCurrentPageAsync) await figma.setCurrentPageAsync(flowPage);
-  else figma.currentPage = flowPage;
-  frame(flowPage, "Flow", 0, 0, 1600, 900, C.bg, 0);
+  const flowPage = frame(screensPage, "03 · Fluxo", 0, 2050, 1600, 900, C.bg, 0);
   text(flowPage, "title", "Fluxo do autoestudo", 80, 60, 700, 30, C.text, "bold", { spacing: -1 });
   text(flowPage, "sub", "sem servidor · APIs gratuitas · LLM opcional", 80, 100, 700, 12, C.muted, "regular");
   const steps = [

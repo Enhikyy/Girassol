@@ -102,7 +102,7 @@ fun HomeScreen(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("Girassol", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-                Text("pesquisa · dados · LoRA · agentes", fontSize = 9.5.sp, color = Lab.Muted)
+                Text("pesquisa · dados · LoRA · agentes", fontSize = 11.sp, color = Lab.Muted)
             }
             Row(
                 Modifier
@@ -114,19 +114,19 @@ fun HomeScreen(
             ) {
                 PulsingDot(if (LlamaBridge.isAvailable) Lab.Green else Lab.Red, 6.dp)
                 Spacer(Modifier.width(5.dp))
-                Text("%.1f GB".format(availableGb), fontSize = 9.sp, color = Lab.Text)
+                Text("%.1f GB".format(availableGb), fontSize = 11.sp, color = Lab.Text)
             }
             Spacer(Modifier.width(6.dp))
             Box(
                 Modifier
-                    .size(36.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(Lab.Surface)
                     .border(1.dp, Color.White.copy(alpha = 0.06f), CircleShape)
                     .clickable { onNavigate(Routes.SETTINGS) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.Settings, null, tint = Lab.Muted, modifier = Modifier.size(17.dp))
+                Icon(Icons.Rounded.Settings, "Ajustes", tint = Lab.Muted, modifier = Modifier.size(17.dp))
             }
         }
 
@@ -160,7 +160,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    "O agente pesquisa em 5 APIs gratuitas, monta o currículo, gera o dataset e redefine os hiperparâmetros.",
+                    "O agente pesquisa em 6 APIs gratuitas, monta o currículo, gera o dataset e ajusta os hiperparâmetros.",
                     fontSize = 11.sp,
                     lineHeight = 17.sp,
                     color = Color.White.copy(alpha = 0.66f),
@@ -197,7 +197,7 @@ fun HomeScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             GlassCard(Modifier.weight(1f), padding = 13) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("RAM", fontSize = 10.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
+                    Text("RAM", fontSize = 11.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
                     PulsingDot(if (availableGb > 2) Lab.Green else Lab.Amber, 6.dp)
                 }
                 Spacer(Modifier.height(6.dp))
@@ -236,7 +236,7 @@ fun HomeScreen(
                         ) {
                             Text(
                                 if (boosting) "…" else "Liberar",
-                                fontSize = 9.5.sp,
+                                fontSize = 11.sp,
                                 color = Lab.Violet,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -249,7 +249,7 @@ fun HomeScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Search, null, tint = Lab.Cyan, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(5.dp))
-                    Text("Pesquisa", fontSize = 10.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
+                    Text("Pesquisa", fontSize = 11.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
                     if (study.running) PulsingDot(Lab.Green, 6.dp)
                 }
                 Spacer(Modifier.height(7.dp))
@@ -262,8 +262,8 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    study.bundle?.let { "${it.docs.size} fontes · ${it.sourceCounts.size} APIs" } ?: "5 APIs gratuitas",
-                    fontSize = 9.sp,
+                    study.bundle?.let { "${it.docs.size} fontes · ${it.sourceCounts.size} APIs" } ?: "6 APIs gratuitas",
+                    fontSize = 11.sp,
                     color = Lab.Muted,
                 )
                 Spacer(Modifier.height(7.dp))
@@ -287,14 +287,14 @@ fun HomeScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PulsingDot(Lab.Amber, 6.dp)
                     Spacer(Modifier.width(5.dp))
-                    Text("${(vm.jobProgress * 100).toInt()}%", fontSize = 9.sp, color = Lab.Amber)
+                    Text("${(vm.jobProgress * 100).toInt()}%", fontSize = 11.sp, color = Lab.Amber)
                 }
             }
         }
         Spacer(Modifier.height(9.dp))
         GlassCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PipelineStep("1", "Pesquisa", "5 APIs", Lab.Cyan)
+                PipelineStep("1", "Pesquisa", "6 APIs", Lab.Cyan)
                 PipelineLine()
                 PipelineStep("2", "Currículo", "LLM", Lab.Violet)
                 PipelineLine()
@@ -318,7 +318,7 @@ fun HomeScreen(
                 Spacer(Modifier.width(7.dp))
                 Text(
                     "A imatrix protege os tensores mais ativos durante a quantização.",
-                    fontSize = 9.5.sp, color = Lab.Muted, modifier = Modifier.weight(1f),
+                    fontSize = 11.sp, color = Lab.Muted, modifier = Modifier.weight(1f),
                 )
                 Icon(Icons.Rounded.ChevronRight, null, tint = Lab.Muted, modifier = Modifier.size(14.dp))
             }
@@ -326,7 +326,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(20.dp))
         SectionHeader("Modelos recentes", "toque para inspecionar") {
-            Text("ver todos", fontSize = 10.sp, color = Lab.Violet, modifier = Modifier.clickable { onNavigate(Routes.MODELS) })
+            Text("ver todos", fontSize = 11.sp, color = Lab.Violet, modifier = Modifier.clickable { onNavigate(Routes.MODELS) })
         }
         Spacer(Modifier.height(9.dp))
         if (vm.models.isEmpty()) {
@@ -336,7 +336,7 @@ fun HomeScreen(
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Nenhum modelo importado", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.Medium)
-                        Text("Copie um .gguf para começar", fontSize = 10.sp, color = Lab.Muted)
+                        Text("Copie um .gguf para começar", fontSize = 11.sp, color = Lab.Muted)
                     }
                     Icon(Icons.Rounded.ChevronRight, null, tint = Lab.Muted)
                 }
@@ -364,7 +364,7 @@ fun HomeScreen(
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 "${m.meta?.parameterLabel ?: "?"} params · ${humanBytes(m.sizeBytes)}",
-                                fontSize = 10.sp, color = Lab.Muted,
+                                fontSize = 11.sp, color = Lab.Muted,
                             )
                         }
                         Pill(m.meta?.quantLabel ?: "?", Lab.Cyan)
@@ -379,13 +379,13 @@ fun HomeScreen(
                 Icon(Icons.Rounded.Code, null, tint = Lab.Violet, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.height(8.dp))
                 Text("Codex", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-                Text("implementa e testa até passar", fontSize = 9.sp, color = Lab.Muted, lineHeight = 13.sp)
+                Text("implementa e testa até passar", fontSize = 11.sp, color = Lab.Muted, lineHeight = 13.sp)
             }
             GlassCard(Modifier.weight(1f), onClick = { onNavigate(Routes.AGENT) }, padding = 14) {
                 Icon(Icons.Rounded.SmartToy, null, tint = Lab.Cyan, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.height(8.dp))
                 Text("Chat", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-                Text("agente com pensamentos e ferramentas", fontSize = 9.sp, color = Lab.Muted, lineHeight = 13.sp)
+                Text("agente com pensamentos e ferramentas", fontSize = 11.sp, color = Lab.Muted, lineHeight = 13.sp)
             }
         }
 
@@ -396,14 +396,14 @@ fun HomeScreen(
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Llamatik Runtime", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
-                    Text("tool registry · memória persistente · streaming", fontSize = 9.sp, color = Lab.Muted)
+                    Text("tool registry · memória persistente · streaming", fontSize = 11.sp, color = Lab.Muted)
                 }
                 Pill("SDK 2.2.2", Lab.Pink)
             }
         }
 
         Spacer(Modifier.height(18.dp))
-        Text(vm.nativeVersion, fontSize = 9.sp, color = Lab.Muted.copy(alpha = 0.7f))
+        Text(vm.nativeVersion, fontSize = 11.sp, color = Lab.Muted.copy(alpha = 0.7f))
         Spacer(Modifier.height(26.dp))
     }
 }
@@ -419,7 +419,7 @@ private fun StatCard(label: String, value: Int, color: Color, modifier: Modifier
     ) {
         AnimatedNumber(value, color = color, size = 19)
         Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 8.5.sp, color = Lab.Muted, maxLines = 1)
+        Text(label, fontSize = 11.sp, color = Lab.Muted, maxLines = 1)
     }
 }
 
@@ -434,11 +434,11 @@ private fun PipelineStep(number: String, title: String, sub: String, color: Colo
                 .border(1.dp, color.copy(alpha = 0.5f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(number, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color)
+            Text(number, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
         }
         Spacer(Modifier.height(5.dp))
-        Text(title, fontSize = 8.5.sp, color = Lab.Text, fontWeight = FontWeight.Medium, maxLines = 1)
-        Text(sub, fontSize = 7.sp, color = Lab.Muted, maxLines = 1)
+        Text(title, fontSize = 11.sp, color = Lab.Text, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(sub, fontSize = 11.sp, color = Lab.Muted, maxLines = 1)
     }
 }
 

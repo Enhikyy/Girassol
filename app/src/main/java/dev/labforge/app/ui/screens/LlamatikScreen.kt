@@ -77,7 +77,7 @@ fun LlamatikScreen(onBack: () -> Unit) {
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("Llamatik Runtime", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-                Text("SDK 2.2.2 · tool registry · memória persistente", fontSize = 9.5.sp, color = Lab.Muted)
+                Text("SDK 2.2.2 · tool registry · memória persistente", fontSize = 11.sp, color = Lab.Muted)
             }
             if (vm.streaming) SunflowerSpinner(28.dp, 8) else Pill(if (vm.initialized) "online" else "…", if (vm.initialized) Lab.Green else Lab.Amber)
         }
@@ -85,24 +85,24 @@ fun LlamatikScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("status", fontSize = 10.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
-                Text(vm.status, fontSize = 10.sp, color = Lab.Cyan, maxLines = 2)
+                Text("status", fontSize = 11.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
+                Text(vm.status, fontSize = 11.sp, color = Lab.Cyan, maxLines = 2)
             }
             Spacer(Modifier.height(8.dp))
-            Text("${vm.tools.size} ferramentas registradas", fontSize = 10.sp, color = Lab.Text, fontWeight = FontWeight.Medium)
+            Text("${vm.tools.size} ferramentas registradas", fontSize = 11.sp, color = Lab.Text, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(7.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 vm.tools.take(6).forEach { Pill(it, Lab.Violet) }
             }
             if (vm.tools.size > 6) {
                 Spacer(Modifier.height(4.dp))
-                Text("+${vm.tools.size - 6} ferramentas", fontSize = 8.5.sp, color = Lab.Muted)
+                Text("+${vm.tools.size - 6} ferramentas", fontSize = 11.sp, color = Lab.Muted)
             }
             Spacer(Modifier.height(9.dp))
             Text(
                 "Core nativo do Llamatik desativado: ele embarca outro llama.cpp e colidiria com o motor de treino. " +
                     "A camada de agente, tools e memória do SDK está ativa; a inferência usa o motor do Girassol.",
-                fontSize = 8.5.sp, color = Lab.Muted, lineHeight = 12.sp,
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp,
             )
         }
 
@@ -122,12 +122,12 @@ fun LlamatikScreen(onBack: () -> Unit) {
                         .clickable(enabled = !vm.testingTool) { vm.testRestApi() }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
-                    Text(if (vm.testingTool) "…" else "executar", fontSize = 9.5.sp, color = Lab.Green)
+                    Text(if (vm.testingTool) "…" else "executar", fontSize = 11.sp, color = Lab.Green)
                 }
             }
             vm.toolResult?.let {
                 Spacer(Modifier.height(8.dp))
-                Text(it, fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp, maxLines = 8)
+                Text(it, fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp, maxLines = 8)
             }
         }
 
@@ -152,7 +152,7 @@ fun LlamatikScreen(onBack: () -> Unit) {
                         .border(1.dp, Lab.Outline, RoundedCornerShape(12.dp))
                         .clickable { vm.clearOutput() }
                         .padding(horizontal = 13.dp, vertical = 12.dp),
-                ) { Text("limpar", fontSize = 10.sp, color = Lab.Muted) }
+                ) { Text("limpar", fontSize = 11.sp, color = Lab.Muted) }
             }
             Spacer(Modifier.height(10.dp))
             Console(vm.output.ifBlank { "aguardando…" }, maxHeight = 260)
@@ -172,12 +172,12 @@ fun LlamatikScreen(onBack: () -> Unit) {
                         .background(Lab.Pink.copy(alpha = 0.14f))
                         .clickable { vm.consolidate() }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
-                ) { Text("consolidar", fontSize = 9.5.sp, color = Lab.Pink) }
+                ) { Text("consolidar", fontSize = 11.sp, color = Lab.Pink) }
             }
             Spacer(Modifier.height(6.dp))
             Text(
                 "A memória usa PersistentMemory + MemoryStorage em arquivo. O consolidate grava o estado e alimenta o ciclo de sono.",
-                fontSize = 8.5.sp, color = Lab.Muted, lineHeight = 12.sp,
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp,
             )
         }
 

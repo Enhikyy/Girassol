@@ -144,7 +144,7 @@ fun TrainPane(vm: LabViewModel) {
                 Pill("preset do autoestudo", Lab.Cyan, filled = true)
                 Text(
                     "rank ${autoPreset.rank} · ${autoPreset.epochs} epochs · ctx ${autoPreset.ctx}",
-                    fontSize = 9.sp, color = Lab.Muted,
+                    fontSize = 11.sp, color = Lab.Muted,
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -174,7 +174,7 @@ fun TrainPane(vm: LabViewModel) {
                             "Treina apenas A/B (rank $rank) e exporta um adaptador GGUF carregável em llama.cpp/Ollama. O modelo base fica congelado, então cabe muito mais no aparelho."
                         else
                             "Atualiza os pesos selecionados. Exige GGUF F32/F16 e RAM de ~4× o modelo; use apenas para modelos pequenos.",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         lineHeight = 15.sp,
                         color = Lab.Muted,
                     )
@@ -188,7 +188,7 @@ fun TrainPane(vm: LabViewModel) {
                     Pill(if (mode == 0) "base congelada" else "pesos treináveis", Lab.Violet)
                 }
                 Spacer(Modifier.height(5.dp))
-                Text(budget.message, fontSize = 9.2.sp, color = if (budget.ok) Lab.Muted else Lab.Amber)
+                Text(budget.message, fontSize = 11.sp, color = if (budget.ok) Lab.Muted else Lab.Amber)
             }
         }
 
@@ -244,7 +244,7 @@ fun TrainPane(vm: LabViewModel) {
                             .clickable { format = f }
                             .padding(horizontal = 9.dp, vertical = 6.dp),
                     ) {
-                        Text(f.label, fontSize = 9.sp, color = if (active) Color.White else Lab.Muted, maxLines = 1)
+                        Text(f.label, fontSize = 11.sp, color = if (active) Color.White else Lab.Muted, maxLines = 1)
                     }
                 }
             }
@@ -283,7 +283,7 @@ fun TrainPane(vm: LabViewModel) {
                                 .padding(vertical = 9.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(label, fontSize = 10.sp, color = if (active) Color.White else Lab.Muted)
+                            Text(label, fontSize = 11.sp, color = if (active) Color.White else Lab.Muted)
                         }
                     }
                 }
@@ -312,7 +312,7 @@ fun TrainPane(vm: LabViewModel) {
                             val active = filterMode == i
                             Text(
                                 label,
-                                fontSize = 10.5.sp,
+                                fontSize = 11.sp,
                                 color = if (active) Lab.Text else Lab.Muted,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -324,7 +324,7 @@ fun TrainPane(vm: LabViewModel) {
                         }
                         Text(
                             "Personalizado",
-                            fontSize = 10.5.sp,
+                            fontSize = 11.sp,
                             color = if (filterMode == filters.size) Lab.Text else Lab.Muted,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -347,7 +347,7 @@ fun TrainPane(vm: LabViewModel) {
                 Icon(Icons.Rounded.Timer, null, tint = Lab.Amber, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.size(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Tempo estimado", fontSize = 10.sp, color = Lab.Muted)
+                    Text("Tempo estimado", fontSize = 11.sp, color = Lab.Muted)
                     Text(
                         if (eta > 0) Perf.fmtDuration(eta) else "importe o dataset para estimar",
                         fontSize = 15.sp,
@@ -356,7 +356,7 @@ fun TrainPane(vm: LabViewModel) {
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("tokens", fontSize = 9.sp, color = Lab.Muted)
+                    Text("tokens", fontSize = 11.sp, color = Lab.Muted)
                     Text(if (tokens > 0) humanNumber(tokens) else "—", fontSize = 11.sp, color = Lab.Cyan)
                 }
             }

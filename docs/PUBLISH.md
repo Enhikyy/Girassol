@@ -21,8 +21,8 @@ git push -u origin main
 O push dispara `.github/workflows/android.yml`, que roda os testes, gera o APK e o publica como artifact `Girassol-APK`. Para uma release:
 
 ```bash
-git tag v1.3.1
-git push origin v1.3.1
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 ## Figma
@@ -45,5 +45,5 @@ Conecte um MCP Figma ou forneça um token com `file_content:write` e o file key 
 ## Verificação
 
 - GitHub Actions: **Actions → Android APK**;
-- APK: artifact `Girassol-APK` ou release `v1.3.1`;
+- APK: artifact `Girassol-APK` ou release `v1.4.0`;
 - Figma: 4 páginas (`00 · Capa`, `01 · Design System`, `02 · Telas`, `03 · Fluxo`).

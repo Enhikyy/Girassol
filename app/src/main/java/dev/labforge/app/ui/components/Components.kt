@@ -150,7 +150,7 @@ fun Pill(text: String, color: Color = Lab.Violet, filled: Boolean = false) {
         Text(
             text,
             color = color,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -171,10 +171,7 @@ fun GradientButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.965f else 1f, tween(120), label = "press")
-    val alpha by animateColorAsState(
-        if (enabled && !loading) Color.Transparent else Color.Black.copy(alpha = 0.35f),
-        label = "btn",
-    )
+    val contentAlpha by animateFloatAsState(if (enabled && !loading) 1f else 0.6f, label = "btn")
     Row(
         modifier
             .clip(shape)
@@ -189,25 +186,26 @@ fun GradientButton(
                 indication = LocalIndication.current,
                 enabled = enabled && !loading,
             ) { onClick() }
+            .heightIn(min = 48.dp)
             .padding(horizontal = 18.dp, vertical = 13.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.background(alpha)) {
+        Box(Modifier.graphicsLayer { alpha = contentAlpha }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (loading) "Processando…" else text,
-                    color = if (enabled) Color.White else Lab.Muted,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    color = if (enabled) Lab.OnPrimary else Lab.Muted,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
                 )
                 if (icon != null && !loading) {
                     Spacer(Modifier.width(8.dp))
-                    Icon(icon, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                    Icon(icon, null, tint = if (enabled) Lab.OnPrimary else Lab.Muted, modifier = Modifier.size(18.dp))
                 }
                 if (icon == null && !loading) {
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Rounded.ArrowForward, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Rounded.ArrowForward, null, tint = if (enabled) Lab.OnPrimary else Lab.Muted, modifier = Modifier.size(17.dp))
                 }
             }
         }
@@ -222,9 +220,10 @@ fun GhostButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = 
             .clip(shape)
             .border(1.dp, Lab.Outline, shape)
             .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .heightIn(min = 44.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        Text(text, color = if (enabled) Lab.Text else Lab.Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = if (enabled) Lab.Text else Lab.Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -239,7 +238,7 @@ fun StatTile(label: String, value: String, accent: Color = Lab.Violet, modifier:
     ) {
         Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
         Spacer(Modifier.height(3.dp))
-        Text(label, fontSize = 10.sp, color = Lab.Muted, maxLines = 1)
+        Text(label, fontSize = 11.sp, color = Lab.Muted, maxLines = 1)
     }
 }
 
@@ -330,7 +329,7 @@ fun Console(
     Box(
         modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF08080D))
+            .background(Color(0xFF0B0C08))
             .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp)),
     ) {
         Text(
@@ -340,8 +339,8 @@ fun Console(
                 .verticalScroll(scroll)
                 .padding(12.dp),
             fontFamily = FontFamily.Monospace,
-            fontSize = 10.5.sp,
-            lineHeight = 15.sp,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
             color = Color(0xFFB9E7C9),
         )
     }
@@ -410,14 +409,14 @@ fun Segmented(
                         RoundedCornerShape(10.dp),
                     )
                     .clickable { onSelect(i) }
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 11.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (active) Color.White else Lab.Muted,
+                    color = if (active) Lab.Text else Lab.Muted,
                     maxLines = 1,
                 )
             }
@@ -437,16 +436,16 @@ fun LabField(
     onValueChange: (String) -> Unit,
 ) {
     Column(modifier) {
-        Text(label, fontSize = 11.sp, color = Lab.Muted, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 12.sp, color = Lab.Muted, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(placeholder, fontSize = 13.sp, color = Lab.Muted.copy(alpha = 0.55f)) },
+            placeholder = { Text(placeholder, fontSize = 14.sp, color = Lab.Muted.copy(alpha = 0.7f)) },
             singleLine = singleLine,
             minLines = if (singleLine) 1 else 3,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = Lab.Text),
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = Lab.Text),
             visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             keyboardOptions = if (numeric) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
             shape = RoundedCornerShape(12.dp),
@@ -454,8 +453,8 @@ fun LabField(
                 focusedBorderColor = Lab.Violet.copy(alpha = 0.65f),
                 unfocusedBorderColor = Lab.Outline,
                 cursorColor = Lab.Violet,
-                focusedContainerColor = Color(0xFF0D0D16),
-                unfocusedContainerColor = Color(0xFF0D0D16),
+                focusedContainerColor = Lab.Field,
+                unfocusedContainerColor = Lab.Field,
             ),
         )
     }

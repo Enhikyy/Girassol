@@ -138,7 +138,7 @@ fun ImatrixPane(vm: LabViewModel) {
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "dataset: ${report.datasets.joinToString(", ").take(140)}",
-                    fontSize = 9.5.sp,
+                    fontSize = 11.sp,
                     color = Lab.Muted,
                 )
             }
@@ -148,7 +148,7 @@ fun ImatrixPane(vm: LabViewModel) {
                 if (vm.selectedModel != null) {
                     Text(
                         "vincular",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Lab.Violet,
                         modifier = Modifier.clickable { vm.linkedModelForImatrix() },
                     )
@@ -185,7 +185,7 @@ fun ImatrixPane(vm: LabViewModel) {
                         Text(
                             "faltam: " + coverage.missing.take(4).joinToString(", ") +
                                 if (coverage.missing.size > 4) " (+${coverage.missing.size - 4})" else "",
-                            fontSize = 9.5.sp,
+                            fontSize = 11.sp,
                             color = Lab.Muted,
                             fontFamily = FontFamily.Monospace,
                         )
@@ -206,13 +206,13 @@ fun ImatrixPane(vm: LabViewModel) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("blk.0", fontSize = 9.sp, color = Lab.Muted)
+                    Text("blk.0", fontSize = 11.sp, color = Lab.Muted)
                     Text(
                         "pico: blk.${report.layers.maxByOrNull { it.importance }?.layer ?: 0}",
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         color = Lab.Cyan,
                     )
-                    Text("blk.${report.layers.last().layer}", fontSize = 9.sp, color = Lab.Muted)
+                    Text("blk.${report.layers.last().layer}", fontSize = 11.sp, color = Lab.Muted)
                 }
             }
         }
@@ -229,13 +229,13 @@ fun ImatrixPane(vm: LabViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 e.name,
-                                fontSize = 9.5.sp,
+                                fontSize = 11.sp,
                                 color = Lab.Text,
                                 fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.weight(1f),
                                 maxLines = 1,
                             )
-                            Text("%.4f".format(e.meanAbs), fontSize = 9.5.sp, color = Lab.Cyan)
+                            Text("%.4f".format(e.meanAbs), fontSize = 11.sp, color = Lab.Cyan)
                         }
                         Spacer(Modifier.height(3.dp))
                         Box(
@@ -257,7 +257,7 @@ fun ImatrixPane(vm: LabViewModel) {
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "${report.entries.size} entradas · ${humanBytes(report.bytes)} lidos",
-                    fontSize = 9.sp,
+                    fontSize = 11.sp,
                     color = Lab.Muted,
                 )
             }
@@ -269,7 +269,7 @@ fun ImatrixPane(vm: LabViewModel) {
                     Spacer(Modifier.size(8.dp))
                     Text(
                         "Use esta imatrix na aba Quantizar para preservar os tensores de maior ativação.",
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         color = Lab.Muted,
                         lineHeight = 15.sp,
                     )

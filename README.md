@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Enhikyy/girassol/actions/workflows/android.yml"><img alt="Android APK" src="https://github.com/Enhikyy/girassol/actions/workflows/android.yml/badge.svg"></a>
-  <img alt="versão" src="https://img.shields.io/badge/versão-1.3.1-F2C14E">
+  <img alt="versão" src="https://img.shields.io/badge/versão-1.4.0-F2C14E">
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-84D98A">
   <img alt="ABI" src="https://img.shields.io/badge/ABI-arm64--v8a-A9D96B">
   <img alt="tamanho" src="https://img.shields.io/badge/APK-36%20MB-FFD166">
@@ -35,7 +35,7 @@ O APK é gerado pelo GitHub Actions em cada push:
 3. ou baixe a release assinada em **Releases** (tags `v*`).
 
 ```bash
-adb install -r Girassol-1.3.1-debug.apk
+adb install -r Girassol-1.4.0-debug.apk
 ```
 
 > Requer Android 8.0+ (API 26) e **arm64-v8a**. O APK tem ~36 MB.

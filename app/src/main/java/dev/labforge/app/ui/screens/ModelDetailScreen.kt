@@ -86,7 +86,7 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(entry?.name ?: "Modelo", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Lab.Text, maxLines = 1)
-                Text("detalhes do arquivo GGUF", fontSize = 10.sp, color = Lab.Muted)
+                Text("detalhes do arquivo GGUF", fontSize = 11.sp, color = Lab.Muted)
             }
             Box(
                 Modifier
@@ -116,7 +116,7 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
                     Column(Modifier.weight(1f)) {
                         Text(meta.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Lab.Text, maxLines = 2)
                         Spacer(Modifier.height(4.dp))
-                        Text(entry!!.file.name, fontSize = 10.sp, color = Lab.Muted, maxLines = 1)
+                        Text(entry!!.file.name, fontSize = 11.sp, color = Lab.Muted, maxLines = 1)
                     }
                     Pill(meta.quantLabel, Lab.Cyan, filled = true)
                 }
@@ -133,7 +133,7 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
                     StatTile("heads", "${meta.headCount}/${meta.headCountKv}", Lab.Indigo, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(14.dp))
-                Text("mistura de quantização", fontSize = 10.sp, color = Lab.Muted)
+                Text("mistura de quantização", fontSize = 11.sp, color = Lab.Muted)
                 Spacer(Modifier.height(8.dp))
                 val mix = meta.quantMix.entries.sortedByDescending { it.value }
                 val colors = listOf(Lab.Violet, Lab.Cyan, Lab.Green, Lab.Pink, Lab.Amber, Lab.Indigo, Lab.Red)
@@ -153,8 +153,8 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
                             Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(7.dp).clip(CircleShape).background(colors[i % colors.size]))
                                 Spacer(Modifier.width(6.dp))
-                                Text(e.key.label, fontSize = 9.5.sp, color = Lab.Text, modifier = Modifier.weight(1f))
-                                Text("${e.value}", fontSize = 9.5.sp, color = Lab.Muted)
+                                Text(e.key.label, fontSize = 11.sp, color = Lab.Text, modifier = Modifier.weight(1f))
+                                Text("${e.value}", fontSize = 11.sp, color = Lab.Muted)
                             }
                         }
                     }
@@ -217,18 +217,18 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
                         Column(Modifier.weight(1f)) {
                             Text(
                                 t.name,
-                                fontSize = 10.5.sp,
+                                fontSize = 11.sp,
                                 color = Lab.Text,
                                 fontFamily = FontFamily.Monospace,
                                 maxLines = 1,
                             )
                             Text(
                                 t.dims.joinToString(" × ") + " · ${t.type.label}",
-                                fontSize = 9.sp,
+                                fontSize = 11.sp,
                                 color = Lab.Muted,
                             )
                         }
-                        Text(humanBytes(t.byteSize), fontSize = 9.5.sp, color = Lab.Cyan)
+                        Text(humanBytes(t.byteSize), fontSize = 11.sp, color = Lab.Cyan)
                     }
                 }
                 if (meta.tensors.size > 8) {
@@ -249,7 +249,7 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
                 GlassCard {
                     Text(
                         template.take(900) + if (template.length > 900) "\n…" else "",
-                        fontSize = 9.5.sp,
+                        fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFFB9C6E8),
                         lineHeight = 14.sp,
@@ -266,13 +266,13 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
                     .padding(14.dp),
             ) {
                 Column {
-                    Text("Caminho no sandbox", fontSize = 10.sp, color = Lab.Muted)
+                    Text("Caminho no sandbox", fontSize = 11.sp, color = Lab.Muted)
                     Spacer(Modifier.height(4.dp))
-                    Text(entry!!.file.absolutePath, fontSize = 10.sp, color = Lab.Text, fontFamily = FontFamily.Monospace)
+                    Text(entry!!.file.absolutePath, fontSize = 11.sp, color = Lab.Text, fontFamily = FontFamily.Monospace)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "Versão GGUF v${meta.version} · ${meta.tensorCount} tensores · alinhamento ${meta.alignment}",
-                        fontSize = 9.5.sp,
+                        fontSize = 11.sp,
                         color = Lab.Muted,
                     )
                 }

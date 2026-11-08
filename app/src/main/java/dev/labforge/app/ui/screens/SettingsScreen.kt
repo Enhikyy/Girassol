@@ -100,12 +100,12 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Spacer(Modifier.height(6.dp))
             Text(
                 "URL final: ${LlmClient.describeNormalized(endpoint)}",
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Lab.Muted,
                 fontFamily = FontFamily.Monospace,
             )
             Spacer(Modifier.height(14.dp))
-            Text("Temperatura · %.2f".format(temperature), fontSize = 10.5.sp, color = Lab.Muted)
+            Text("Temperatura · %.2f".format(temperature), fontSize = 11.sp, color = Lab.Muted)
             Slider(
                 value = temperature,
                 onValueChange = { temperature = it },
@@ -145,13 +145,13 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         testResult ?: "Dica: use um endpoint local (Ollama/LM Studio) para privacidade total.",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = if (testResult?.contains("erro", true) == true) Lab.Red else Lab.Muted,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
                         if (testing) "testando…" else "testar",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Lab.Cyan,
                         modifier = Modifier.padding(start = 8.dp),
                     )
@@ -212,7 +212,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Spacer(Modifier.width(10.dp))
                 Text(
                     vm.store.root.absolutePath,
-                    fontSize = 9.5.sp,
+                    fontSize = 11.sp,
                     color = Lab.Text,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f),
@@ -260,9 +260,9 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Spacer(Modifier.height(7.dp))
                 Text(
                     "+${r.freedMb} MB · ${r.appsTouched} apps tocados · ${r.cachesMb} MB de cache",
-                    fontSize = 9.5.sp, color = Lab.Green,
+                    fontSize = 11.sp, color = Lab.Green,
                 )
-                Text(r.note, fontSize = 8.5.sp, color = Lab.Muted, lineHeight = 12.sp)
+                Text(r.note, fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp)
             }
         }
 
@@ -273,7 +273,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Text(
                 "O agente consulta essas fontes em paralelo e guarda tudo no RAG local. " +
                     "Nenhuma conta, chave ou cadastro.",
-                fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp,
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
             )
             Spacer(Modifier.height(9.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -297,7 +297,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 "Camada de agente oficial (ToolRegistry, AgentExecutor, PersistentMemory, AgentStreamChunk) " +
                     "com a tool REST Retrofit e a pesquisa gratuita. O core nativo fica desativado para não " +
                     "colidir com o llama.cpp de treino.",
-                fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp,
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
             )
             Spacer(Modifier.height(9.dp))
             Box(
@@ -320,14 +320,14 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Icon(Icons.Rounded.Info, null, tint = Lab.Muted, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(9.dp))
                 Column {
-                    Text("Girassol 1.3", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.SemiBold)
+                    Text("Girassol ${dev.labforge.app.BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(3.dp))
                     Text(
                         "Estúdio de GGUF/imatrix com LoRA nativo, Codex autônomo e autoestudo. " +
                             "Motor de quantização, treino, tokenização e adaptadores: llama.cpp (MIT). Git: Eclipse JGit. " +
                             "UI: Jetpack Compose. Jobs rodam em foreground service para sobreviver ao background. " +
                             "Nenhum dado sai do aparelho, exceto as chamadas ao endpoint do agente.",
-                        fontSize = 9.8.sp,
+                        fontSize = 11.sp,
                         lineHeight = 15.sp,
                         color = Lab.Muted,
                     )
