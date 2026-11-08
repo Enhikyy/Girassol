@@ -1,3 +1,9 @@
+# Girassol 1.6.1 — Refinamento de interface
+
+- Melhorias de legibilidade e escala tipográfica nas telas principais.
+- Ajustes de hierarquia de títulos, metadados e rótulos para leitura em telas móveis.
+- Preservação do motor nativo, modelos, pesquisa, ferramentas de agente, dados e fluxos existentes.
+
 # Changelog
 
 ## 1.6.0 — 2026-11-08
