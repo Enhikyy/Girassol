@@ -156,6 +156,7 @@ fun CodeStudioScreen() {
 
 @Composable
 private fun MeshPreview(mesh:Mesh,rotation:Float,modifier:Modifier=Modifier) {
+    val lineColor=MaterialTheme.colorScheme.primary
     Canvas(modifier) {
         val ca=cos(rotation); val sa=sin(rotation)
         val projected=mesh.vertices.map { v ->
@@ -164,10 +165,9 @@ private fun MeshPreview(mesh:Mesh,rotation:Float,modifier:Modifier=Modifier) {
             val depth=(z+4.5f).coerceAtLeast(.5f)
             Offset(size.width*.5f+x/depth*size.minDimension*.42f,size.height*.5f-y/depth*size.minDimension*.42f)
         }
-        val color=MaterialTheme.colorScheme.primary
         mesh.triangles.forEach { t ->
             val a=projected[t.a];val b=projected[t.b];val c=projected[t.c]
-            drawLine(color.copy(alpha=.72f),a,b,strokeWidth=1.25f,cap=StrokeCap.Round)
+            drawLine(lineColor.copy(alpha=.72f),a,b,strokeWidth=1.25f,cap=StrokeCap.Round)
             drawLine(color.copy(alpha=.72f),b,c,strokeWidth=1.25f,cap=StrokeCap.Round)
             drawLine(color.copy(alpha=.72f),c,a,strokeWidth=1.25f,cap=StrokeCap.Round)
         }
