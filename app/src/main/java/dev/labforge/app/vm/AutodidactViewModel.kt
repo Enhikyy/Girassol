@@ -562,7 +562,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         autopilotRunning = true
         autopilotJob = viewModelScope.launch {
             try {
-                while (kotlinx.coroutines.currentCoroutineContext().isActive && autopilotRunning) {
+                while (autopilotRunning) {
                     start()
                     job?.join()
                     if (!autopilotRunning) break
