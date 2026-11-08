@@ -33,6 +33,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools  # default 'tools' no longer exists in cmdline-tools 16
 
       - name: Install SDK packages
         run: |
