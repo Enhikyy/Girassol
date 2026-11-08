@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Girassol</string>
+    <string name="accessibility_description">Permite ao Girassol ler elementos da tela e executar ações e testes solicitados ao agente, sem root.</string>
 </resources>

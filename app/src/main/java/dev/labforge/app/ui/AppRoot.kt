@@ -11,6 +11,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
@@ -43,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -231,7 +235,7 @@ private fun JobStrip(title: String, progress: Float, eta: String, onClick: () ->
 }
 
 @Composable
-private fun BottomBar(current: String, onSelect: (String) -> Unit) {
+internal fun BottomBar(current: String, onSelect: (String) -> Unit) {
     val selected = tabs.indexOfFirst { it.route == current || (it.route == Routes.AGENT && current == Routes.CODEX) }
     Box(
         Modifier
@@ -243,6 +247,7 @@ private fun BottomBar(current: String, onSelect: (String) -> Unit) {
             selected = selected,
             modifier = Modifier
                 .fillMaxWidth()
+                .selectableGroup()
                 .glassBackdrop(RoundedCornerShape(26.dp))
                 .glassSheen(periodMs = 9000, alpha = 0.07f)
                 .padding(vertical = 6.dp, horizontal = 6.dp),
@@ -261,7 +266,8 @@ private fun BottomBar(current: String, onSelect: (String) -> Unit) {
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .clickable { onSelect(tab.route) }
+                    .selectable(selected = active, role = Role.Tab, onClick = { onSelect(tab.route) })
+                    .heightIn(min = 48.dp)
                     .padding(vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

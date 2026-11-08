@@ -33,12 +33,16 @@ class ReActAgent(
     private val settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
     private val onEvent: (AgentEvent) -> Unit,
 ) {
+    private val evidence = dev.labforge.app.core.evolution.EvidenceJournal(lessons.directory)
     private val tools = defaultTools(workspace, lessons, settings)
 
     private var lastSignature: String? = null
     private var repeats = 0
 
     suspend fun run(task: String): String {
+        val skillContext = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            dev.labforge.app.core.evolution.SkillTree.describe(evidence.all())
+        }
         val relevant = lessons.search(task, 4)
         val notebook = if (relevant.isEmpty()) "(caderno vazio)" else relevant.joinToString("\n\n") {
             "### ${it.title}\n${it.body}"
@@ -47,7 +51,7 @@ class ReActAgent(
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "system")
-                put("content", systemOverride ?: systemPrompt(notebook))
+                put("content", (systemOverride ?: systemPrompt(notebook)) + "\n\nEvidências de execuções anteriores:\n$skillContext")
             })
             put(JSONObject().apply {
                 put("role", "user")
@@ -65,6 +69,7 @@ class ReActAgent(
                 llm.chat(messages, toolSpecs) { text, reasoning ->
                     onEvent(AgentEvent.Token(text, reasoning))
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
             } catch (t: Throwable) {
                 onEvent(AgentEvent.Failure(t.message ?: "falha na chamada do modelo"))
                 return ""
@@ -103,11 +108,24 @@ class ReActAgent(
                 val args = runCatching { JSONObject(call.arguments.ifBlank { "{}" }) }
                     .getOrElse { JSONObject() }
                 val tool = tools.firstOrNull { it.name == call.name }
+                val toolStarted = System.nanoTime()
                 val result = if (tool == null) {
                     ToolResult(false, "ferramenta desconhecida: ${call.name}")
                 } else {
-                    runCatching { tool.execute(args) }
-                        .getOrElse { ToolResult(false, it.message ?: "erro na ferramenta") }
+                    try { tool.execute(args) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (error: Exception) { ToolResult(false, error.message ?: "erro na ferramenta") }
+                }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val event = evidence.record(call.name, args, result.ok, (System.nanoTime() - toolStarted) / 1_000_000)
+                    if (event.recovered) lessons.save("Recuperação verificada: ${call.name} ${event.signature.take(12)}",
+                        "A mesma operação voltou a ter sucesso após falhar. Ferramenta: ${call.name}. Resultado: ${result.output.take(2000)}",
+                        listOf("recovery", call.name))
+                }
+                if (!result.ok) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    lessons.save("Falha em ${call.name}: ${task.take(80)}",
+                        "Tarefa: ${task.take(1000)}\nFerramenta: ${call.name}\nFalha observada: ${result.output.take(3000)}",
+                        listOf("failure", call.name))
                 }
                 onEvent(AgentEvent.ToolEnd(call.name, result.ok, result.output.take(7000)))
                 messages.put(JSONObject().apply {
@@ -145,7 +163,12 @@ class ReActAgent(
     }
 
     private fun systemPrompt(notebook: String): String = """
-Você é o Girassol Agent, um estudante de TI autônomo rodando dentro de um app Android.
+Você é o Girassol Agent num Android SEM root. Use android_control por Acessibilidade e android_ui_test para testar fluxos.
+Use android_build e termux_command para compilar, testar, analisar e editar projetos no Termux por RUN_COMMAND.
+Consulte skill_tree para planejar práticas a partir de evidências; inference_benchmark mede configurações locais sem API.
+O terminal comum executa como UID do Girassol. Nunca use su, input, uiautomator ou pm install como se tivesse privilégio de shell/adb.
+O workspace privado do Girassol não é visível ao Termux: use termux_command para editar os arquivos do projeto que será compilado lá.
+Instalar um APK abre o instalador do Android e exige confirmação do usuário. Não declare instalado apenas porque o instalador abriu.
 Ferramentas GitHub: github_search_repos, github_search_code, github_read_file e github_list_issues para estudar repositórios reais;
 git_clone para trazer um repo ao workspace; git_branch, git_commit, git_push, github_create_issue e github_create_pr para propor mudanças.
 Nunca faça push em main/master: crie uma branch e abra PR. Se faltar token, diga isso e continue com o que for possível.
@@ -192,7 +215,7 @@ Método:
 
 Regras:
 - Não invente resultados de teste. Só afirme que passou se viu exit 0.
-- Não use root. Não saia do workspace.
+- Sem root: use termux_command para projetos no Termux e as ferramentas de arquivo para o workspace do Girassol.
 - Android não tem python/pip/git: use sh/toybox e as ferramentas git_*.
 - Se o teste exigir dependências inexistentes, crie um teste local equivalente em sh e explique.
 - Responda em português do Brasil, direto.

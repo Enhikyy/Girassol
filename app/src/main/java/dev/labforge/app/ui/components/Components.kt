@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
@@ -52,6 +54,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -405,6 +408,7 @@ fun Segmented(
         count = options.size,
         selected = selected,
         modifier = modifier
+            .selectableGroup()
             .glassBackdrop(RoundedCornerShape(16.dp))
             .padding(4.dp),
         corner = 12.dp,
@@ -414,7 +418,8 @@ fun Segmented(
             Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable { onSelect(i) }
+                .selectable(selected = active, role = Role.Tab, onClick = { onSelect(i) })
+                .heightIn(min = 48.dp)
                 .padding(vertical = 11.dp),
             contentAlignment = Alignment.Center,
         ) {

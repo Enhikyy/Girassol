@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.Perf
 import dev.labforge.app.core.job.JobEngine
@@ -20,6 +22,7 @@ import dev.labforge.app.core.research.ResearchDownloader
 import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.settings.researchKeys
+import dev.labforge.app.core.sleep.SleepResearch
 import dev.labforge.app.core.train.AutoTuner
 import dev.labforge.app.core.train.ChatFormat
 import dev.labforge.app.core.train.DatasetBuilder
@@ -163,6 +166,12 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var datasetStats by mutableStateOf<DatasetStats?>(null)
         private set
+    var sleepScheduled by mutableStateOf(false)
+        private set
+    var sleepStatus by mutableStateOf("desativado")
+        private set
+    var sleepHasResult by mutableStateOf(false)
+        private set
     var autoTrain by mutableStateOf(false)
     var autopilotMode by mutableStateOf(false)
     var autopilotIntervalMinutes by mutableStateOf(30)
@@ -177,6 +186,20 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     private var autopilotJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            WorkManager.getInstance(app).getWorkInfosForUniqueWorkFlow(SleepResearch.WORK_NAME).collect { infos ->
+                val info = infos.firstOrNull { !it.state.isFinished }
+                sleepScheduled = info != null
+                sleepStatus = when (info?.state) {
+                    WorkInfo.State.RUNNING -> "pesquisando em segundo plano"
+                    WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> if ((info?.runAttemptCount ?: 0) > 0) {
+                        "pesquisa falhou · aguardando nova tentativa"
+                    } else "aguardando carregamento e inatividade"
+                    else -> "desativado"
+                }
+                sleepHasResult = withContext(Dispatchers.IO) { SleepResearch.repository(app).latest()?.docs?.isNotEmpty() == true }
+            }
+        }
         viewModelScope.launch {
             bundle = withContext(Dispatchers.IO) { repo.latest() }
             history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
@@ -194,7 +217,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
             }
             llmReady = runCatching {
                 val cfg = settingsRepo.settings.first()
-                cfg.apiKey.isNotBlank() || !cfg.endpoint.contains("openai.com")
+                LlmClient.ready(cfg)
             }.getOrDefault(false)
         }
     }
@@ -218,8 +241,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         job = viewModelScope.launch {
             try {
                 val cfg = settingsRepo.settings.first()
-                val llm = if (cfg.apiKey.isNotBlank() || !cfg.endpoint.contains("openai.com")) {
-                    LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
+                val llm = if (LlmClient.ready(cfg)) {
+                    LlmClient.fromSettings(cfg)
                 } else null
                 llmReady = llm != null
 
@@ -321,7 +344,9 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 status = "convertendo para texto de treino…"
                 val (txt, stats) = withContext(Dispatchers.IO) {
                     val out = store.uniqueFile(AssetKind.DATASET, "auto-$slug.txt")
-                    DatasetBuilder.build(listOf(jsonl), ChatFormat.CHATML, out)
+                    val replay = dev.labforge.app.core.memory.MemoryConsolidator.consolidate(
+                        dev.labforge.app.core.agent.LessonStore(store.agentDir).all(), store.datasetsDir).replay
+                    DatasetBuilder.build(listOfNotNull(jsonl, replay), ChatFormat.CHATML, out)
                 }
                 datasetStats = stats
                 progress = 0.9f
@@ -553,6 +578,28 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         theme = b.theme
         AppSelection.researchTheme = b.theme
         AppSelection.researchBundleId = b.id
+    }
+
+    fun startSleepResearch(theme: String) {
+        if (theme.trim().length < 3) {
+            sleepStatus = "informe um tema com pelo menos 3 caracteres"
+            return
+        }
+        SleepResearch.schedule(getApplication(), theme)
+    }
+
+    fun stopSleepResearch() {
+        SleepResearch.cancel(getApplication())
+    }
+
+    fun openSleepResult(onOpened: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { SleepResearch.repository(getApplication()).latest() }
+            if (result != null && result.docs.isNotEmpty()) {
+                openHistory(result)
+                onOpened(result.theme)
+            }
+        }
     }
 
     /** Repeats research, ingestion, dataset creation and tuning while this ViewModel is alive. */

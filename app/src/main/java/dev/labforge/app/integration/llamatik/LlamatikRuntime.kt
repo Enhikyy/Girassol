@@ -204,11 +204,11 @@ object LlamatikRuntime {
         }
         try {
             val cfg = settingsRepo.settings.first()
-            if (cfg.apiKey.isBlank() && cfg.endpoint.contains("openai.com")) {
+            if (!LlmClient.ready(cfg)) {
                 trySend(AgentStreamChunk.Failure("Configure endpoint/API key em Ajustes para o streaming."))
                 close(); return@callbackFlow
             }
-            val client = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
+            val client = LlmClient.fromSettings(cfg)
             streamWith(client, prompt) { trySend(it) }
         } catch (t: Throwable) {
             trySend(AgentStreamChunk.Failure(t.message ?: "stream failed"))

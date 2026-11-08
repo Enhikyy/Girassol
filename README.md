@@ -62,7 +62,13 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
 | **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
 | **Llamatik** | SDK de agentes 2.2.2 integrado: tools, executor, permissões, memória persistente e streaming. |
-| **RAM** | Mede memória, encerra processos de terceiros, limpa cache e informa o ganho real. |
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:34589c5ea60e0aa3e321d959e777ea59158cde202e4590e59e3c6e601fde6df5 -->
+
+**RAM:** mede a variação de memória e limpa caches do Girassol. Android 14+ não permite encerrar outros aplicativos; em versões anteriores, solicitações podem ser ignoradas.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ### Sem chave de API
 
@@ -196,7 +202,27 @@ O APK é validado por teste: `com.llamatik.core.platform.LlamaBridge` **não** e
 
 ---
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:73b49c17c546ab20d043e3b59cb6a7b3b560c63c75b542d7fb7e137e8681f7f9 -->
+
+## Central de compilação
+
+**Laboratório → Compilar** oferece diagnóstico, testes, lint, montagem e verificação de APK/assinatura, com logs por etapa, metadados SHA-256 e relatório persistido. A interface adaptável usa padrões Material pesquisados na documentação Flutter, implementados nativamente em Compose. Veja [uso, ambiente e limites](docs/BUILD_CENTER.md).
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:87c3747a2ef34318f182dbaa9d5b38a0763bbec505d5111965ad15981341679b -->
+
+## Modelos visuais nativos
+
+A página inicial e o chat aplicam modelos abertos semelhantes às referências Figma, adaptados de Jetchat/Reply e Material Icons: destaque, grade de atalhos, sugestões, compositor e cartões expansíveis. [Modelos, downloads, licenças e cobertura](docs/VISUAL_TEMPLATES.md).
+
 ## Design
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 - Tema escuro “sunflower lab”: fundo `#070805`, superfícies `#13160F`, dourado `#F2C14E`, verde `#84D98A`.
 - Tipografia sans (Inter/Roboto), títulos com tracking negativo.
@@ -206,10 +232,48 @@ O arquivo do Figma é gerado pelo plugin em [`design/plugin`](design/plugin). Ve
 
 ---
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:b99971ba0f18495ed0f5695d1dc51d7f8c262ca29e1495f572afb48698b580ab -->
+
+## Modo sono
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:848c78442cf27a2234aad128f3889b21d7b245e2f6e0a25679e2404926000521 -->
+
+Na tela de autoestudo, agende o modo sono. O WorkManager consolida lições e cria um corpus de repetição quando o dispositivo está carregando e inativo; com rede, pesquisa o tema e uma pergunta derivada das falhas registradas. O intervalo é de 12 horas, com horário definido pelo Android. A tarefa não inicia treino LoRA automaticamente.
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:91a307bd2cbbb2c10f3bbd44368dac9b8a49886055f643e5677cdf5bf997bff0 -->
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:567562da82c3963a72dfb142b949bb7f3ce263f9beae8dac8441c6618f4c0c7a -->
+
+Chat, Codex, Llamatik e autoestudo podem usar inferência GGUF via JNI. Configure o modelo e os adaptadores em Ajustes. O fallback para API é opcional. O dispositivo opera **sem root**: Acessibilidade oferece automação da interface e a integração oficial RUN_COMMAND do Termux executa comandos, builds e testes. A instalação de APKs abre o instalador Android para confirmação. Consulte [Runtime nativo](docs/NATIVE_RUNTIME.md) para preparação e limites de implementação.
+
+O novo painel **Laboratório → Evolução** apresenta habilidades observadas, recuperação de falhas e benchmark local de threads. O importador aceita arrays JSON Alpaca/ShareGPT. Consulte [Referências e implementação nativa](docs/REFERENCE_INTEGRATIONS.md) para o escopo verificado e as integrações ainda pendentes.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
+
 ## Limitações conhecidas
 
+<!-- /coderabbit-ai-generated:v1 -->
+
 - Apenas **arm64-v8a**; não roda em x86/emulador comum.
-- O LoRA nativo exige modelo base **F32/F16/BF16**; modelos quantizados são ignorados no auto-treino.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:b9205b0c755640aafa98c456c4058b73a2b9d75b7d344b7e04cfef46dcdf37e7 -->
+
+- No treino nativo, bases **BF16** usam uma cópia temporária **F16** para LoRA; no fine-tuning completo, bases **F16/BF16** usam uma cópia **F32** para permitir gradientes. O GGUF original é preservado, mas a conversão exige espaço livre. Modelos quantizados continuam ignorados no auto-treino; LoRA manual foi validado com Q8 na regressão host. Full fine-tuning recusa bases quantizadas.
+
+<!-- /coderabbit-ai-generated:v1 -->
 - O `core` nativo do Llamatik fica de fora para preservar o motor de treino.
 - Pesquisa e LLM dependem de rede; sem LLM, a síntese é extrativa.
 - O APK de CI é assinado com a **debug keystore**; para distribuição, configure uma keystore de release.

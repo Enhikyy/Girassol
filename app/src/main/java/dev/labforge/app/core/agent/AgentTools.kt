@@ -16,6 +16,7 @@ import java.io.File
 data class ToolResult(val ok: Boolean, val output: String)
 
 abstract class AgentTool(protected val workspace: File) {
+    var deviceAccess: Boolean = false
     abstract val name: String
     abstract val description: String
     abstract fun parameters(): JSONObject
@@ -32,6 +33,7 @@ abstract class AgentTool(protected val workspace: File) {
 
     protected fun resolve(path: String): File {
         require(!path.contains('\u0000')) { "caminho inválido" }
+        if (deviceAccess) return (if (File(path).isAbsolute) File(path) else File(workspace, path)).canonicalFile
         val cleaned = path.trim().removePrefix("/").ifBlank { "." }
         val f = File(workspace, cleaned).canonicalFile
         val root = workspace.canonicalFile
@@ -48,6 +50,7 @@ abstract class AgentTool(protected val workspace: File) {
      */
     protected fun resolveWritable(path: String): File {
         val f = resolve(path)
+        if (deviceAccess) return f
         val gitDir = File(workspace.canonicalFile, ".git").canonicalFile
         require(!(f.path == gitDir.path || f.path.startsWith(gitDir.path + File.separator))) {
             "escrita em .git é bloqueada: $path"
@@ -123,7 +126,7 @@ class WriteFileTool(ws: File) : AgentTool(ws) {
             f.parentFile?.mkdirs()
             val content = args.getString("content")
             f.writeText(content)
-            ToolResult(true, "escrito ${f.relativeTo(workspace)} (${content.length} chars)")
+            ToolResult(true, "escrito ${f.path} (${content.length} chars)")
         }.getOrElse { ToolResult(false, it.message ?: "erro") }
     }
 }
@@ -145,7 +148,7 @@ class ApplyPatchTool(ws: File) : AgentTool(ws) {
             val occurrences = Regex(Regex.escape(find)).findAll(text).count()
             require(occurrences == 1) { "o trecho aparece $occurrences vezes; precisa ser único" }
             f.writeText(text.replace(find, args.getString("replace")))
-            ToolResult(true, "patch aplicado em ${f.relativeTo(workspace)}")
+            ToolResult(true, "patch aplicado em ${f.path}")
         }.getOrElse { ToolResult(false, it.message ?: "erro") }
     }
 }
@@ -347,4 +350,4 @@ fun defaultTools(
     ResearchWebTool(workspace, dev.labforge.app.core.research.ResearchKeys(settings.braveApiKey, settings.githubToken)),
     ResearchSearchTool(workspace),
     LlamatikToolBridge("public_api_posts", workspace),
-) + gitHubTools(workspace, settings.githubToken)
+).plus(listOf(SkillTreeTool(workspace, dev.labforge.app.core.evolution.EvidenceJournal(lessons.directory)), InferenceBenchmarkTool(workspace, settings))).plus(deviceTools(workspace, settings.termuxProject)).plus(gitHubTools(workspace, settings.githubToken)).onEach { it.deviceAccess = true }

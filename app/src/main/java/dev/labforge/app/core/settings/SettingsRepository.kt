@@ -1,6 +1,7 @@
 package dev.labforge.app.core.settings
 
 import android.content.Context
+import dev.labforge.app.integration.android.TermuxBridge
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.Preferences
@@ -15,6 +16,13 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore by preferencesDataStore("labforge_settings")
 
 data class AppSettings(
+    val termuxProject: String = "${TermuxBridge.HOME}/girassol",
+    val localInference: Boolean = true,
+    val localModelPath: String = "",
+    val localAdapterPath: String = "",
+    val allowCloudFallback: Boolean = false,
+    val localContext: Int = 2048,
+    val localThreads: Int = 0,
     val endpoint: String = "https://api.openai.com/v1",
     val apiKey: String = "",
     val model: String = "gpt-4o-mini",
@@ -30,6 +38,13 @@ fun AppSettings.researchKeys() = dev.labforge.app.core.research.ResearchKeys(bra
 class SettingsRepository(private val context: Context) {
 
     private object Keys {
+        val termuxProject = stringPreferencesKey("termux_project")
+        val localInference = booleanPreferencesKey("local_inference")
+        val localModelPath = stringPreferencesKey("local_model_path")
+        val localAdapterPath = stringPreferencesKey("local_adapter_path")
+        val allowCloudFallback = booleanPreferencesKey("allow_cloud_fallback")
+        val localContext = intPreferencesKey("local_context")
+        val localThreads = intPreferencesKey("local_threads")
         val endpoint = stringPreferencesKey("endpoint")
         val apiKey = stringPreferencesKey("api_key")
         val model = stringPreferencesKey("model")
@@ -41,6 +56,13 @@ class SettingsRepository(private val context: Context) {
     }
 
     private fun read(p: Preferences) = AppSettings(
+        termuxProject = p[Keys.termuxProject] ?: "${TermuxBridge.HOME}/girassol",
+        localInference = p[Keys.localInference] ?: true,
+        localModelPath = p[Keys.localModelPath] ?: "",
+        localAdapterPath = p[Keys.localAdapterPath] ?: "",
+        allowCloudFallback = p[Keys.allowCloudFallback] ?: false,
+        localContext = p[Keys.localContext] ?: 2048,
+        localThreads = p[Keys.localThreads] ?: 0,
         endpoint = p[Keys.endpoint] ?: "https://api.openai.com/v1",
         apiKey = p[Keys.apiKey] ?: "",
         model = p[Keys.model] ?: "gpt-4o-mini",
@@ -59,6 +81,13 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { p ->
             val current = read(p)
             val next = transform(current)
+            p[Keys.termuxProject] = next.termuxProject
+            p[Keys.localInference] = next.localInference
+            p[Keys.localModelPath] = next.localModelPath
+            p[Keys.localAdapterPath] = next.localAdapterPath
+            p[Keys.allowCloudFallback] = next.allowCloudFallback
+            p[Keys.localContext] = next.localContext
+            p[Keys.localThreads] = next.localThreads
             p[Keys.endpoint] = next.endpoint
             p[Keys.apiKey] = next.apiKey
             p[Keys.model] = next.model

@@ -190,6 +190,33 @@ fun AutodidactPane(
             }
         }
 
+        Spacer(Modifier.height(16.dp))
+        GlassCard {
+            Text("Modo sono", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Consolida lições a cada 12 horas, quando o aparelho estiver carregando e inativo. Com rede, pesquisa e incorpora fontes. O Android define o horário de execução.",
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 15.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(study.sleepStatus, fontSize = 11.sp, color = Lab.Cyan)
+            Spacer(Modifier.height(10.dp))
+            GradientButton(
+                if (study.sleepScheduled) "Desativar modo sono" else "Agendar modo sono",
+                Modifier.fillMaxWidth(),
+                if (study.sleepScheduled) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                enabled = study.sleepScheduled || theme.trim().length >= 3,
+            ) {
+                if (study.sleepScheduled) study.stopSleepResearch() else study.startSleepResearch(theme)
+            }
+            if (study.sleepHasResult) {
+                Spacer(Modifier.height(8.dp))
+                GradientButton("Abrir última pesquisa do sono", Modifier.fillMaxWidth(), Icons.Rounded.Search) {
+                    study.openSleepResult { theme = it }
+                }
+            }
+        }
+
         // ---------------------------------------------------------- stages
         if (study.stage != StudyStage.IDLE) {
             Spacer(Modifier.height(16.dp))

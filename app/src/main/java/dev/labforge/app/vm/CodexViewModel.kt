@@ -61,10 +61,6 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
     private var seq = 0L
     private var startedAt = 0L
 
-    private companion object {
-        const val HARD_ITERATION_CAP = 100
-    }
-
     fun consumePrefill(): String {
         val p = prefill
         prefill = ""
@@ -95,20 +91,10 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 rounds++
                 iteration = rounds
-                // Hard safety cap even in "unlimited" mode: a model that keeps failing
-                // the same test would otherwise burn tokens indefinitely.
-                if (rounds > HARD_ITERATION_CAP) {
-                    messages = messages + AgentMessage(
-                        ++seq, AgentMessage.Role.ERROR,
-                        "Limite de segurança de $HARD_ITERATION_CAP iterações atingido.",
-                    )
-                    finish()
-                    return@launch
-                }
                 val agent = ReActAgent(
                     workspace = store.workspace(),
                     lessons = lessons,
-                    llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
+                    llm = LlmClient.fromSettings(cfg),
                     maxSteps = 0,
                     systemOverride = ReActAgent.CODEX_SYSTEM,
                     settings = cfg,

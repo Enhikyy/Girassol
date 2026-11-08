@@ -176,7 +176,19 @@ ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125 JOBS=2 ./scripts/build-native.s
 
 - Sem telemetria.
 - Chaves de API ficam em `SharedPreferences`/DataStore locais.
-- Shell e arquivos só operam no sandbox do app (ou no diretório que o usuário escolher).
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:df836061b4ab4d684eff105bb7d57c7c39fda22f31423584af2a2d3db89d899c -->
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:bb982311eba31f0d6555e61f4af4001315a6bdb6b1bebf663b1f81f9881e0f34 -->
+
+- O dispositivo é dedicado e **não tem root**, conforme a atualização do requisito. O terminal usa o UID do Girassol; automação usa AccessibilityService e comandos/builds usam o serviço RUN_COMMAND do Termux. Os workspaces privados são separados pelo Android e instalações requerem confirmação no instalador do sistema. Veja [Runtime nativo](NATIVE_RUNTIME.md).
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
 - O app é destinado a dispositivo controlado; ferramentas de shell são intencionais.
 - `AgentActionLogRepository` registra ações do agente.
 

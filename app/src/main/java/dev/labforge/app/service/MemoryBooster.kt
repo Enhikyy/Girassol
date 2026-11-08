@@ -4,7 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
+import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -33,7 +33,7 @@ object MemoryBooster {
         var touched = 0
 
         // launchable, non-system apps — the ones a user would normally swipe away
-        runCatching {
+        if (Build.VERSION.SDK_INT < 34) runCatching {
             val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val apps = context.packageManager.queryIntentActivities(intent, 0)
             apps.map { it.activityInfo.applicationInfo }
@@ -58,7 +58,9 @@ object MemoryBooster {
             freedMb = (after - before).coerceAtLeast(0),
             appsTouched = touched,
             cachesMb = caches,
-            note = "Android pode ignorar o encerramento de apps em segundo plano; o ganho real é medido abaixo.",
+            note = if (Build.VERSION.SDK_INT >= 34)
+                "Android 14+ não permite encerrar outros apps. Cache do Girassol limpo; a variação de RAM inclui atividade do sistema."
+            else "Solicitações de encerramento podem ser ignoradas pelo Android. A variação de RAM inclui atividade do sistema.",
         )
     }
 

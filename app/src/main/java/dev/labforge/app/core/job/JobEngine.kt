@@ -146,7 +146,7 @@ object JobEngine {
 
         current = scope.launch {
             val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
+            append("[ram] variação +${boost.freedMb} MB (${boost.appsTouched} solicitações a apps, ${boost.cachesMb} MB de cache)")
             val cb = object : NativeCallback {
                 override fun onLog(line: String) = append(line)
                 override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
@@ -190,7 +190,7 @@ object JobEngine {
 
         current = scope.launch {
             val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB antes do LoRA")
+            append("[ram] variação +${boost.freedMb} MB antes do LoRA")
             val cb = object : NativeCallback {
                 override fun onLog(line: String) = append(line)
                 override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
@@ -244,7 +244,7 @@ object JobEngine {
 
         current = scope.launch {
             val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB antes do full FT")
+            append("[ram] variação +${boost.freedMb} MB antes do full FT")
             val cb = object : NativeCallback {
                 override fun onLog(line: String) = append(line)
                 override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
