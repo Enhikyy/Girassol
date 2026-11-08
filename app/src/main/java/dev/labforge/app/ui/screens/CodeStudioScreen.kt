@@ -181,7 +181,7 @@ fun CodeStudioScreen() {
             OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.weight(1f).fillMaxWidth(),label={Text("Editor de código")},textStyle=MaterialTheme.typography.bodySmall.copy(fontFamily=FontFamily.Monospace),minLines=12)
             Button(onClick={
                 scope.launch { runCatching {
-                    withContext(Dispatchers.IO){require(fileName.matches(Regex("[A-Za-z0-9_.-]{1,80}")) && !fileName.contains("..")); WorkspaceFiles.resolve(project,fileName).apply { parentFile?.mkdirs(); writeText(source) }}
+                    withContext(Dispatchers.IO){val target=WorkspaceFiles.resolve(project,fileName); target.parentFile?.mkdirs(); target.writeText(source)}
                     status="Salvo em armazenamento privado do app"
                 }.onFailure{status="Falha ao salvar: ${it.message}"} }
             },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(8.dp));Text("Salvar no projeto")}
