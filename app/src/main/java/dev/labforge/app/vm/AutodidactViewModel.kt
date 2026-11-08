@@ -18,6 +18,8 @@ import dev.labforge.app.core.research.ResearchDoc
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.core.research.ResearchDownloader
 import dev.labforge.app.core.research.ResearchRepository
+import dev.labforge.app.core.learning.LearningContinuity
+import dev.labforge.app.core.learning.LearningSnapshot
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.settings.researchKeys
 import dev.labforge.app.core.train.AutoTuner
@@ -133,6 +135,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = ResearchRepository(store.researchDir)
     private val downloader = ResearchDownloader(File(store.researchDir, "downloads"))
     private val metricsFile = File(store.researchDir, "autodidact-cycles.json")
+    private val learning = LearningContinuity(File(store.researchDir, "learning-continuity.json"))
 
     var theme by mutableStateOf("")
     var topicCount by mutableStateOf(6)
@@ -172,6 +175,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var cycleHistory by mutableStateOf<List<StudyCycleMetric>>(emptyList())
         private set
+    var learningSnapshot by mutableStateOf(LearningSnapshot())
+        private set
 
     private var job: Job? = null
     private var autopilotJob: Job? = null
@@ -181,6 +186,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
             bundle = withContext(Dispatchers.IO) { repo.latest() }
             history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
             cycleHistory = withContext(Dispatchers.IO) { loadCycleMetrics() }
+            learningSnapshot = withContext(Dispatchers.IO) { learning.snapshot() }
             bundle?.let { b ->
                 if (theme.isBlank()) theme = b.theme
                 AppSelection.researchTheme = b.theme
@@ -274,6 +280,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 } else extractiveCurriculum(themeValue, found, topicCount)
                 topics = curriculum.take(topicCount).map { StudyTopic(it) }
                 if (topics.isEmpty()) error("não foi possível montar o currículo")
+                learningSnapshot = withContext(Dispatchers.IO) { learning.syncCurriculum(themeValue, topics.map { it.title }) }
                 append("Currículo: ${topics.size} tópicos")
 
                 // 4. dataset
@@ -372,6 +379,10 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 cycleHistory = completedCycles
                 history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
 
+                learningSnapshot = withContext(Dispatchers.IO) {
+                    learning.record("cycle", themeValue, "Ciclo concluído com " + total + " exemplos e " + found.docs.size + " fontes", 0.85f)
+                    learning.dream()
+                }
                 stage = StudyStage.DONE
                 progress = 1f
                 status = "concluído · ${total} pares · ~$tokens tokens"
@@ -413,6 +424,10 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
             } catch (t: Throwable) {
                 stage = StudyStage.ERROR
                 status = "falhou: ${t.message}"
+                withContext(Dispatchers.IO) {
+                    learning.record("failure", themeValue, t.message ?: t.javaClass.simpleName, 0.95f)
+                    learningSnapshot = learning.dream()
+                }
                 append("erro: ${t.message}")
             } finally {
                 running = false
@@ -617,6 +632,19 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun trainingDataset(): File? = project?.txt ?: project?.jsonl
+
+    fun reviewSkill(skillId: String, quality: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = learning.review(skillId, quality)
+            learningSnapshot = updated
+        }
+    }
+
+    fun consolidateLearning() {
+        viewModelScope.launch(Dispatchers.IO) {
+            learningSnapshot = learning.dream()
+        }
+    }
 
     private fun append(line: String) {
         log = (log + line + "\n").takeLast(14_000)
