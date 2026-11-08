@@ -264,7 +264,7 @@ fun TrainPane(vm: LabViewModel) {
         Spacer(Modifier.height(10.dp))
         GlassCard {
             if (mode == 0) {
-                Stepper("Rank LoRA", rank, listOf(8, 16, 32, 64), Modifier.fillMaxWidth()) { rank = it }
+                Stepper("Rank LoRA", rank, listOf(4, 8, 16, 32, 64), Modifier.fillMaxWidth()) { rank = it }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("Atenção" to 0, "Atenção + FFN" to 1).forEach { (label, value) ->
@@ -378,7 +378,7 @@ fun TrainPane(vm: LabViewModel) {
             if (mode == 0) "Treinar LoRA" else "Iniciar fine-tuning",
             Modifier.fillMaxWidth(),
             Icons.Rounded.AutoAwesome,
-            enabled = model != null && dataset != null && !vm.jobRunning,
+            enabled = model != null && dataset != null && !vm.jobRunning && budget?.ok == true,
             loading = vm.jobRunning && (vm.jobKind == "lora" || vm.jobKind == "full"),
         ) {
             val m = model ?: return@GradientButton
