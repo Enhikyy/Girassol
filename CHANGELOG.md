@@ -1,3 +1,14 @@
+# Girassol 1.8.0 — stack de pesquisa e continuidade de autoaprendizado
+
+- Integra catálogo GitHub-first por tópico: labml, LLaMA Factory, MuonClip, Kimi Linear/KDA, Flash Linear Attention, UI-Voyager, lau-agent-dream e ZenBrain como referências técnicas, com filtragem por licença.
+- Preserva referências sem licença, indisponíveis, ou com licença restritiva apenas como metadados; não baixa nem incorpora seus READMEs/código.
+- Integra pesquisa de repositórios e READMEs licenciados na pesquisa, síntese e dataset.
+- Reforça `LearningContinuity`: árvore de competências com pré-requisitos, revisões espaçadas e consolidação idempotente sem repetir a mesma experiência em cada ciclo ocioso.
+- O treino LoRA passa a estar ativado por padrão ao concluir um ciclo; resultado e falhas nativas são registados como evidência para a memória e revisões futuras. A execução continua sujeita ao orçamento adaptativo de RAM.
+- Adiciona etapa explícita de consolidação/sono, flor radial de 24 pétalas com animação leve e painel de competências mais legível.
+- Documenta a tradução nativa em Compose das referências Figma, sem redistribuir assets de terceiros.
+- Mantém o autoestudo local mesmo sem LLM; memória e dataset não significam alteração de pesos até que um LoRA seja concluído com sucesso.
+
 # Girassol 1.7.0 — estabilidade de treinamento e autoaprendizado
 
 - Corrige o uso de `JNIEnv` entre threads nativas, que podia encerrar o processo durante o fluxo de logs do treinamento.
@@ -6,7 +17,8 @@
 - Monitora pressão de RAM durante o treino, solicita parada cooperativa ao fim da época e preserva checkpoint LoRA por época.
 - Pesquisa autônoma com GitHub em primeiro lugar, priorização por estrelas/atividade e ingestão do README de projetos para fundamentar síntese e dataset.
 - Alternância Pure Black OLED persistente; animações de fundo suspensas nesse modo para reduzir trabalho gráfico, com gráficos de barras e linhas animados.
-- Acrescenta árvore de habilidades persistente, revisão espaçada e painel de domínio por tópico.\n- Adiciona consolidação offline de experiências, agrupamento de padrões e revisão de falhas com evidências/confiança.\n- Preserva o piloto automático, o autoaprendizado iterativo e os recursos já existentes. Não há limite artificial de tamanho do APK definido pelo projeto.
+- Acrescenta árvore de habilidades persistente, revisão espaçada e painel de domínio por tópico. 
+- Adiciona consolidação offline de experiências, agrupamento de padrões e revisão de falhas com evidências/confiança.\n- Preserva o piloto automático, o autoaprendizado iterativo e os recursos já existentes. Não há limite artificial de tamanho do APK definido pelo projeto.
 
 ## Observação de hardware
 Em aparelhos com 4 GB, o perfil seguro prioriza LoRA pequeno e ciclos curtos; fine-tuning completo fica bloqueado quando a memória total/disponível não atende ao orçamento. Isso evita confundir “APK sem limite de tamanho” com memória RAM ilimitada.
