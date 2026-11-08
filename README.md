@@ -179,7 +179,7 @@ export ANDROID_HOME=/caminho/android-sdk
 LIVE_API=1 ./gradlew :app:testDebugUnitTest --rerun-tasks
 ```
 
-Cobertura atual: **25 testes**, incluindo parser GGUF, imatrix, pesquisa real nas 5 APIs, fluxo completo do autoestudo, UI Compose, Llamatik, Retrofit e API 26.
+Cobertura CI: **53 testes executados, 0 falhas e 7 testes live ignorados** por dependerem de credenciais/rede externa. Inclui parser GGUF, imatrix, orçamento de RAM, pesquisa GitHub/licenças, ingestão README, skill tree, pré-requisitos, consolidação de memória, UI Compose, Llamatik, Retrofit e API 26.
 
 ### CI
 
