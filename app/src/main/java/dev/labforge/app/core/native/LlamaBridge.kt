@@ -140,7 +140,7 @@ object LlamaBridge {
             val o = org.json.JSONObject(json)
             NativeChatResult(
                 o.optBoolean("ok"), o.optInt("prompt_tokens"), o.optInt("completion_tokens"),
-                o.optLong("elapsed_ms"), o.optString("error").ifBlank { null },
+                o.optLong("elapsed_ms"), o.optString("error").takeIf { it.isNotBlank() },
             )
         }.getOrElse { NativeChatResult(false, 0, 0, 0, "resposta nativa inválida: $json") }
     }
