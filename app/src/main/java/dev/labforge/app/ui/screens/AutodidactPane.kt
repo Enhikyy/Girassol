@@ -381,6 +381,74 @@ fun AutodidactPane(
             }
         }
 
+        // ---------------------------------------------------- skill tree + spaced review
+        val skillSnapshot = study.learningSnapshot
+        val dueSkills = skillSnapshot.skills.filter { it.dueAt == 0L || it.dueAt <= System.currentTimeMillis() }
+        if (skillSnapshot.skills.isNotEmpty()) {
+            Spacer(Modifier.height(18.dp))
+            SectionHeader("Árvore de habilidades", "${skillSnapshot.skills.size} habilidades · ${dueSkills.size} revisões pendentes")
+            Spacer(Modifier.height(8.dp))
+            GlassCard {
+                val mastered = skillSnapshot.skills.count { it.mastery >= 0.75f }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatTile("dominadas", mastered.toString(), Lab.Green, Modifier.weight(1f))
+                    StatTile("para revisar", dueSkills.size.toString(), Lab.Amber, Modifier.weight(1f))
+                    StatTile("memórias", skillSnapshot.experiences.size.toString(), Lab.Violet, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                skillSnapshot.skills.take(8).forEach { skill ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(skill.title, fontSize = 13.sp, color = Lab.Text, modifier = Modifier.weight(1f), maxLines = 2)
+                            Text("${(skill.mastery * 100).toInt()}%", fontSize = 12.sp, color = Lab.Cyan)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Lab.SurfaceHigh)) {
+                            Box(Modifier.fillMaxWidth(skill.mastery.coerceIn(0f, 1f)).height(5.dp).clip(CircleShape).background(Lab.Cyan))
+                        }
+                        if (skill in dueSkills) {
+                            Spacer(Modifier.height(5.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Errei" to 1, "Lembrei" to 4, "Fácil" to 5).forEach { (label, quality) ->
+                                    Box(
+                                        Modifier.clip(RoundedCornerShape(8.dp))
+                                            .background(Lab.SurfaceHigh)
+                                            .clickable { study.reviewSkill(skill.id, quality) }
+                                            .padding(horizontal = 11.dp, vertical = 7.dp),
+                                    ) { Text(label, fontSize = 11.sp, color = Lab.Text) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------- dream consolidation
+        if (skillSnapshot.dreams.isNotEmpty()) {
+            Spacer(Modifier.height(18.dp))
+            SectionHeader("Consolidação em repouso", "memórias e lições para os próximos ciclos")
+            Spacer(Modifier.height(8.dp))
+            GlassCard {
+                skillSnapshot.dreams.takeLast(3).reversed().forEach { dream ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(dream.title, fontSize = 13.sp, color = Lab.Text, modifier = Modifier.weight(1f))
+                            Pill(if (dream.kind == "failure-review") "falha revisada" else "consolidado", if (dream.kind == "failure-review") Lab.Amber else Lab.Violet)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(dream.insight, fontSize = 12.sp, color = Lab.Muted, lineHeight = 15.sp)
+                        Text("confiança ${(dream.confidence * 100).toInt()}% · ${dream.evidenceCount} evidências", fontSize = 11.sp, color = Lab.Cyan)
+                    }
+                }
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Lab.SurfaceHigh)
+                        .clickable { study.consolidateLearning() }.padding(10.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Consolidar experiências agora", fontSize = 12.sp, color = Lab.Text) }
+            }
+        }
+
         // ---------------------------------------------------------- preset
         study.preset?.let { p ->
             Spacer(Modifier.height(18.dp))
