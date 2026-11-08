@@ -12,7 +12,7 @@ interface NativeCallback {
 interface NativeChatCallback {
     fun onToken(piece: String)
     fun onLog(line: String)
-    fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+    fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double)
 }
 
 data class NativeChatResult(
