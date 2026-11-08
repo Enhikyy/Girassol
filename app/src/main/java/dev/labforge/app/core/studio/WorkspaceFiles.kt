@@ -1,6 +1,7 @@
 package dev.labforge.app.core.studio
 
 import java.io.File
+import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.zip.ZipInputStream
@@ -57,7 +58,7 @@ object WorkspaceFiles {
         val seen = HashSet<String>()
         var extractedFiles = 0
         try {
-            ZipInputStream(input.buffered()).use { zip ->
+            ZipInputStream(BoundedInputStream(input, MAX_ARCHIVE_BYTES).buffered()).use { zip ->
                 while (true) {
                     val entry = zip.nextEntry ?: break
                     entries++
@@ -99,6 +100,17 @@ object WorkspaceFiles {
         } catch (failure: Throwable) {
             target.deleteRecursively()
             throw failure
+        }
+    }
+
+    private class BoundedInputStream(input: InputStream, private val limit: Long) : FilterInputStream(input) {
+        private var consumed = 0L
+        override fun read(): Int = super.read().also { if (it >= 0) add(1) }
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+            super.read(buffer, offset, length).also { if (it > 0) add(it) }
+        private fun add(size: Int) {
+            consumed += size
+            require(consumed <= limit) { "ZIP compactado excede ${limit / (1024 * 1024)} MiB" }
         }
     }
 
