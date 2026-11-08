@@ -116,15 +116,37 @@ class GitRepo(private val dir: File) {
 
     suspend fun push(token: String, remote: String = "origin"): String = withContext(Dispatchers.IO) {
         open().use { g ->
-            val url = g.repository.config.getString("remote", remote, "url") ?: error("remote '$remote' não configurado")
+            val config = g.repository.config
+            val url = config.getString("remote", remote, "url") ?: error("remote '$remote' não configurado")
+            val pushUrls = config.getStringList("remote", remote, "pushurl").filter { it.isNotBlank() }
+            val destinations = pushUrls.ifEmpty { listOf(url) }
+            require(destinations.all { isGitHubHttpsUrl(it) }) {
+                "push recusado: todas as URLs de envio precisam apontar para https://github.com"
+            }
             val creds = githubCredentials(url, token) ?: error("push só é permitido para https://github.com com token configurado")
             val branch = g.repository.branch
             require(branch !in setOf("main", "master")) { "crie uma branch (git_branch) antes do push; push direto em $branch é bloqueado" }
             val results = g.push().setRemote(remote).add(branch).setCredentialsProvider(creds).call()
-            results.flatMap { it.remoteUpdates }
-                .joinToString("\n") { "${it.remoteName}: ${it.status}" }
-                .ifBlank { "push de $branch concluído" }
+            val updates = results.flatMap { it.remoteUpdates }
+            require(updates.isNotEmpty()) { "o servidor não confirmou nenhuma referência enviada" }
+            val rejected = updates.filter {
+                it.status != org.eclipse.jgit.transport.RemoteRefUpdate.Status.OK &&
+                    it.status != org.eclipse.jgit.transport.RemoteRefUpdate.Status.UP_TO_DATE
+            }
+            check(rejected.isEmpty()) {
+                "push rejeitado: " + rejected.joinToString("; ") {
+                    it.remoteName + ": " + it.status + " " + it.message.orEmpty()
+                }
+            }
+            updates.joinToString("\n") { it.remoteName + ": " + it.status }
         }
+    }
+
+    private fun isGitHubHttpsUrl(url: String): Boolean {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        return uri.scheme.equals("https", ignoreCase = true) &&
+            uri.host.equals("github.com", ignoreCase = true) &&
+            uri.userInfo.isNullOrBlank()
     }
 
     private fun githubCredentials(url: String, token: String): UsernamePasswordCredentialsProvider? {
