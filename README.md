@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Enhikyy/girassol/actions/workflows/android.yml"><img alt="Android APK" src="https://github.com/Enhikyy/girassol/actions/workflows/android.yml/badge.svg"></a>
-  <img alt="versão" src="https://img.shields.io/badge/versão-1.8.0-F2C14E">
+  <img alt="versão" src="https://img.shields.io/badge/versão-1.9.0-F2C14E">
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-84D98A">
   <img alt="ABI" src="https://img.shields.io/badge/ABI-arm64--v8a-A9D96B">
 </p>
