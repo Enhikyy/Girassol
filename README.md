@@ -53,6 +53,19 @@ adb install -r app-debug.apk
 
 ---
 
+## Correção do treino LoRA em aparelhos com 4 GB
+
+- Corrigida corrupção de heap nativo ao inicializar matrizes A/B de dimensões diferentes.
+- O JNI LoRA agora converte falhas de alocação em resultados estruturados e libera recursos parcialmente criados.
+- Perfil móvel padrão: rank 2, contexto 128, uma thread e somente atenção; o motor pode reduzir o contexto a 64.
+- Orçamento arquitetural estimado de 200 MiB para buffers auxiliares do LoRA, excluindo o GGUF-base mapeado por mmap.
+- Cada ciclo lê uma janela rotativa de 128 KiB do dataset, mantendo o corpus completo no disco.
+- O log do job informa modelo/dataset, orçamento, parâmetros e amostras de RAM.
+
+O teto de 200 MiB limita o working set **estimado** de buffers adicionais, não o RSS total do processo nem o tamanho dos modelos que podem ser carregados pelo Android.
+
+---
+
 ## Inferência off-heap (mmap)
 
 A inferência local e a base congelada do LoRA usam mapeamento de arquivo `LLAMA_LOAD_MODE_MMAP`, sem `mlock` e sem `android:largeHeap`. A inferência usa micro-batches de 2 tokens; em aparelhos com 4 GB o perfil limita contexto a 512 e threads a 2. O Chat exibe um aviso de risco na primeira execução e tenta um fallback compacto quando o JNI reporta falha de alocação. O log nativo confirma o arquivo em `/proc/self/maps`. Consulte [docs/OFFHEAP_MMAP.md](docs/OFFHEAP_MMAP.md) para Profiler/ADB e limites reais: mmap tira os pesos do heap Java, mas não elimina RSS, KV cache, ativações ou pressão de RAM.
