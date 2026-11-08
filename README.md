@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Enhikyy/girassol/actions/workflows/android.yml"><img alt="Android APK" src="https://github.com/Enhikyy/girassol/actions/workflows/android.yml/badge.svg"></a>
-  <img alt="versão" src="https://img.shields.io/badge/versão-1.6.0-F2C14E">
+  <img alt="versão" src="https://img.shields.io/badge/versão-1.7.0-F2C14E">
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-84D98A">
   <img alt="ABI" src="https://img.shields.io/badge/ABI-arm64--v8a-A9D96B">
   <img alt="tamanho" src="https://img.shields.io/badge/APK-36%20MB-FFD166">
@@ -38,7 +38,7 @@ O APK é gerado pelo GitHub Actions em cada push:
 adb install -r app-debug.apk
 ```
 
-> Requer Android 8.0+ (API 26) e **arm64-v8a**. O APK tem ~36 MB.
+> Requer Android 8.0+ (API 26) e **arm64-v8a**. O workflow não impõe um teto artificial ao tamanho final do APK.
 
 > **CI:** o workflow está em [`ci/android.yml`](ci/android.yml). O workflow executa build e testes; falhas nos testes bloqueiam a entrega.
 
@@ -53,11 +53,11 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **GGUF** | Lê header, metadados, tensores, quantização, tamanho por camada e arquitetura. |
 | **Imatrix** | Lê importance matrix em GGUF e no formato legado `.dat`; usa no `llama_model_quantize`. |
 | **Quantização** | Executa o quantizador nativo do llama.cpp no dispositivo, com presets K-quants e I-quants. |
-| **Fine-tuning** | Treino completo (AdamW) com checkpoints, loss, amostras e retomada. |
-| **LoRA nativo** | Base congelada + adapters A/B via llama.cpp; validação de loss e reload do adapter. |
-| **Autoestudo** | Pesquisa 9 fontes gratuitas, mais GitHub e Brave Search opcionais, deduplica/ranqueia, monta RAG BM25, currículo, dataset e preset. |
+| **Fine-tuning** | Treino completo (AdamW) apenas quando o orçamento de RAM do aparelho é suficiente; jobs incompatíveis são bloqueados antes do JNI. |
+| **LoRA nativo** | Base congelada + adapters A/B via llama.cpp; perfil adaptativo de contexto/rank e checkpoint por época. |
+| **Autoestudo** | GitHub-first: pesquisa repositórios, ranqueia projetos e ingere READMEs, combinando fontes acadêmicas/web, RAG BM25, currículo, dataset e preset. |
 | **Auto-tuning** | rank, alpha, epochs, lr, contexto, alvos e ETA calculados a partir do corpus e da RAM. |
-| **Piloto automático** | Repete pesquisa, ingestão textual, dataset e autoajuste em ciclos configuráveis; persiste métricas e mostra gráficos de evolução. |
+| **Piloto automático** | Mantém ciclos autônomos de pesquisa, ingestão, síntese, dataset, autoajuste e treinamento LoRA opcional; persiste métricas e mostra gráficos de evolução. |
 | **Codex** | Agente de código com plano, edição de arquivos, shell, Git e revisão. |
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
 | **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
