@@ -382,6 +382,7 @@ static bool train_param_filter(const ggml_tensor * t, void * ud) {
 
 static std::atomic<int> g_train_epoch{0};
 static std::atomic<float> g_train_lr{0.f};
+static std::atomic<bool> g_train_abort{false};
 
 static void train_epoch_cb(bool train, ggml_opt_context_t, ggml_opt_dataset_t,
                            ggml_opt_result_t result, int64_t ibatch,
@@ -409,6 +410,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
 
     capture_start(env, cb);
     g_call_env = env;
+    g_train_abort = false;
 
     std::string err;
     bool ok = false;
@@ -512,7 +514,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                             ggml_opt_result_t r_train = ggml_opt_result_init();
                             ggml_opt_result_t r_eval  = ggml_opt_result_init();
 
-                            for (lr.epoch = 0; lr.epoch < lr.epochs; ++lr.epoch) {
+                            for (lr.epoch = 0; lr.epoch < lr.epochs && !g_train_abort.load(); ++lr.epoch) {
                                 printf("[train] epoch %u/%u\n", lr.epoch + 1, lr.epochs);
                                 g_train_epoch = (int) lr.epoch + 1;
                                 g_train_lr = lr.get_lr();
@@ -530,9 +532,15 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                             ggml_opt_result_free(r_eval);
                             ggml_opt_dataset_free(dataset);
 
-                            printf("[train] salvando %s\n", out_path.c_str());
-                            llama_model_save_to_file(model, out_path.c_str());
-                            ok = true;
+                            if (g_train_abort.load()) {
+                                err = "treino interrompido por pressão de memória; nenhum modelo final foi exportado";
+                            } else {
+                                printf("[train] salvando %s\n", out_path.c_str());
+                                llama_model_save_to_file(model, out_path.c_str());
+                                std::ifstream saved(out_path, std::ios::binary | std::ios::ate);
+                                ok = saved.good() && saved.tellg() > 0;
+                                if (!ok) err = "falha ao gravar o modelo treinado";
+                            }
                         }
                         llama_free(ctx);
                     }
@@ -720,6 +728,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
 
     capture_start(env, cb);
     g_call_env = env;
+    g_train_abort = false;
 
     std::string err;
     bool ok = false;
@@ -822,7 +831,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 ggml_opt_result_t r_train = ggml_opt_result_init();
                                 ggml_opt_result_t r_eval  = ggml_opt_result_init();
 
-                                for (lr.epoch = 0; lr.epoch < lr.epochs; ++lr.epoch) {
+                                for (lr.epoch = 0; lr.epoch < lr.epochs && !g_train_abort.load(); ++lr.epoch) {
                                     printf("[lora] epoch %u/%u\n", lr.epoch + 1, lr.epochs);
                                     g_train_epoch = (int) lr.epoch + 1;
                                     g_train_lr = lr.get_lr();
@@ -840,8 +849,19 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 ggml_opt_result_free(r_eval);
                                 ggml_opt_dataset_free(dataset);
 
-                                printf("[lora] salvando adaptador %s\n", out_path.c_str());
-                                ok = save_lora(adapter, model, lt.alpha, out_path, err);
+                                const std::string checkpoint_path = out_path + ".checkpoint.gguf";
+                                if (g_train_abort.load()) {
+                                    err = "treino interrompido antes de concluir a primeira época";
+                                } else if (save_lora(adapter, model, lt.alpha, checkpoint_path, err)) {
+                                    printf("[lora] checkpoint salvo após época %u: %s\n", lr.epoch, checkpoint_path.c_str());
+                                    if (g_train_abort.load()) {
+                                        err = "treino interrompido; último checkpoint preservado em " + checkpoint_path;
+                                    } else {
+                                        printf("[lora] exportando adaptador final %s\n", out_path.c_str());
+                                        ok = save_lora(adapter, model, lt.alpha, out_path, err);
+                                        if (ok) std::remove(checkpoint_path.c_str());
+                                    }
+                                }
                             }
                         }
                         llama_free(ctx);
@@ -887,6 +907,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeCountTokens(
     }
     llama_backend_free();
     return n;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRequestTrainingStop(JNIEnv *, jobject) {
+    g_train_abort = true;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
