@@ -53,6 +53,10 @@ adb install -r app-debug.apk
 
 ---
 
+## Inferência off-heap (mmap)
+
+A inferência local e a base congelada do LoRA usam mapeamento de arquivo `LLAMA_LOAD_MODE_MMAP`, sem `mlock` e sem `android:largeHeap`. A inferência usa micro-batches de 2 tokens; em aparelhos com 4 GB o perfil limita contexto a 512 e threads a 2. O Chat exibe um aviso de risco na primeira execução e tenta um fallback compacto quando o JNI reporta falha de alocação. O log nativo confirma o arquivo em `/proc/self/maps`. Consulte [docs/OFFHEAP_MMAP.md](docs/OFFHEAP_MMAP.md) para Profiler/ADB e limites reais: mmap tira os pesos do heap Java, mas não elimina RSS, KV cache, ativações ou pressão de RAM.
+
 ## Continuidade de aprendizado (1.8.0)
 
 O autoestudo mantém uma árvore de habilidades local, com pré-requisitos, revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline idempotente de falhas e padrões recorrentes. O resultado do treino LoRA é registrado como evidência positiva ou como falha a revisar. A memória é local, limitada por quantidade e não substitui validação factual das fontes.
