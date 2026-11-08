@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class JobState(
     val running: Boolean = false,
@@ -57,8 +60,14 @@ object JobEngine {
     val state: StateFlow<JobState> = _state
 
     private val logBuffer = StringBuilder()
-    private var lastFlushed = -1
+    private val logClock = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    private var logRevision = 0L
+    private var lastFlushedRevision = -1L
     private var current: Job? = null
+
+    private companion object {
+        const val MAX_LOG_CHARS = 300_000
+    }
 
     /** Guards the check-then-set in [begin] so two callers cannot both start a job. */
     private val startLock = Any()
@@ -68,9 +77,9 @@ object JobEngine {
             while (isActive) {
                 delay(260)
                 val snapshot = synchronized(logBuffer) {
-                    if (logBuffer.length == lastFlushed) null
+                    if (logRevision == lastFlushedRevision) null
                     else {
-                        lastFlushed = logBuffer.length
+                        lastFlushedRevision = logRevision
                         logBuffer.toString()
                     }
                 }
@@ -80,14 +89,32 @@ object JobEngine {
     }
 
     fun append(line: String) {
+        val lower = line.lowercase(Locale.ROOT)
+        val level = when {
+            lower.contains("error") || lower.contains("fatal") || lower.contains("falha") -> "ERROR"
+            lower.contains("warn") || lower.contains("pressão crítica") -> "WARN"
+            lower.startsWith("[ram]") -> "RAM"
+            lower.startsWith("[train]") || lower.startsWith("[lora]") -> "TRAIN"
+            lower.startsWith("[auto]") -> "AUTO"
+            else -> "INFO"
+        }
+        val timestamp = synchronized(logClock) { logClock.format(Date()) }
+        val record = "[$timestamp][$level][${Thread.currentThread().name}] $line\n"
         synchronized(logBuffer) {
-            if (logBuffer.length < 400_000) logBuffer.append(line).append('\n')
+            logBuffer.append(record)
+            if (logBuffer.length > MAX_LOG_CHARS) {
+                val excess = logBuffer.length - MAX_LOG_CHARS
+                val boundary = logBuffer.indexOf("\n", excess.coerceAtMost(logBuffer.length - 1))
+                if (boundary >= 0) logBuffer.delete(0, boundary + 1)
+                else logBuffer.delete(0, excess)
+            }
+            logRevision++
         }
     }
 
     fun clear() {
-        synchronized(logBuffer) { logBuffer.setLength(0) }
-        lastFlushed = -1
+        synchronized(logBuffer) { logBuffer.setLength(0); logRevision++ }
+        lastFlushedRevision = -1L
         _state.value = JobState()
     }
 
@@ -99,7 +126,7 @@ object JobEngine {
         synchronized(startLock) {
             if (_state.value.running) return false
             synchronized(logBuffer) { logBuffer.setLength(0) }
-            lastFlushed = -1
+            lastFlushedRevision = -1L
             _state.value = JobState(
                 running = true, kind = kind, title = title, progress = 0.02f,
                 startedAt = System.currentTimeMillis(), output = output?.absolutePath,
@@ -117,6 +144,7 @@ object JobEngine {
                 output = output?.absolutePath ?: it.output,
             )
         }
+        append("[job] finalizado success=$success; duração=${if (_state.value.startedAt > 0) System.currentTimeMillis() - _state.value.startedAt else 0} ms; resumo=$summary")
         current = null
         val ctx = appContext
         if (ctx != null) GirassolService.stop(ctx)
@@ -229,7 +257,8 @@ object JobEngine {
                 } else result.error ?: "falha no treino LoRA; verifique o checkpoint parcial"
                 finish(result.ok, summary, output.takeIf { result.ok })
             } catch (error: Throwable) {
-                finish(false, "Falha segura no treinamento LoRA: ${error.message ?: error.javaClass.simpleName}", null)
+                append("[erro] LoRA exception: ${error.stackTraceToString()}")
+                finish(false, "Falha no treinamento LoRA: ${error.message ?: error.javaClass.simpleName}", null)
             }
         }
     }
@@ -276,7 +305,8 @@ object JobEngine {
                 } else result.error ?: "falha no treino"
                 finish(result.ok, summary, output.takeIf { result.ok })
             } catch (error: Throwable) {
-                finish(false, "Falha segura no fine-tuning: ${error.message ?: error.javaClass.simpleName}", null)
+                append("[erro] fine-tuning exception: ${error.stackTraceToString()}")
+                finish(false, "Falha no fine-tuning: ${error.message ?: error.javaClass.simpleName}", null)
             }
         }
     }
