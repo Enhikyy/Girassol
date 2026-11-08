@@ -9,6 +9,7 @@ import kotlin.math.min
 /** Local-first skill tree, spaced repetition and offline experience consolidation. */
 data class SkillNode(
     val id: String, val title: String, val theme: String, val level: Int,
+    val prerequisites: List<String> = emptyList(),
     val mastery: Float = 0f, val repetitions: Int = 0, val intervalDays: Int = 0,
     val dueAt: Long = 0L, val lastReviewedAt: Long = 0L,
 )
@@ -24,6 +25,7 @@ data class LearningSnapshot(
     val skills: List<SkillNode> = emptyList(),
     val experiences: List<LearningExperience> = emptyList(),
     val dreams: List<DreamTile> = emptyList(),
+    val processedExperienceIds: List<String> = emptyList(),
 )
 
 /**
@@ -39,7 +41,10 @@ class LearningContinuity(private val file: File) {
         val existing = state.skills.associateBy { it.id }
         val next = topics.mapIndexed { index, title ->
             val id = stableId(theme + "|" + title)
-            existing[id] ?: SkillNode(id, title.trim(), theme, index + 1)
+            val prerequisites = if (index == 0) emptyList() else listOf(stableId(theme + "|" + topics[index - 1]))
+            val previous = existing[id]
+            if (previous != null) previous.copy(level = index + 1, prerequisites = prerequisites)
+            else SkillNode(id, title.trim(), theme, index + 1, prerequisites = prerequisites)
         }
         state = state.copy(skills = (state.skills.filter { it.theme != theme } + next).takeLast(240))
         persist()
@@ -80,7 +85,8 @@ class LearningContinuity(private val file: File) {
 
     /** Consolidate repeated topics and preserve failure evidence for later cycles. */
     @Synchronized fun dream(now: Long = System.currentTimeMillis()): LearningSnapshot {
-        val recent = state.experiences.takeLast(80)
+        val alreadyProcessed = state.processedExperienceIds.toHashSet()
+        val recent = state.experiences.filter { it.id !in alreadyProcessed }.takeLast(80)
         if (recent.isEmpty()) return state
         val tiles = recent.groupBy { it.topic.lowercase().trim() }.mapNotNull { (topic, items) ->
             val failures = items.filter { it.kind == "failure" }
@@ -99,11 +105,13 @@ class LearningContinuity(private val file: File) {
                 topic.ifBlank { "Aprendizado consolidado" }.take(90), insight.take(1200),
                 confidence, evidence.size)
         }
-        state = state.copy(dreams = (state.dreams + tiles).distinctBy { it.id }.takeLast(80))
+        state = state.copy(
+            dreams = (state.dreams + tiles).distinctBy { it.id }.takeLast(80),
+            processedExperienceIds = (state.processedExperienceIds + recent.map { it.id }).takeLast(240),
+        )
         persist()
         return state
     }
-
     @Synchronized fun due(now: Long = System.currentTimeMillis()): List<SkillNode> =
         state.skills.filter { it.dueAt == 0L || it.dueAt <= now }
             .sortedWith(compareBy<SkillNode> { it.dueAt }.thenBy { it.mastery })
