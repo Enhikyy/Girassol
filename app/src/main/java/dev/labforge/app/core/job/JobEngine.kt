@@ -29,6 +29,7 @@ data class JobState(
     val progress: Float = 0f,
     val summary: String = "",
     val loss: List<Float> = emptyList(),
+    val ramAvailableGb: List<Float> = emptyList(),
     val output: String? = null,
     val startedAt: Long = 0L,
     val finishedAt: Long = 0L,
@@ -197,13 +198,16 @@ object JobEngine {
 
                 val monitor = scope.launch(Dispatchers.IO) {
                     while (isActive) {
-                        delay(3500)
                         val live = MemoryGuard.check(context, model.length(), "lora", plan.nCtx, plan.rank)
+                        _state.update { state ->
+                            state.copy(ramAvailableGb = (state.ramAvailableGb + live.availableGb.toFloat()).takeLast(40))
+                        }
                         if (live.availableGb < live.reserveGb + 0.12) {
                             append("[ram] pressão crítica detectada (${"%.2f".format(live.availableGb)} GB livres); solicitando parada segura após a época atual")
                             LlamaBridge.requestTrainingStop()
                             break
                         }
+                        delay(3500)
                     }
                 }
                 val result = try {
