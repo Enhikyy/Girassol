@@ -424,9 +424,9 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
             } catch (t: Throwable) {
                 stage = StudyStage.ERROR
                 status = "falhou: ${t.message}"
-                withContext(Dispatchers.IO) {
+                learningSnapshot = withContext(Dispatchers.IO) {
                     learning.record("failure", themeValue, t.message ?: t.javaClass.simpleName, 0.95f)
-                    learningSnapshot = learning.dream()
+                    learning.dream()
                 }
                 append("erro: ${t.message}")
             } finally {
@@ -634,15 +634,14 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     fun trainingDataset(): File? = project?.txt ?: project?.jsonl
 
     fun reviewSkill(skillId: String, quality: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val updated = learning.review(skillId, quality)
-            learningSnapshot = updated
+        viewModelScope.launch {
+            learningSnapshot = withContext(Dispatchers.IO) { learning.review(skillId, quality) }
         }
     }
 
     fun consolidateLearning() {
-        viewModelScope.launch(Dispatchers.IO) {
-            learningSnapshot = learning.dream()
+        viewModelScope.launch {
+            learningSnapshot = withContext(Dispatchers.IO) { learning.dream() }
         }
     }
 
