@@ -127,7 +127,7 @@ fun AutodidactPane(
                     Text("Pesquisa autônoma", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
                         "9 fontes gratuitas + GitHub/Brave opcionais · downloads · RAG · dataset · auto-tuning",
-                        fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
+                        fontSize = 12.sp, color = Lab.Muted, lineHeight = 14.sp,
                     )
                 }
                 if (study.llmReady) Pill("LLM", Lab.Violet, filled = true) else Pill("extrativo", Lab.Amber)
@@ -230,11 +230,11 @@ fun AutodidactPane(
                                 } else if (active) {
                                     SunflowerSpinner(20.dp, 8)
                                 } else {
-                                    Text("${i + 1}", fontSize = 11.sp, color = Lab.Muted)
+                                    Text("${i + 1}", fontSize = 12.sp, color = Lab.Muted)
                                 }
                             }
                             Spacer(Modifier.height(4.dp))
-                            Text(label, fontSize = 11.sp, color = if (done || active) Lab.Text else Lab.Muted, maxLines = 1)
+                            Text(label, fontSize = 12.sp, color = if (done || active) Lab.Text else Lab.Muted, maxLines = 1)
                         }
                         if (i < stages.lastIndex) {
                             Box(
@@ -262,10 +262,10 @@ fun AutodidactPane(
                     )
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(study.status, fontSize = 11.sp, color = Lab.Text, lineHeight = 16.sp)
+                        Text(study.status, fontSize = 12.sp, color = Lab.Text, lineHeight = 16.sp)
                         if (study.live.isNotBlank()) {
                             Spacer(Modifier.height(4.dp))
-                            Text(study.live.takeLast(120), fontSize = 11.sp, color = Lab.Muted, maxLines = 2)
+                            Text(study.live.takeLast(120), fontSize = 12.sp, color = Lab.Muted, maxLines = 2)
                         }
                         if (study.running || study.autopilotRunning) {
                             Spacer(Modifier.height(6.dp))
@@ -274,7 +274,7 @@ fun AutodidactPane(
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     if (study.autopilotRunning) "piloto automático ativo" else "ciclo de pesquisa em execução",
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     color = Lab.Muted,
                                 )
                             }
@@ -308,8 +308,8 @@ fun AutodidactPane(
                             Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(7.dp).clip(CircleShape).background(colors[i % colors.size]))
                                 Spacer(Modifier.width(6.dp))
-                                Text(e.key, fontSize = 11.sp, color = Lab.Text, modifier = Modifier.weight(1f))
-                                Text("${e.value}", fontSize = 11.sp, color = Lab.Muted)
+                                Text(e.key, fontSize = 12.sp, color = Lab.Text, modifier = Modifier.weight(1f))
+                                Text("${e.value}", fontSize = 12.sp, color = Lab.Muted)
                             }
                         }
                     }
@@ -336,13 +336,13 @@ fun AutodidactPane(
                         verticalAlignment = Alignment.Top,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(d.title, fontSize = 11.sp, color = Lab.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(d.title, fontSize = 12.sp, color = Lab.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 "${d.source} · ${d.domain}" + (d.year?.let { " · $it" } ?: ""),
-                                fontSize = 11.sp, color = Lab.Cyan,
+                                fontSize = 12.sp, color = Lab.Cyan,
                             )
-                            Text(d.snippet.take(180), fontSize = 11.sp, color = Lab.Muted, maxLines = 2, lineHeight = 13.sp)
+                            Text(d.snippet.take(180), fontSize = 12.sp, color = Lab.Muted, maxLines = 2, lineHeight = 13.sp)
                         }
                         Icon(Icons.Rounded.OpenInNew, null, tint = Lab.Muted, modifier = Modifier.size(13.dp))
                     }
@@ -356,7 +356,7 @@ fun AutodidactPane(
             SectionHeader("Evolução do aprendizado", "últimos " + study.cycleHistory.size + " ciclos")
             Spacer(Modifier.height(8.dp))
             GlassCard {
-                Text("Tokens estimados por ciclo", fontSize = 11.sp, color = Lab.Muted)
+                Text("Tokens estimados por ciclo", fontSize = 12.sp, color = Lab.Muted)
                 Spacer(Modifier.height(7.dp))
                 LineChart(
                     points = study.cycleHistory.takeLast(12).map { it.tokens.toFloat() },
@@ -364,7 +364,7 @@ fun AutodidactPane(
                     color = Lab.Violet,
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("Conteúdos incorporados por ciclo", fontSize = 11.sp, color = Lab.Muted)
+                Text("Conteúdos incorporados por ciclo", fontSize = 12.sp, color = Lab.Muted)
                 Spacer(Modifier.height(7.dp))
                 AnimatedBars(
                     values = study.cycleHistory.takeLast(12).map { it.downloads.toFloat() },
@@ -399,7 +399,7 @@ fun AutodidactPane(
                     StatTile("ETA", dev.labforge.app.core.Perf.fmtDuration(p.estimatedMinutes * 60.0), Lab.Indigo, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(9.dp))
-                Text(p.notes, fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp)
+                Text(p.notes, fontSize = 12.sp, color = Lab.Muted, lineHeight = 14.sp)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Pill("alvos: ${p.targets}", Lab.Violet)
@@ -440,10 +440,10 @@ fun AutodidactPane(
                             contentAlignment = Alignment.Center,
                         ) {
                             if (t.done) Icon(Icons.Rounded.CheckCircle, null, tint = Lab.Cyan, modifier = Modifier.size(13.dp))
-                            else Text("${i + 1}", fontSize = 11.sp, color = Lab.Muted)
+                            else Text("${i + 1}", fontSize = 12.sp, color = Lab.Muted)
                         }
                         Spacer(Modifier.width(9.dp))
-                        Text(t.title, fontSize = 11.sp, color = Lab.Text, modifier = Modifier.weight(1f))
+                        Text(t.title, fontSize = 12.sp, color = Lab.Text, modifier = Modifier.weight(1f))
                         if (t.done) Pill("${t.examples}", Lab.Cyan)
                     }
                 }
@@ -462,7 +462,7 @@ fun AutodidactPane(
                     StatTile("fontes", p.sources.size.toString(), Lab.Green, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(9.dp))
-                Text(p.txt?.name ?: p.jsonl?.name ?: "", fontSize = 11.sp, color = Lab.Muted)
+                Text(p.txt?.name ?: p.jsonl?.name ?: "", fontSize = 12.sp, color = Lab.Muted)
                 Spacer(Modifier.height(10.dp))
                 Box(
                     Modifier
@@ -498,8 +498,8 @@ fun AutodidactPane(
                             .padding(9.dp),
                     ) {
                         Column {
-                            Text(h.theme.take(28), fontSize = 11.sp, color = Lab.Text, maxLines = 2)
-                            Text("${h.docs.size} fontes", fontSize = 11.sp, color = Lab.Muted)
+                            Text(h.theme.take(28), fontSize = 12.sp, color = Lab.Text, maxLines = 2)
+                            Text("${h.docs.size} fontes", fontSize = 12.sp, color = Lab.Muted)
                         }
                     }
                 }
