@@ -94,7 +94,7 @@ private val tabs = listOf(
     Tab(Routes.HOME, "Início", Icons.Rounded.Home),
     Tab(Routes.MODELS, "Modelos", Icons.Rounded.Widgets),
     Tab(Routes.LAB, "Lab", Icons.Rounded.Science),
-    Tab(Routes.AGENT, "Agentes", Icons.Rounded.SmartToy),
+    Tab(Routes.AGENT, "Chat", Icons.Rounded.SmartToy),
     Tab(Routes.SETTINGS, "Ajustes", Icons.Rounded.Settings),
 )
 
