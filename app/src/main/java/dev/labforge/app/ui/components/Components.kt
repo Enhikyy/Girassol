@@ -122,7 +122,7 @@ fun GlassCard(
                     end = Offset(900f, 700f),
                 ),
             )
-            .liquidGlass(shape, intensity = 0.8f)
+            .liquidGlass(shape, intensity = if (Lab.pureBlack) 0f else 0.8f)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(interactionSource = interaction, indication = LocalIndication.current) { onClick() }
@@ -297,9 +297,8 @@ fun LineChart(
     showDots: Boolean = true,
 ) {
     val reveal = remember { Animatable(0f) }
-    LaunchedEffect(points) {
-        reveal.snapTo(0f)
-        reveal.animateTo(1f, tween(650))
+    LaunchedEffect(points.size) {
+        if (points.size >= 2 && reveal.value < 1f) reveal.animateTo(1f, tween(650))
     }
     Canvas(modifier) {
         if (points.size < 2) {
