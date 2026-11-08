@@ -170,57 +170,65 @@ object JobEngine {
     // --------------------------------------------------------------- LoRA train
 
     fun startLora(
-        context: Context,
-        model: File,
-        output: File,
-        dataset: File,
-        epochs: Int,
-        lr: Float,
-        nCtx: Int,
-        threads: Int,
-        rank: Int,
-        alpha: Float,
-        targets: String,
+        context: Context, model: File, output: File, dataset: File, epochs: Int, lr: Float,
+        nCtx: Int, threads: Int, rank: Int, alpha: Float, targets: String,
     ) {
         if (isRunning) return
         init(context)
-        val budget = MemoryGuard.check(context, model.length(), "lora")
-        if (!begin(context, "lora", "LoRA · ${model.name}", budget.message, output)) return
-        append("[ram] ${budget.message}")
+        val initial = MemoryGuard.check(context, model.length(), "lora", nCtx, rank)
+        if (!begin(context, "lora", "LoRA · ${model.name}", initial.message, output)) return
+        append("[ram] ${initial.message}")
 
-        current = scope.launch {
-            val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB antes do LoRA")
-            val cb = object : NativeCallback {
-                override fun onLog(line: String) = append(line)
-                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
-                    if (loss.isFinite() && loss > 0) {
-                        _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
-                    }
-                    if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
-                    if (epoch > 0) _state.update { it.copy(title = "LoRA · epoch $epoch/$epochs") }
+        current = scope.launch(Dispatchers.IO) {
+            try {
+                val boost = runCatching { MemoryBooster.boost(context) }.getOrNull()
+                if (boost != null) append("[ram] liberados ${boost.freedMb} MB antes do LoRA")
+                else append("[ram] limpeza de memória indisponível; fazendo nova avaliação")
+
+                val plan = MemoryGuard.loraPlan(context, model.length(), nCtx, rank, threads, targets)
+                append("[ram] ${plan.budget.message}")
+                if (!plan.budget.ok) {
+                    finish(false, plan.budget.message, null)
+                    return@launch
                 }
+                if (plan.adjusted) {
+                    append("[auto] perfil móvel aplicado: ctx=${plan.nCtx}, rank=${plan.rank}, threads=${plan.threads}, alvos=${plan.targets}")
+                }
+
+                val monitor = scope.launch(Dispatchers.IO) {
+                    while (isActive) {
+                        delay(3500)
+                        val live = MemoryGuard.check(context, model.length(), "lora", plan.nCtx, plan.rank)
+                        if (live.availableGb < live.reserveGb + 0.12) {
+                            append("[ram] pressão crítica detectada (${"%.2f".format(live.availableGb)} GB livres); solicitando parada segura após a época atual")
+                            LlamaBridge.requestTrainingStop()
+                            break
+                        }
+                    }
+                }
+                val result = try {
+                    LlamaBridge.loraTrain(
+                        model = model.absolutePath, output = output.absolutePath, dataset = dataset.absolutePath,
+                        epochs = epochs.coerceIn(1, 5), lr = lr, nCtx = plan.nCtx, threads = plan.threads,
+                        rank = plan.rank, alpha = plan.rank.toFloat(), targets = plan.targets, callback = object : NativeCallback {
+                            override fun onLog(line: String) = append(line)
+                            override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
+                                if (loss.isFinite() && loss > 0) _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
+                                if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
+                                if (epoch > 0) _state.update { it.copy(title = "LoRA · epoch $epoch/${epochs.coerceIn(1, 5)}") }
+                            }
+                        },
+                    )
+                } finally { monitor.cancel() }
+                val summary = if (result.ok) {
+                    "Adaptador LoRA salvo · ${result.tensors} tensores · loss %.4f".format(result.loss)
+                } else result.error ?: "falha no treino LoRA; verifique o checkpoint parcial"
+                finish(result.ok, summary, output.takeIf { result.ok })
+            } catch (error: Throwable) {
+                finish(false, "Falha segura no treinamento LoRA: ${error.message ?: error.javaClass.simpleName}", null)
             }
-            val r = LlamaBridge.loraTrain(
-                model = model.absolutePath,
-                output = output.absolutePath,
-                dataset = dataset.absolutePath,
-                epochs = epochs,
-                lr = lr,
-                nCtx = nCtx,
-                threads = threads,
-                rank = rank,
-                alpha = alpha,
-                targets = targets,
-                callback = cb,
-            )
-            val summary = if (r.ok) {
-                "Adaptador LoRA salvo · ${r.tensors} tensores · loss %.4f".format(r.loss)
-            } else r.error ?: "falha no treino LoRA"
-            finish(r.ok, summary, output.takeIf { r.ok })
         }
     }
-
     // ------------------------------------------------------------- full finetune
 
     fun startFinetune(
