@@ -86,9 +86,13 @@ class LearningContinuity(private val file: File) {
     /** Consolidate repeated topics and preserve failure evidence for later cycles. */
     @Synchronized fun dream(now: Long = System.currentTimeMillis()): LearningSnapshot {
         val alreadyProcessed = state.processedExperienceIds.toHashSet()
-        val recent = state.experiences.filter { it.id !in alreadyProcessed }.takeLast(80)
-        if (recent.isEmpty()) return state
-        val tiles = recent.groupBy { it.topic.lowercase().trim() }.mapNotNull { (topic, items) ->
+        val recent = state.experiences.takeLast(80)
+        val newEvidence = recent.filter { it.id !in alreadyProcessed }
+        if (newEvidence.isEmpty()) return state
+        val affectedTopics = newEvidence.map { it.topic.lowercase().trim() }.toSet()
+        // Reuse recent history as context, but only emit a tile when a new event arrived.
+        val tiles = recent.filter { it.topic.lowercase().trim() in affectedTopics }
+            .groupBy { it.topic.lowercase().trim() }.mapNotNull { (topic, items) ->
             val failures = items.filter { it.kind == "failure" }
             val evidence = (failures + items.filter { it.kind == "success" || it.kind == "cycle" }).takeLast(5)
             if (items.size < 2 && failures.isEmpty()) return@mapNotNull null
@@ -107,14 +111,18 @@ class LearningContinuity(private val file: File) {
         }
         state = state.copy(
             dreams = (state.dreams + tiles).distinctBy { it.id }.takeLast(80),
-            processedExperienceIds = (state.processedExperienceIds + recent.map { it.id }).takeLast(240),
+            processedExperienceIds = (state.processedExperienceIds + newEvidence.map { it.id }).takeLast(240),
         )
         persist()
         return state
     }
-    @Synchronized fun due(now: Long = System.currentTimeMillis()): List<SkillNode> =
-        state.skills.filter { it.dueAt == 0L || it.dueAt <= now }
-            .sortedWith(compareBy<SkillNode> { it.dueAt }.thenBy { it.mastery })
+    @Synchronized fun due(now: Long = System.currentTimeMillis()): List<SkillNode> {
+        val byId = state.skills.associateBy { it.id }
+        return state.skills
+            .filter { it.dueAt == 0L || it.dueAt <= now }
+            .filter { skill -> skill.prerequisites.all { prerequisite -> (byId[prerequisite]?.mastery ?: 0f) >= 0.6f } }
+            .sortedWith(compareBy<SkillNode> { it.level }.thenBy { it.mastery })
+    }
 
     private fun load(): LearningSnapshot = runCatching {
         if (!file.isFile) return LearningSnapshot()
