@@ -184,6 +184,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     private var lastTrainingFinishedAt: Long = 0L
 
     init {
+        // Avoid re-recording an old native training result if this ViewModel is recreated.
+        lastTrainingFinishedAt = JobEngine.state.value.finishedAt
         viewModelScope.launch {
             bundle = withContext(Dispatchers.IO) { repo.latest() }
             history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
