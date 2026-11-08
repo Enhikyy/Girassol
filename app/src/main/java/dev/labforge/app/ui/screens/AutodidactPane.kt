@@ -58,6 +58,7 @@ import dev.labforge.app.ui.components.DonutSegment
 import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.GradientButton
 import dev.labforge.app.ui.components.LabField
+import dev.labforge.app.ui.components.LineChart
 import dev.labforge.app.ui.components.Pill
 import dev.labforge.app.ui.components.ProgressRing
 import dev.labforge.app.ui.components.PulsingDot
@@ -88,6 +89,7 @@ fun AutodidactPane(
 
     val stages = listOf(
         StudyStage.RESEARCH to "Pesquisa",
+        StudyStage.DOWNLOAD to "Download",
         StudyStage.SYNTHESIS to "Síntese",
         StudyStage.CURRICULUM to "Currículo",
         StudyStage.DATASET to "Dataset",
@@ -95,7 +97,7 @@ fun AutodidactPane(
     )
     val currentIndex = stages.indexOfFirst { it.first == study.stage }
     val doneCount = when (study.stage) {
-        StudyStage.DONE -> 5
+        StudyStage.DONE -> 6
         StudyStage.ERROR, StudyStage.IDLE -> 0
         else -> currentIndex.coerceAtLeast(0)
     }
@@ -124,7 +126,7 @@ fun AutodidactPane(
                 Column(Modifier.weight(1f)) {
                     Text("Pesquisa autônoma", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
-                        "7 fontes + Brave · RAG local · currículo · dataset · auto-tuning",
+                        "9 fontes gratuitas + GitHub/Brave opcionais · downloads · RAG · dataset · auto-tuning",
                         fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
                     )
                 }
@@ -143,6 +145,23 @@ fun AutodidactPane(
             Stepper("Exemplos/tópico", study.perTopic, listOf(2, 4, 6, 8), Modifier.fillMaxWidth()) { study.perTopic = it }
             Spacer(Modifier.height(14.dp))
             ToggleRow(
+                title = "Piloto automático contínuo",
+                subtitle = "repete pesquisa, downloads, dataset e autoajuste em ciclos",
+                checked = study.autopilotMode,
+                onCheckedChange = { study.autopilotMode = it },
+            )
+            if (study.autopilotMode) {
+                Spacer(Modifier.height(8.dp))
+                Stepper(
+                    label = "Intervalo entre ciclos",
+                    value = study.autopilotIntervalMinutes,
+                    options = listOf(5, 15, 30, 60, 120),
+                    suffix = " min",
+                    modifier = Modifier.fillMaxWidth(),
+                ) { study.autopilotIntervalMinutes = it }
+            }
+            Spacer(Modifier.height(8.dp))
+            ToggleRow(
                 title = "Treinar LoRA automaticamente ao concluir",
                 subtitle = "usa o modelo selecionado e o preset calculado",
                 checked = study.autoTrain,
@@ -151,14 +170,21 @@ fun AutodidactPane(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GradientButton(
-                    if (study.running) "Parar" else "Pesquisar e montar",
+                    when {
+                        study.running || study.autopilotRunning -> "Parar"
+                        study.autopilotMode -> "Iniciar piloto automático"
+                        else -> "Pesquisar e montar"
+                    },
                     Modifier.weight(1f),
-                    if (study.running) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
-                    enabled = study.running || theme.isNotBlank(),
+                    if (study.running || study.autopilotRunning) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                    enabled = study.running || study.autopilotRunning || theme.isNotBlank(),
                 ) {
-                    if (study.running) study.stop() else {
+                    if (study.running || study.autopilotRunning) {
+                        study.stop()
+                    } else {
                         study.theme = theme
-                        study.start()
+                        if (study.autopilotMode) study.startAutopilot(study.autopilotIntervalMinutes)
+                        else study.start()
                     }
                 }
             }
@@ -241,12 +267,16 @@ fun AutodidactPane(
                             Spacer(Modifier.height(4.dp))
                             Text(study.live.takeLast(120), fontSize = 11.sp, color = Lab.Muted, maxLines = 2)
                         }
-                        if (study.running) {
+                        if (study.running || study.autopilotRunning) {
                             Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 PulsingDot(Lab.Green, 6.dp)
                                 Spacer(Modifier.width(6.dp))
-                                Text("trabalhando em segundo plano", fontSize = 11.sp, color = Lab.Muted)
+                                Text(
+                                    if (study.autopilotRunning) "piloto automático ativo" else "ciclo de pesquisa em execução",
+                                    fontSize = 11.sp,
+                                    color = Lab.Muted,
+                                )
                             }
                         }
                     }
@@ -316,6 +346,37 @@ fun AutodidactPane(
                         }
                         Icon(Icons.Rounded.OpenInNew, null, tint = Lab.Muted, modifier = Modifier.size(13.dp))
                     }
+                }
+            }
+        }
+
+        // ---------------------------------------------------- autonomous metrics
+        if (study.cycleHistory.isNotEmpty()) {
+            Spacer(Modifier.height(18.dp))
+            SectionHeader("Evolução do aprendizado", "últimos " + study.cycleHistory.size + " ciclos")
+            Spacer(Modifier.height(8.dp))
+            GlassCard {
+                Text("Tokens estimados por ciclo", fontSize = 11.sp, color = Lab.Muted)
+                Spacer(Modifier.height(7.dp))
+                LineChart(
+                    points = study.cycleHistory.takeLast(12).map { it.tokens.toFloat() },
+                    modifier = Modifier.fillMaxWidth().height(94.dp),
+                    color = Lab.Violet,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Conteúdos incorporados por ciclo", fontSize = 11.sp, color = Lab.Muted)
+                Spacer(Modifier.height(7.dp))
+                AnimatedBars(
+                    values = study.cycleHistory.takeLast(12).map { it.downloads.toFloat() },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    color = Lab.Cyan,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val latestCycle = study.cycleHistory.last()
+                    StatTile("últimos tokens", dev.labforge.app.ui.components.humanNumber(latestCycle.tokens), Lab.Violet, Modifier.weight(1f))
+                    StatTile("exemplos gerados", latestCycle.examples.toString(), Lab.Green, Modifier.weight(1f))
+                    StatTile("downloads", latestCycle.downloads.toString(), Lab.Cyan, Modifier.weight(1f))
                 }
             }
         }
