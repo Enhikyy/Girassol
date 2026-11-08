@@ -87,6 +87,11 @@ object LlamaBridge {
         return parseLora(json)
     }
 
+    /** Requests stop after the current native training epoch; the latest LoRA checkpoint remains on disk. */
+    fun requestTrainingStop() {
+        if (isAvailable) runCatching { nativeRequestTrainingStop() }
+    }
+
     /** Token count using the GGUF's own vocabulary (native, no network). */
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
@@ -146,4 +151,5 @@ object LlamaBridge {
     private external fun nativeCountTokens(model: String, text: String): Int
 
     private external fun nativeTokenStats(model: String, text: String, nCtx: Int): LongArray
+    private external fun nativeRequestTrainingStop()
 }
