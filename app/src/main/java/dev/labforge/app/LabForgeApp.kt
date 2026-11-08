@@ -2,11 +2,16 @@ package dev.labforge.app
 
 import android.app.Application
 import android.util.Log
+import androidx.work.Configuration
 import java.io.File
 
-class LabForgeApp : Application() {
+class LabForgeApp : Application(), Configuration.Provider {
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
+
     override fun onCreate() {
         super.onCreate()
+        dev.labforge.app.integration.android.DeviceRuntime.init(this)
         installCrashLogger()
         runCatching { dev.labforge.app.integration.llamatik.LlamatikRuntime.init(this) }
         // Touch the native bridge once so failures surface in logcat early.

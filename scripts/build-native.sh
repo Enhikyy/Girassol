@@ -27,4 +27,5 @@ cp "$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-and
 
 STRIP="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 for f in "$DEST"/*.so; do "$STRIP" --strip-unneeded "$f"; done
+ANDROID_NDK_HOME="$NDK" ./scripts/build-inference.sh
 ls -lh "$DEST"

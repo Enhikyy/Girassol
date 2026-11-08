@@ -1,6 +1,19 @@
 package dev.labforge.app.ui.screens
 
 import android.os.Build
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import dev.labforge.app.integration.android.TermuxBridge
+import dev.labforge.app.integration.android.GirassolAccessibilityService
+import android.content.pm.PackageManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +73,32 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val accessibilityService by GirassolAccessibilityService.connectionState.collectAsState()
+    var termuxAuthorized by remember { mutableStateOf(false) }
+    var apkAuthorized by remember { mutableStateOf(false) }
+    DisposableEffect(lifecycleOwner, context) {
+        fun refresh() {
+            termuxAuthorized = context.checkSelfPermission(TermuxBridge.PERMISSION) == PackageManager.PERMISSION_GRANTED
+            apkAuthorized = context.packageManager.canRequestPackageInstalls()
+        }
+        refresh()
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    var integrationStatus by remember { mutableStateOf("") }
+    val termuxPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        termuxAuthorized = it
+        integrationStatus = if (it) "Permissão Termux concedida" else "Permissão Termux não concedida; verifique se o Termux está instalado"
+    }
+    var termuxProject by remember { mutableStateOf("") }
+    var localInference by remember { mutableStateOf(true) }
+    var localModelPath by remember { mutableStateOf("") }
+    var localAdapterPath by remember { mutableStateOf("") }
+    var cloudFallback by remember { mutableStateOf(false) }
+    var localContext by remember { mutableStateOf(2048) }
     var endpoint by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
@@ -73,6 +112,12 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var boostResult by remember { mutableStateOf<dev.labforge.app.service.MemoryBooster.Result?>(null) }
 
     LaunchedEffect(vm.settings) {
+        termuxProject = vm.settings.termuxProject
+        localInference = vm.settings.localInference
+        localModelPath = vm.settings.localModelPath
+        localAdapterPath = vm.settings.localAdapterPath
+        cloudFallback = vm.settings.allowCloudFallback
+        localContext = vm.settings.localContext
         endpoint = vm.settings.endpoint
         apiKey = vm.settings.apiKey
         model = vm.settings.model
@@ -90,12 +135,47 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     ) {
         Spacer(Modifier.height(18.dp))
         Text("Ajustes", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-        Text("modelo do agente, motor nativo e sandbox", fontSize = 11.sp, color = Lab.Muted)
+        Text("modelo local, automação e Android sem root", fontSize = 11.sp, color = Lab.Muted)
 
         Spacer(Modifier.height(20.dp))
-        SectionHeader("Cérebro do agente", "API compatível com OpenAI")
+        SectionHeader("Android sem root", "Automação e compilação no aparelho")
+        GlassCard {
+            KeyValueRow("Acessibilidade", if (accessibilityService != null) "conectada" else "não conectada")
+            KeyValueRow("Comandos Termux", if (termuxAuthorized) "autorizados" else "não autorizados")
+            KeyValueRow("Instalar APKs pelo Girassol", if (apkAuthorized) "permitido" else "não permitido")
+            Text("Ative o serviço Girassol em Acessibilidade para leitura da tela, gestos e testes. O Android exige essa ativação manual.", fontSize = 11.sp, color = Lab.Muted)
+            GradientButton("Configurar Acessibilidade", Modifier.fillMaxWidth(), Icons.Rounded.CheckCircle) {
+                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Para compilar, instale Termux com JDK, SDK e aapt2. No Termux, configure allow-external-apps=true em ~/.termux/termux.properties. Os projetos ficam no armazenamento do Termux.", fontSize = 11.sp, color = Lab.Muted)
+            GradientButton("Autorizar comandos no Termux", Modifier.fillMaxWidth(), Icons.Rounded.CheckCircle) {
+                termuxPermission.launch(TermuxBridge.PERMISSION)
+            }
+            LabField("Projeto no Termux", termuxProject) { termuxProject = it }
+            Text("Salve esse caminho junto com os ajustes abaixo. Use android_build clone ou termux_command para preparar e editar o projeto.", fontSize = 11.sp, color = Lab.Muted)
+            GradientButton("Permitir instalação de APKs", Modifier.fillMaxWidth(), Icons.Rounded.CheckCircle) {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")))
+            }
+            if (integrationStatus.isNotEmpty()) Text(integrationStatus, fontSize = 11.sp, color = Lab.Cyan)
+        }
+        Spacer(Modifier.height(20.dp))
+        SectionHeader("Cérebro do agente", "GGUF nativo · LoRA · API opcional")
         Spacer(Modifier.height(10.dp))
         GlassCard {
+            ToggleRow("Inferência nativa no aparelho", "Usa o GGUF local no Chat, Codex e autoestudo", localInference) { localInference = it }
+            LabField("Caminho do GGUF instruct", localModelPath) { localModelPath = it }
+            GradientButton("Usar modelo selecionado", Modifier.fillMaxWidth(), Icons.Rounded.Folder) {
+                localModelPath = dev.labforge.app.core.AppSelection.modelPath.orEmpty()
+            }
+            LabField("LoRA: caminho ou lista JSON de path/scale", localAdapterPath) { localAdapterPath = it }
+            Stepper("Contexto local", localContext, listOf(1024, 2048, 4096, 8192), Modifier.fillMaxWidth()) { localContext = it }
+            ToggleRow("Fallback para API", "Envia a conversa ao endpoint configurado se a inferência local falhar", cloudFallback) { cloudFallback = it }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Groq", color = Lab.Cyan, modifier = Modifier.clickable { endpoint = "https://api.groq.com/openai/v1" })
+                Text("Hugging Face", color = Lab.Cyan, modifier = Modifier.clickable { endpoint = "https://router.huggingface.co/v1" })
+            }
             LabField("Endpoint", endpoint, placeholder = "https://api.openai.com/v1") { endpoint = it }
             Spacer(Modifier.height(10.dp))
             LabField("API key", apiKey, placeholder = "sk-…", secret = true) { apiKey = it }
@@ -140,6 +220,12 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             ) {
                 vm.updateSettings {
                     it.copy(
+                        termuxProject = termuxProject.trim(),
+                        localInference = localInference,
+                        localModelPath = localModelPath.trim(),
+                        localAdapterPath = localAdapterPath.trim(),
+                        allowCloudFallback = cloudFallback,
+                        localContext = localContext,
                         endpoint = endpoint.trim(),
                         apiKey = apiKey.trim(),
                         model = model.trim(),
@@ -185,7 +271,9 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                         testResult = null
                         scope.launch {
                             val r = runCatching {
-                                LlmClient(endpoint, apiKey, model, temperature.toDouble()).testConnection()
+                                LlmClient.fromSettings(vm.settings.copy(localInference = localInference, localModelPath = localModelPath,
+                                    localAdapterPath = localAdapterPath, allowCloudFallback = cloudFallback, localContext = localContext,
+                                    endpoint = endpoint, apiKey = apiKey, model = model, temperature = temperature.toDouble())).testConnection()
                             }
                             testing = false
                             testResult = r.getOrElse { "erro: ${it.message}" }
@@ -269,14 +357,14 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    if (boosting) "Liberando…" else "Forçar liberação de RAM",
+                    if (boosting) "Limpando…" else "Limpar cache e medir RAM",
                     fontSize = 11.sp, color = Lab.Violet, fontWeight = FontWeight.SemiBold,
                 )
             }
             boostResult?.let { r ->
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    "+${r.freedMb} MB · ${r.appsTouched} apps tocados · ${r.cachesMb} MB de cache",
+                    "Variação +${r.freedMb} MB · ${r.appsTouched} solicitações a apps · ${r.cachesMb} MB de cache",
                     fontSize = 11.sp, color = Lab.Green,
                 )
                 Text(r.note, fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp)

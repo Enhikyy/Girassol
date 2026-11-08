@@ -38,6 +38,7 @@ object LlamaBridge {
     fun version(): String = runCatching { nativeVersion() }
         .getOrElse { "motor nativo indisponível: ${loadError ?: it.message}" }
 
+    @Synchronized
     fun quantize(
         input: String,
         output: String,
@@ -51,6 +52,7 @@ object LlamaBridge {
         return parseQuantize(json)
     }
 
+    @Synchronized
     fun finetune(
         model: String,
         output: String,
@@ -69,6 +71,7 @@ object LlamaBridge {
         return parseTrain(json)
     }
 
+    @Synchronized
     fun loraTrain(
         model: String,
         output: String,
@@ -88,16 +91,33 @@ object LlamaBridge {
     }
 
     /** Token count using the GGUF's own vocabulary (native, no network). */
+    @Synchronized
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
         return runCatching { nativeCountTokens(model, text) }.getOrDefault(0)
     }
 
+    @Synchronized
     fun tokenStats(model: String, text: String, nCtx: Int): TokenStats {
         if (!isAvailable) return TokenStats(0, 0, 0, 0)
         val a = nativeTokenStats(model, text, nCtx)
         return TokenStats(a.getOrElse(0) { 0 }, a.getOrElse(1) { 0 }, a.getOrElse(2) { 0 }, a.getOrElse(3) { 0 })
     }
+
+    private val inferenceLoaded by lazy { runCatching { System.loadLibrary("girassol_inference") } }
+
+    @Synchronized
+    fun generate(model: String, messages: String, adapter: String, context: Int,
+                 temperature: Float, callback: GenerationCallback): String {
+        check(isAvailable) { "Motor nativo indisponível" }
+        inferenceLoaded.getOrElse { throw IllegalStateException("Inferência nativa indisponível: ${it.message}", it) }
+        return nativeGenerate(model.toByteArray(), messages.toByteArray(), adapter.toByteArray(),
+            context.coerceIn(1024, 32768), 512, Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+            temperature, callback)?.toString(Charsets.UTF_8) ?: error("Geração interrompida")
+    }
+
+    private external fun nativeGenerate(model: ByteArray, messages: ByteArray, adapter: ByteArray,
+        context: Int, maxTokens: Int, threads: Int, temperature: Float, callback: GenerationCallback): ByteArray?
 
     data class QuantizeResult(val ok: Boolean, val bytes: Long, val error: String?)
     data class TrainResult(val ok: Boolean, val tokens: Long, val sequences: Long, val loss: Double, val error: String?)
@@ -147,3 +167,5 @@ object LlamaBridge {
 
     private external fun nativeTokenStats(model: String, text: String, nCtx: Int): LongArray
 }
+
+interface GenerationCallback { fun onToken(bytes: ByteArray): Boolean }

@@ -139,7 +139,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             val agent = ReActAgent(
                 workspace = store.workspace(),
                 lessons = lessons,
-                llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
+                llm = LlmClient.fromSettings(cfg),
                 maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
                 settings = cfg,
                 onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },

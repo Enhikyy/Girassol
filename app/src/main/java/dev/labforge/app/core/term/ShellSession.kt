@@ -16,10 +16,11 @@ data class ShellResult(
 }
 
 /**
- * Terminal confined to the app sandbox. Android has no bash/python/git binaries,
- * so we run /system/bin/sh (toybox) and expose JGit for version control.
+ * Unprivileged Android shell running under the application UID.
  */
 class ShellSession(private val workspace: File) {
+
+    companion object { fun quote(value: String): String = "'" + value.replace("'", "'\"'\"'") + "'" }
 
     private val maxOutput = 160_000
 
@@ -55,7 +56,12 @@ class ShellSession(private val workspace: File) {
             }
         }.apply { isDaemon = true; start() }
 
-        val finished = process.waitFor(timeoutSec, TimeUnit.SECONDS)
+        val finished = try { kotlinx.coroutines.runInterruptible { process.waitFor(timeoutSec, TimeUnit.SECONDS) } }
+        catch (interrupted: kotlinx.coroutines.CancellationException) {
+            process.destroyForcibly()
+            runCatching { process.inputStream.close() }
+            throw interrupted
+        }
         if (!finished) {
             process.destroyForcibly()
             // Close the pipe so a grandchild that inherited stdout cannot keep the

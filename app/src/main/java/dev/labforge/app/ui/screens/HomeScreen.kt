@@ -213,7 +213,7 @@ fun HomeScreen(
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
-                            boostResult?.let { "+${it.freedMb} MB" } ?: "livre",
+                            boostResult?.let { "Δ +${it.freedMb} MB" } ?: "livre",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (boostResult != null) Lab.Green else Lab.Text,
@@ -235,7 +235,7 @@ fun HomeScreen(
                                 .padding(horizontal = 9.dp, vertical = 5.dp),
                         ) {
                             Text(
-                                if (boosting) "…" else "Liberar",
+                                if (boosting) "…" else "Limpar cache",
                                 fontSize = 11.sp,
                                 color = Lab.Violet,
                                 fontWeight = FontWeight.SemiBold,

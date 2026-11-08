@@ -1,5 +1,6 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -30,6 +31,7 @@ class LlmClient(
     private val apiKey: String,
     private val model: String,
     private val temperature: Double = 0.2,
+    private val localSettings: dev.labforge.app.core.settings.AppSettings? = null,
 ) {
     private val url: String = normalize(endpoint)
 
@@ -41,6 +43,19 @@ class LlmClient(
         tools: JSONArray?,
         onDelta: ((text: String, reasoning: Boolean) -> Unit)? = null,
     ): LlmReply = withContext(Dispatchers.IO) {
+        localSettings?.let { cfg ->
+            var emitted = false
+            try {
+                return@withContext LocalInference.chat(cfg, messages, tools) { text, reasoning ->
+                    if (text.isNotEmpty()) emitted = true
+                    onDelta?.invoke(text, reasoning)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                if (!cfg.allowCloudFallback || emitted) throw error
+            }
+        }
         val payload = JSONObject().apply {
             put("model", model)
             put("messages", messages)
@@ -134,6 +149,10 @@ class LlmClient(
     }
 
     suspend fun testConnection(): String = withContext(Dispatchers.IO) {
+        localSettings?.let { cfg ->
+            chat(JSONArray().put(JSONObject().put("role", "user").put("content", "Responda OK.")), null)
+            return@withContext "Inferência concluída: ${java.io.File(cfg.localModelPath).name}"
+        }
         val modelsUrl = url.removeSuffix("/chat/completions") + "/models"
         val builder = Request.Builder().url(modelsUrl).get()
         if (apiKey.isNotBlank()) builder.header("Authorization", "Bearer $apiKey")
@@ -188,6 +207,14 @@ class LlmClient(
     }
 
     companion object {
+        fun fromSettings(cfg: dev.labforge.app.core.settings.AppSettings): LlmClient = LlmClient(
+            cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature, if (cfg.localInference) cfg else null)
+
+        fun ready(cfg: dev.labforge.app.core.settings.AppSettings): Boolean =
+            if (cfg.localInference) java.io.File(cfg.localModelPath).isFile ||
+                (cfg.allowCloudFallback && (cfg.apiKey.isNotBlank() || !cfg.endpoint.contains("openai.com")))
+            else cfg.apiKey.isNotBlank() || !cfg.endpoint.contains("openai.com")
+
         /** One connection pool for every client instance in the process. */
         private val shared: OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

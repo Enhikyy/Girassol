@@ -62,7 +62,13 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
 | **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
 | **Llamatik** | SDK de agentes 2.2.2 integrado: tools, executor, permissões, memória persistente e streaming. |
-| **RAM** | Mede memória, encerra processos de terceiros, limpa cache e informa o ganho real. |
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:34589c5ea60e0aa3e321d959e777ea59158cde202e4590e59e3c6e601fde6df5 -->
+
+**RAM:** mede a variação de memória e limpa caches do Girassol. Android 14+ não permite encerrar outros aplicativos; em versões anteriores, solicitações podem ser ignoradas.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ### Sem chave de API
 
@@ -206,7 +212,31 @@ O arquivo do Figma é gerado pelo plugin em [`design/plugin`](design/plugin). Ve
 
 ---
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:b99971ba0f18495ed0f5695d1dc51d7f8c262ca29e1495f572afb48698b580ab -->
+
+## Modo sono
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:848c78442cf27a2234aad128f3889b21d7b245e2f6e0a25679e2404926000521 -->
+
+Na tela de autoestudo, agende o modo sono. O WorkManager consolida lições e cria um corpus de repetição quando o dispositivo está carregando e inativo; com rede, pesquisa o tema e uma pergunta derivada das falhas registradas. O intervalo é de 12 horas, com horário definido pelo Android. A tarefa não inicia treino LoRA automaticamente.
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:91a307bd2cbbb2c10f3bbd44368dac9b8a49886055f643e5677cdf5bf997bff0 -->
+
+Chat, Codex, Llamatik e autoestudo podem usar inferência GGUF via JNI. Configure o modelo e os adaptadores em Ajustes. O fallback para API é opcional. O dispositivo opera **sem root**: Acessibilidade oferece automação da interface e a integração oficial RUN_COMMAND do Termux executa comandos, builds e testes. A instalação de APKs abre o instalador Android para confirmação. Consulte [Runtime nativo](docs/NATIVE_RUNTIME.md) para preparação e limites de implementação.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
+
 ## Limitações conhecidas
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 - Apenas **arm64-v8a**; não roda em x86/emulador comum.
 - O LoRA nativo exige modelo base **F32/F16/BF16**; modelos quantizados são ignorados no auto-treino.

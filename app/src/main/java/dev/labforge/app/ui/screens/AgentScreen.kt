@@ -130,11 +130,11 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
     }
 
     Column(Modifier.fillMaxSize()) {
-        if (vm.settings.apiKey.isBlank() && vm.settings.endpoint.contains("openai.com")) {
+        if (!dev.labforge.app.core.agent.LlmClient.ready(vm.settings)) {
             Box(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
                 GlassCard(padding = 11) {
                     Text(
-                        "Configure endpoint e API key em Ajustes para o agente pensar. Endpoints locais (Ollama/LM Studio) não precisam de key.",
+                        "Selecione um GGUF instruct em Ajustes para usar o agente local ou configure um endpoint de API.",
                         fontSize = 11.sp,
                         color = Lab.Amber,
                         lineHeight = 14.sp,
