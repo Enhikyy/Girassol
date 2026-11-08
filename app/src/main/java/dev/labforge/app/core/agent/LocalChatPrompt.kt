@@ -16,6 +16,6 @@ object LocalChatPromptBuilder {
             val role = if (turn.role == "user") "USUÁRIO" else "ASSISTENTE"
             role + ":\n" + turn.text.takeLast(8_000)
         }
-        return transcript.takeLast(maxChars.coerceAtLeast(128)) + "\n\nASSISTENTE:"
+        return transcript.takeLast(maxChars.coerceAtLeast(128))
     }
 }

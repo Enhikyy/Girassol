@@ -4,11 +4,12 @@ import dev.labforge.app.core.log.DiagnosticLogStore
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class DiagnosticLogStoreTest {
     @Test
     fun writesStructuredRecordsAndReturnsNewestTail() {
-        val directory = createTempDir(prefix = "girassol-log-")
+        val directory = Files.createTempDirectory("girassol-log-").toFile()
         try {
             val log = DiagnosticLogStore(directory)
             log.append("INFO", "CHAT", "started")
@@ -24,7 +25,7 @@ class DiagnosticLogStoreTest {
 
     @Test
     fun rotatesFilesWithoutDroppingNewestEntry() {
-        val directory = createTempDir(prefix = "girassol-log-rotate-")
+        val directory = Files.createTempDirectory("girassol-log-rotate-").toFile()
         try {
             val log = DiagnosticLogStore(directory, maxBytes = 100)
             repeat(8) { log.append("INFO", "TEST", "entry-" + it + "-" + "x".repeat(48)) }

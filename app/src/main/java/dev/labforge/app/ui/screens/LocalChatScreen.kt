@@ -29,7 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Icon
@@ -232,7 +232,7 @@ fun LocalChatScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        if (chatVm.running) Icons.Rounded.Stop else Icons.Rounded.Send,
+                        if (chatVm.running) Icons.Rounded.Stop else Icons.AutoMirrored.Rounded.Send,
                         null, tint = Lab.OnPrimary, modifier = Modifier.size(19.dp),
                     )
                 }

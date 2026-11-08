@@ -2,7 +2,7 @@ package dev.labforge.app
 
 import dev.labforge.app.core.agent.LocalChatPromptBuilder
 import dev.labforge.app.core.agent.LocalChatTurn
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,7 +14,7 @@ class LocalChatPromptTest {
         )
         assertTrue(result.contains("USUÁRIO:\nolá"))
         assertTrue(result.contains("ASSISTENTE:\noi"))
-        assertTrue(result.endsWith("ASSISTENTE:"))
+        assertFalse(result.endsWith("ASSISTENTE:"))
     }
 
     @Test
@@ -23,7 +23,7 @@ class LocalChatPromptTest {
         val result = LocalChatPromptBuilder.transcript(turns, maxTurns = 4)
         assertTrue(result.contains("mensagem-17"))
         assertTrue(result.contains("mensagem-20"))
-        assertTrue(!result.contains("mensagem-16"))
+        assertFalse(result.contains("mensagem-16"))
     }
 
     @Test
@@ -36,8 +36,8 @@ class LocalChatPromptTest {
             ),
             maxChars = 180,
         )
-        assertTrue(result.length <= 200)
-        assertTrue(!result.contains("não entra"))
-        assertTrue(result.contains("ASSISTENTE:"))
+        assertTrue(result.length <= 180)
+        assertFalse(result.contains("não entra"))
+        assertTrue(result.contains("resposta"))
     }
 }
