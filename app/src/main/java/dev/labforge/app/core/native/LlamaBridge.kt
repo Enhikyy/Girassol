@@ -98,7 +98,15 @@ object LlamaBridge {
         callback: NativeCallback?,
     ): LoraResult {
         if (!isAvailable) return LoraResult(false, 0, 0, 0, 0.0, loadError ?: "nativo indisponível")
-        val json = nativeLoraTrain(model, output, dataset, epochs, lr, nCtx, threads, rank, alpha, targets, callback)
+        val json = runCatching {
+            nativeLoraTrain(model, output, dataset, epochs, lr, nCtx, threads, rank, alpha, targets, callback)
+        }.getOrElse { failure ->
+            Log.e(TAG, "native LoRA call failed before returning a result", failure)
+            return LoraResult(
+                false, 0, 0, 0, 0.0,
+                "falha na chamada JNI do LoRA: ${failure.message ?: failure.javaClass.simpleName}",
+            )
+        }
         return parseLora(json)
     }
 
