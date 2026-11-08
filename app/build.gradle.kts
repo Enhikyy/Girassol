@@ -13,7 +13,7 @@ android {
         applicationId = "app.girassol"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
+        versionCode = 8
         versionName = "1.4.0"
 
         ndk {

@@ -45,9 +45,18 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
-        val current = settingsSnapshot()
-        val next = transform(current)
+        // Transform inside edit{}: reading the snapshot first and writing after is a
+        // read-modify-write race that silently drops concurrent changes.
         context.dataStore.edit { p ->
+            val current = AppSettings(
+                endpoint = p[Keys.endpoint] ?: "https://api.openai.com/v1",
+                apiKey = p[Keys.apiKey] ?: "",
+                model = p[Keys.model] ?: "gpt-4o-mini",
+                temperature = p[Keys.temperature] ?: 0.2,
+                maxSteps = p[Keys.maxSteps] ?: 15,
+                autoCommit = p[Keys.autoCommit] ?: true,
+            )
+            val next = transform(current)
             p[Keys.endpoint] = next.endpoint
             p[Keys.apiKey] = next.apiKey
             p[Keys.model] = next.model
@@ -56,6 +65,4 @@ class SettingsRepository(private val context: Context) {
             p[Keys.autoCommit] = next.autoCommit
         }
     }
-
-    private suspend fun settingsSnapshot(): AppSettings = settings.first()
 }

@@ -21,6 +21,9 @@ data class DatasetStats(
 
 object DatasetBuilder {
 
+    /** Upper bound on the generated corpus so a huge import cannot exhaust the heap. */
+    private const val MAX_OUTPUT_CHARS = 64_000_000
+
     /** Converts JSONL / JSON / plain text into a single training text file. */
     fun build(inputs: List<File>, format: ChatFormat, output: File): Pair<File, DatasetStats> {
         val sb = StringBuilder()
@@ -28,12 +31,15 @@ object DatasetBuilder {
         var chars = 0L
         var skipped = 0
         var detected = "texto"
+        var budget = MAX_OUTPUT_CHARS
 
         for (input in inputs) {
+            if (budget <= 0) break
             val isJsonl = input.extension.equals("jsonl", true) ||
                 input.extension.equals("json", true)
             if (!isJsonl) {
-                val text = input.readText()
+                val text = input.readText().take(budget)
+                budget -= text.length
                 sb.append(text)
                 if (!text.endsWith("\n")) sb.append('\n')
                 chars += text.length
@@ -78,10 +84,12 @@ object DatasetBuilder {
                             return@forEachLine
                         }
                     }
-                    if (rendered.isNotBlank()) {
-                        sb.append(rendered)
-                        if (!rendered.endsWith("\n")) sb.append('\n')
-                        chars += rendered.length
+                    if (rendered.isNotBlank() && budget > 0) {
+                        val slice = rendered.take(budget)
+                        budget -= slice.length
+                        sb.append(slice)
+                        if (!slice.endsWith("\n")) sb.append('\n')
+                        chars += slice.length
                         docs++
                     }
                 } catch (t: Throwable) {

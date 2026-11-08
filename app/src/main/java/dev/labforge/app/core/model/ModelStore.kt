@@ -59,6 +59,12 @@ class ModelStore(private val context: Context) {
         val name = displayName(uri) ?: "import-${System.currentTimeMillis()}"
         val target = uniqueFile(kind, name)
         val total = sizeOf(uri)
+        if (total > 0) {
+            val free = target.parentFile?.usableSpace ?: 0L
+            require(free > total + (64L shl 20)) {
+                "espaço insuficiente: ${total / (1 shl 20)} MB necessários, ${free / (1 shl 20)} MB livres"
+            }
+        }
         context.contentResolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "Não foi possível abrir o arquivo" }
             target.outputStream().use { out ->

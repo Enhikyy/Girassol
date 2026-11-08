@@ -31,11 +31,26 @@ abstract class AgentTool(protected val workspace: File) {
     }
 
     protected fun resolve(path: String): File {
+        require(!path.contains('\u0000')) { "caminho inválido" }
         val cleaned = path.trim().removePrefix("/").ifBlank { "." }
         val f = File(workspace, cleaned).canonicalFile
         val root = workspace.canonicalFile
         require(f.path == root.path || f.path.startsWith(root.path + File.separator)) {
             "caminho fora do workspace: $path"
+        }
+        return f
+    }
+
+    /**
+     * Same as [resolve] but refuses to touch git internals: `.git/hooks` and
+     * `.git/config` are executable surfaces, so a write there would let the agent
+     * escalate from "edit files" to "run arbitrary code".
+     */
+    protected fun resolveWritable(path: String): File {
+        val f = resolve(path)
+        val gitDir = File(workspace.canonicalFile, ".git").canonicalFile
+        require(!(f.path == gitDir.path || f.path.startsWith(gitDir.path + File.separator))) {
+            "escrita em .git é bloqueada: $path"
         }
         return f
     }
@@ -104,7 +119,7 @@ class WriteFileTool(ws: File) : AgentTool(ws) {
     }, listOf("path", "content"))
     override suspend fun execute(args: JSONObject): ToolResult = withContext(Dispatchers.IO) {
         runCatching {
-            val f = resolve(args.getString("path"))
+            val f = resolveWritable(args.getString("path"))
             f.parentFile?.mkdirs()
             val content = args.getString("content")
             f.writeText(content)
@@ -123,7 +138,7 @@ class ApplyPatchTool(ws: File) : AgentTool(ws) {
     }, listOf("path", "find", "replace"))
     override suspend fun execute(args: JSONObject): ToolResult = withContext(Dispatchers.IO) {
         runCatching {
-            val f = resolve(args.getString("path"))
+            val f = resolveWritable(args.getString("path"))
             require(f.isFile) { "arquivo não encontrado" }
             val text = f.readText()
             val find = args.getString("find")

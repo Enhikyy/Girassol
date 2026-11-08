@@ -25,6 +25,9 @@ class ShellSession(private val workspace: File) {
 
     suspend fun run(command: String, timeoutSec: Long = 60): ShellResult = withContext(Dispatchers.IO) {
         val started = System.currentTimeMillis()
+        if (command.isBlank()) {
+            return@withContext ShellResult(command, 0, "(comando vazio)", 0, false)
+        }
         workspace.mkdirs()
         val pb = ProcessBuilder("/system/bin/sh", "-c", command)
             .directory(workspace)
@@ -55,6 +58,9 @@ class ShellSession(private val workspace: File) {
         val finished = process.waitFor(timeoutSec, TimeUnit.SECONDS)
         if (!finished) {
             process.destroyForcibly()
+            // Close the pipe so a grandchild that inherited stdout cannot keep the
+            // reader thread blocked forever (a leaked thread per timed-out command).
+            runCatching { process.inputStream.close() }
             reader.join(1200)
             return@withContext ShellResult(
                 command, 124,
@@ -63,6 +69,7 @@ class ShellSession(private val workspace: File) {
             )
         }
         reader.join(1500)
+        runCatching { process.inputStream.close() }
         val text = sb.toString().let {
             if (it.length > maxOutput) it.take(maxOutput) + "\n[saída truncada]"
             else if (it.isBlank()) "(sem saída)" else it

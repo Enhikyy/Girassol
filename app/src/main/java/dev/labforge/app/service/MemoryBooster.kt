@@ -71,7 +71,10 @@ object MemoryBooster {
     private fun purgeCaches(context: Context): Long {
         var freed = 0L
         runCatching {
+            // Never wipe the whole cache dir: the agent's own scratch files live there
+            // and deleting them mid-job would break a running task.
             context.cacheDir.listFiles()?.forEach { f ->
+                if (f.name == "labforge" || f.name == "agent") return@forEach
                 freed += sizeOf(f)
                 f.deleteRecursively()
             }

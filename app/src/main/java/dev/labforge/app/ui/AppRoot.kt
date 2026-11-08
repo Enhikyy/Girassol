@@ -125,13 +125,15 @@ fun AppRoot() {
             }
             Box(Modifier.weight(1f)) {
                 AnimatedContent(
-                    targetState = route,
+                    // `arg` must be part of the key: navigating model A -> model B keeps
+                    // `route` == "model", so keying on route alone would not recompose.
+                    targetState = route to arg,
                     transitionSpec = {
                         (slideInHorizontally(tween(320)) { it / 7 } + fadeIn(tween(260))) togetherWith
                             (slideOutHorizontally(tween(280)) { -it / 9 } + fadeOut(tween(200)))
                     },
                     label = "screens",
-                ) { current ->
+                ) { (current, _) ->
                     when (current) {
                         Routes.HOME -> HomeScreen(vm, agentVm, { r -> go(r) }) { labTab = it; go(Routes.LAB) }
                         Routes.MODELS -> ModelsScreen(vm) { p -> go(Routes.MODEL, p) }
