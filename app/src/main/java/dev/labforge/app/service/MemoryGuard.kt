@@ -46,7 +46,9 @@ object MemoryGuard {
         val reserve = max(0.45, safeTotal * 0.14)
         val workload = when (mode) {
             "quantize" -> modelGb * 1.35 + 0.30
-            "lora" -> modelGb * 1.90 + (nCtx.coerceAtLeast(128) / 512.0) * 0.12 + (rank.coerceAtLeast(4) / 8.0) * 0.035 + 0.35
+            // The frozen LoRA base is mmap-backed; estimate only a bounded hot-page window.
+            // Adapter tensors, activations, optimizer state and KV/context buffers remain resident.
+            "lora" -> min(modelGb * 0.10, 0.25) + (nCtx.coerceAtLeast(128) / 512.0) * 0.12 + (rank.coerceAtLeast(4) / 8.0) * 0.035 + 0.35
             else -> modelGb * 4.0 + (nCtx.coerceAtLeast(128) / 512.0) * 0.20 + 0.55
         }
         val required = workload + reserve
@@ -55,7 +57,7 @@ object MemoryGuard {
         val message = when {
             mode == "full" && !fullSupported -> "Fine-tuning completo exige pelo menos 8 GB de RAM total neste motor. Use LoRA para treinar com segurança no aparelho."
             ok -> "Orçamento seguro: ${"%.2f".format(availableGb)} GB livres · estimativa ${"%.2f".format(required)} GB incluindo reserva do Android."
-            else -> "Treino bloqueado preventivamente: ${"%.2f".format(availableGb)} GB livres; estimativa conservadora ${"%.2f".format(required)} GB. Feche apps ou use modelo/contexto/LoRA menores."
+            else -> "Orçamento de trabalho insuficiente: ${"%.2f".format(availableGb)} GB livres; buffers/adaptadores estimados em ${"%.2f".format(required)} GB incluindo reserva do Android. O peso base usa mmap e não é contabilizado como heap residente integral."
         }
         return Budget(ok, availableGb, required, message, safeTotal, reserve)
     }
