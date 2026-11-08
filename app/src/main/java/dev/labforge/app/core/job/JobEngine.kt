@@ -232,54 +232,48 @@ object JobEngine {
     // ------------------------------------------------------------- full finetune
 
     fun startFinetune(
-        context: Context,
-        model: File,
-        output: File,
-        dataset: File,
-        epochs: Int,
-        lr: Float,
-        nCtx: Int,
-        nBatch: Int,
-        nUbatch: Int,
-        threads: Int,
-        filter: String,
+        context: Context, model: File, output: File, dataset: File, epochs: Int, lr: Float,
+        nCtx: Int, nBatch: Int, nUbatch: Int, threads: Int, filter: String,
     ) {
         if (isRunning) return
         init(context)
-        val budget = MemoryGuard.check(context, model.length(), "full")
+        val budget = MemoryGuard.check(context, model.length(), "full", nCtx)
         if (!begin(context, "full", "Fine-tuning · ${model.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
+        if (!budget.ok) {
+            finish(false, budget.message, null)
+            return
+        }
 
-        current = scope.launch {
-            val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB antes do full FT")
-            val cb = object : NativeCallback {
-                override fun onLog(line: String) = append(line)
-                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
-                    if (loss.isFinite() && loss > 0) {
-                        _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
-                    }
-                    if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
-                    if (epoch > 0) _state.update { it.copy(title = "Fine-tuning · epoch $epoch/$epochs") }
+        current = scope.launch(Dispatchers.IO) {
+            try {
+                val boost = runCatching { MemoryBooster.boost(context) }.getOrNull()
+                if (boost != null) append("[ram] liberados ${boost.freedMb} MB antes do full FT")
+                val afterBoost = MemoryGuard.check(context, model.length(), "full", nCtx)
+                if (!afterBoost.ok) {
+                    finish(false, afterBoost.message, null)
+                    return@launch
                 }
+                val result = LlamaBridge.finetune(
+                    model = model.absolutePath, output = output.absolutePath, dataset = dataset.absolutePath,
+                    epochs = epochs.coerceIn(1, 3), lr = lr, nCtx = nCtx, nBatch = minOf(nBatch, 64),
+                    nUbatch = minOf(nUbatch, 64), threads = threads.coerceIn(1, 4), filter = filter,
+                    callback = object : NativeCallback {
+                        override fun onLog(line: String) = append(line)
+                        override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) {
+                            if (loss.isFinite() && loss > 0) _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
+                            if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
+                            if (epoch > 0) _state.update { it.copy(title = "Fine-tuning · epoch $epoch/${epochs.coerceIn(1, 3)}") }
+                        }
+                    },
+                )
+                val summary = if (result.ok) {
+                    "Modelo treinado · loss final %.4f · ${result.sequences} sequências".format(result.loss)
+                } else result.error ?: "falha no treino"
+                finish(result.ok, summary, output.takeIf { result.ok })
+            } catch (error: Throwable) {
+                finish(false, "Falha segura no fine-tuning: ${error.message ?: error.javaClass.simpleName}", null)
             }
-            val r = LlamaBridge.finetune(
-                model = model.absolutePath,
-                output = output.absolutePath,
-                dataset = dataset.absolutePath,
-                epochs = epochs,
-                lr = lr,
-                nCtx = nCtx,
-                nBatch = nBatch,
-                nUbatch = nUbatch,
-                threads = threads,
-                filter = filter,
-                callback = cb,
-            )
-            val summary = if (r.ok) {
-                "Modelo treinado · loss final %.4f · ${r.sequences} sequências".format(r.loss)
-            } else r.error ?: "falha no treino"
-            finish(r.ok, summary, output.takeIf { r.ok })
         }
     }
 }
