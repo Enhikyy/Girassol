@@ -14,6 +14,7 @@ import dev.labforge.app.core.agent.LlmClient
 import dev.labforge.app.core.agent.NativeLlmClient
 import dev.labforge.app.core.agent.ReActAgent
 import dev.labforge.app.core.model.ModelStore
+import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
 import dev.labforge.app.core.term.ShellSession
