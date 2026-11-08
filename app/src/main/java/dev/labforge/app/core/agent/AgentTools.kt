@@ -213,7 +213,6 @@ class TerminalTool(ws: File) : AgentTool(ws) {
 }
 
 class GitTool(ws: File, private val action: String) : AgentTool(ws) {
-    private val repo = GitRepo(ws)
     override val name = "git_$action"
     override val description = when (action) {
         "status" -> "Mostra o estado do repositório git do workspace."
@@ -223,16 +222,20 @@ class GitTool(ws: File, private val action: String) : AgentTool(ws) {
         else -> "Operação git"
     }
     override fun parameters() = schema(JSONObject().apply {
+        put("dir", prop("string", "Pasta do repositório dentro do workspace (padrão: raiz; use a pasta clonada)"))
         if (action == "commit") put("message", prop("string", "Mensagem do commit"))
         if (action == "reset") put("rev", prop("string", "Revisão alvo (padrão HEAD~1)"))
         if (action == "log") put("limit", prop("integer", "Quantidade de commits (padrão 10)"))
     })
-    override suspend fun execute(args: JSONObject): ToolResult = when (action) {
-        "status" -> ToolResult(true, repo.status())
-        "commit" -> ToolResult(true, repo.commit(args.optString("message", "checkpoint do agente")))
-        "log" -> ToolResult(true, repo.log(args.optInt("limit", 10)))
-        "reset" -> ToolResult(true, repo.resetHard(args.optString("rev", "HEAD~1")))
-        else -> ToolResult(false, "ação desconhecida")
+    override suspend fun execute(args: JSONObject): ToolResult {
+        val repo = GitRepo(resolve(args.optString("dir").ifBlank { "." }))
+        return when (action) {
+            "status" -> ToolResult(true, repo.status())
+            "commit" -> ToolResult(true, repo.commit(args.optString("message", "checkpoint do agente")))
+            "log" -> ToolResult(true, repo.log(args.optInt("limit", 10)))
+            "reset" -> ToolResult(true, repo.resetHard(args.optString("rev", "HEAD~1")))
+            else -> ToolResult(false, "ação desconhecida")
+        }
     }
 }
 
