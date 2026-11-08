@@ -65,8 +65,9 @@ fun AnimatedAuroraBackground(content: @Composable () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .then(if (haze != null) Modifier.hazeSource(haze) else Modifier)
-                .background(Brush.verticalGradient(listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06)))),
+                .background(Brush.verticalGradient(if (Lab.pureBlack) listOf(Color.Black, Color.Black, Color.Black) else listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06)))),
         ) {
+            if (Lab.pureBlack) return@Canvas
             val c4 = Offset(size.width * (0.20f + 0.60f * c), size.height * (0.62f + 0.10f * b))
             drawCircle(
                 brush = Brush.radialGradient(
