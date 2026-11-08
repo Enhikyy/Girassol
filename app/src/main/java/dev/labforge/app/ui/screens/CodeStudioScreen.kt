@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.labforge.app.core.geometry.Mesh
 import dev.labforge.app.core.geometry.MeshIO
+import dev.labforge.app.core.geometry.MeshPrimitives
 import dev.labforge.app.core.studio.AndroidProjectScaffold
 import dev.labforge.app.core.studio.WorkspaceFiles
 import kotlinx.coroutines.Dispatchers
@@ -134,6 +136,16 @@ fun CodeStudioScreen() {
             status="Malha exportada como OBJ"
         }.onFailure{status="Exportação 3D falhou: ${it.message}"} }
     }
+    val exportStl=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("model/stl")) { uri ->
+        val m=mesh
+        if(uri!=null && m!=null) scope.launch { runCatching {
+            withContext(Dispatchers.IO) {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(MeshIO.writeBinaryStl(m)) }
+                    ?: error("Destino indisponível")
+            }
+            status="Malha exportada como STL binário"
+        }.onFailure{status="Exportação STL falhou: ${it.message}"} }
+    }
     val exportProject=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if(uri!=null) scope.launch { runCatching {
             withContext(Dispatchers.IO) {
@@ -163,7 +175,7 @@ fun CodeStudioScreen() {
             FilterChip(selected=mode==1,onClick={mode=1},label={Text("3D Studio")},leadingIcon={Icon(Icons.Rounded.ViewInAr,null)})
         }
         if(mode==0) {
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick={
                     scope.launch { runCatching {
                         withContext(Dispatchers.IO){AndroidProjectScaffold.create(File(project,"NovoProjetoAndroid"))}
@@ -190,9 +202,12 @@ fun CodeStudioScreen() {
                 status=if(sdk!=null && File(sdk).exists()) "SDK detectado em $sdk; falta validar Gradle/AGP e toolchain local." else "Build APK indisponível: este app ainda não inclui Android SDK, build-tools, JDK e Gradle offline. Editor/exportação funcionam; não vou simular uma compilação."
             },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.Build,null);Spacer(Modifier.width(8.dp));Text("Verificar toolchain para APK")}
         } else {
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Button(onClick={importMesh.launch(arrayOf("model/obj","model/stl","application/octet-stream"))}){Icon(Icons.Rounded.FileOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir OBJ/STL")}
-                OutlinedButton(onClick={exportMesh.launch("mesh.obj")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("Exportar OBJ")}
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Button(onClick={importMesh.launch(arrayOf("model/obj","model/stl","application/octet-stream"))},enabled=!busy){Icon(Icons.Rounded.FileOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir OBJ/STL")}
+                OutlinedButton(onClick={mesh=MeshPrimitives.cube(); status="Cubo criado: 8 vértices · 12 triângulos"}){Icon(Icons.Rounded.Cube,null);Spacer(Modifier.width(5.dp));Text("Cubo")}
+                OutlinedButton(onClick={mesh=MeshPrimitives.uvSphere(); status="Esfera UV criada localmente"}){Icon(Icons.Rounded.Sphere,null);Spacer(Modifier.width(5.dp));Text("Esfera")}
+                OutlinedButton(onClick={exportMesh.launch("mesh.obj")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("OBJ")}
+                OutlinedButton(onClick={exportStl.launch("mesh.stl")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("STL")}
             }
             Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.45f),RoundedCornerShape(22.dp)).padding(8.dp),contentAlignment=Alignment.Center) {
                 val m=mesh
