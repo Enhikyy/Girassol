@@ -121,8 +121,8 @@ class LearningContinuity(private val file: File) {
         val root = JSONObject(file.readText())
         val skills = root.optJSONArray("skills").objects().map { o ->
             SkillNode(o.optString("id"), o.optString("title"), o.optString("theme"), o.optInt("level"),
-                o.optDouble("mastery").toFloat(), o.optInt("repetitions"), o.optInt("intervalDays"),
-                o.optLong("dueAt"), o.optLong("lastReviewedAt"))
+                o.optJSONArray("prerequisites").strings(), o.optDouble("mastery").toFloat(), o.optInt("repetitions"),
+                o.optInt("intervalDays"), o.optLong("dueAt"), o.optLong("lastReviewedAt"))
         }
         val experiences = root.optJSONArray("experiences").objects().map { o ->
             LearningExperience(o.optString("id"), o.optLong("at"), o.optString("kind"),
@@ -132,7 +132,7 @@ class LearningContinuity(private val file: File) {
             DreamTile(o.optString("id"), o.optLong("at"), o.optString("kind"), o.optString("title"),
                 o.optString("insight"), o.optDouble("confidence").toFloat(), o.optInt("evidenceCount"))
         }
-        LearningSnapshot(skills, experiences, dreams)
+        LearningSnapshot(skills, experiences, dreams, root.optJSONArray("processedExperienceIds").strings())
     }.getOrDefault(LearningSnapshot())
 
     private fun persist() {
@@ -142,6 +142,7 @@ class LearningContinuity(private val file: File) {
             put("skills", JSONArray().apply { state.skills.forEach { s ->
                 put(JSONObject().apply {
                     put("id", s.id); put("title", s.title); put("theme", s.theme); put("level", s.level)
+                    put("prerequisites", JSONArray(s.prerequisites))
                     put("mastery", s.mastery.toDouble()); put("repetitions", s.repetitions)
                     put("intervalDays", s.intervalDays); put("dueAt", s.dueAt); put("lastReviewedAt", s.lastReviewedAt)
                 })
@@ -152,6 +153,7 @@ class LearningContinuity(private val file: File) {
                     put("detail", e.detail); put("importance", e.importance.toDouble())
                 })
             } })
+            put("processedExperienceIds", JSONArray(state.processedExperienceIds.takeLast(240)))
             put("dreams", JSONArray().apply { state.dreams.forEach { d ->
                 put(JSONObject().apply {
                     put("id", d.id); put("at", d.at); put("kind", d.kind); put("title", d.title)
@@ -166,6 +168,8 @@ class LearningContinuity(private val file: File) {
     }
 
     private fun stableId(value: String): String = value.hashCode().toUInt().toString(16)
+    private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else
+        (0 until length()).mapNotNull { index -> optString(index).takeIf { it.isNotBlank() } }
     private fun JSONArray?.objects(): List<JSONObject> =
         if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
 
