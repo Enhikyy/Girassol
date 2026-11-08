@@ -3,6 +3,7 @@ package dev.labforge.app.core.research
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
 import java.io.File
 
 class ResearchRepository(private val dir: File) {
@@ -55,26 +56,29 @@ class ResearchEngine(
         val clean = theme.trim()
         require(clean.length >= 3) { "tema muito curto" }
 
-        onStage(Stage("Pesquisando", (if (keys.brave.isNotBlank()) "Brave Search, " else "") + "GitHub, Wikipedia, OpenAlex, arXiv, Stack Overflow, DuckDuckGo"))
+        onStage(Stage("Pesquisando", "9 fontes gratuitas" + (if (keys.github.isNotBlank()) " + GitHub" else "") + (if (keys.brave.isNotBlank()) " + Brave Search" else "")))
         val jobs = listOf(
-            async { runCatching { FreeResearchApis.wikipedia(clean) }.getOrDefault(emptyList()) },
-            async { runCatching { FreeResearchApis.wikipedia(clean, "en") }.getOrDefault(emptyList()) },
-            async { runCatching { FreeResearchApis.openAlex(clean) }.getOrDefault(emptyList()) },
-            async { runCatching { FreeResearchApis.arxiv(clean) }.getOrDefault(emptyList()) },
-            async { runCatching { FreeResearchApis.stackExchange(clean) }.getOrDefault(emptyList()) },
-            async { runCatching { FreeResearchApis.duckDuckGo(clean) }.getOrDefault(emptyList()) },
-            async { runCatching { FreeResearchApis.semanticScholar(clean) }.getOrDefault(emptyList()) },
-            async { runCatching { KeyedResearchApis.githubRepos(clean, keys.github) }.getOrDefault(emptyList()) },
-            async { runCatching { KeyedResearchApis.brave(clean, keys.brave) }.getOrDefault(emptyList()) },
+            async { safeSearch { FreeResearchApis.wikipedia(clean) } },
+            async { safeSearch { FreeResearchApis.wikipedia(clean, "en") } },
+            async { safeSearch { FreeResearchApis.openAlex(clean) } },
+            async { safeSearch { FreeResearchApis.arxiv(clean) } },
+            async { safeSearch { FreeResearchApis.stackExchange(clean) } },
+            async { safeSearch { FreeResearchApis.duckDuckGo(clean) } },
+            async { safeSearch { FreeResearchApis.semanticScholar(clean) } },
+            async { safeSearch { FreeResearchApis.crossref(clean) } },
+            async { safeSearch { FreeResearchApis.pubmed(clean) } },
+            async { safeSearch { FreeResearchApis.huggingFaceDatasets(clean) } },
+            async { safeSearch { KeyedResearchApis.githubRepos(clean, keys.github) } },
+            async { safeSearch { KeyedResearchApis.brave(clean, keys.brave) } },
         )
         var docs = jobs.awaitAll().flatten()
 
         if (docs.size < 5) {
             onStage(Stage("Ampliando busca", "poucos resultados, tentando variações do tema"))
             val extra = listOf(
-                async { runCatching { FreeResearchApis.wikipedia("$clean tutorial") }.getOrDefault(emptyList()) },
-                async { runCatching { FreeResearchApis.duckDuckGo("$clean fundamentos") }.getOrDefault(emptyList()) },
-                async { runCatching { FreeResearchApis.openAlex("$clean review") }.getOrDefault(emptyList()) },
+                async { safeSearch { FreeResearchApis.wikipedia("$clean tutorial") } },
+                async { safeSearch { FreeResearchApis.duckDuckGo("$clean fundamentos") } },
+                async { safeSearch { FreeResearchApis.openAlex("$clean review") } },
             ).awaitAll().flatten()
             docs = docs + extra
         }
@@ -83,7 +87,9 @@ class ResearchEngine(
         val terms = Bm25.tokenize(clean)
         val deduped = docs
             .filter { it.title.isNotBlank() && it.url.isNotBlank() && it.snippet.length > 40 }
-            .distinctBy { it.url.substringBefore('?').lowercase() }
+            .distinctBy { it.url.substringBefore('#').let { url ->
+                if (url.contains("wikipedia.org/?curid=")) url.lowercase() else url.substringBefore('?').lowercase()
+            } }
             .distinctBy { it.title.lowercase().trim() }
             .map { d ->
                 var s = d.score
@@ -106,6 +112,14 @@ class ResearchEngine(
         onStage(Stage("Salvando", "${deduped.size} fontes no caderno de pesquisa"))
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { repo.save(bundle) }
         bundle
+    }
+
+    private suspend fun safeSearch(block: suspend () -> List<ResearchDoc>): List<ResearchDoc> = try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        emptyList()
     }
 
     fun latest() = repo.latest()

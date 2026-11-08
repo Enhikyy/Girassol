@@ -7,6 +7,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,9 +40,20 @@ object FreeResearchApis {
             val body = resp.body ?: error("resposta vazia")
             val declared = body.contentLength()
             if (declared > MAX_BODY_BYTES) error("resposta grande demais (${declared} bytes)")
-            val text = body.string()
-            if (text.length > MAX_BODY_BYTES) error("resposta grande demais")
-            text
+            val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+            val output = ByteArrayOutputStream(minOf(MAX_BODY_BYTES, 64 * 1024))
+            body.byteStream().use { input ->
+                val buffer = ByteArray(16 * 1024)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > MAX_BODY_BYTES) error("resposta grande demais")
+                    output.write(buffer, 0, count)
+                }
+            }
+            String(output.toByteArray(), charset)
         }
     }
 
@@ -221,6 +233,96 @@ object FreeResearchApis {
                 source = "Semantic Scholar",
                 year = o.optInt("year").takeIf { it > 1900 },
                 score = 1.15 + (6 - i) * 0.1,
+            )
+        }
+        return docs
+    }
+
+
+    // --------------------------------------------------------------------- Crossref
+    suspend fun crossref(theme: String): List<ResearchDoc> {
+        val url = "https://api.crossref.org/works?query.bibliographic=" + enc(theme) +
+            "&rows=6&select=DOI,title,abstract,URL,published"
+        val root = JSONObject(get(url))
+        val items = root.optJSONObject("message")?.optJSONArray("items") ?: return emptyList()
+        val docs = ArrayList<ResearchDoc>()
+        for (i in 0 until items.length()) {
+            val item = items.optJSONObject(i) ?: continue
+            val title = item.optJSONArray("title")?.optString(0).orEmpty()
+            val abstract = stripHtml(item.optString("abstract"))
+            if (title.isBlank() || abstract.length < 40) continue
+            val doi = item.optString("DOI")
+            val link = item.optString("URL").ifBlank { if (doi.isBlank()) "" else "https://doi.org/" + doi }
+            if (link.isBlank()) continue
+            val parts = item.optJSONObject("published")?.optJSONArray("date-parts")?.optJSONArray(0)
+            docs += ResearchDoc(
+                title = title, url = link, snippet = abstract.take(1200), source = "Crossref",
+                year = parts?.optInt(0)?.takeIf { it in 1800..2100 },
+                score = 1.12 + (6 - i) * 0.09,
+            )
+        }
+        return docs
+    }
+
+    // ----------------------------------------------------------------------- PubMed
+    suspend fun pubmed(theme: String): List<ResearchDoc> {
+        val search = JSONObject(get(
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi" +
+                "?db=pubmed&term=" + enc(theme) + "&retmode=json&retmax=6",
+        ))
+        val ids = search.optJSONObject("esearchresult")?.optJSONArray("idlist") ?: return emptyList()
+        if (ids.length() == 0) return emptyList()
+        val joined = (0 until ids.length()).joinToString(",") { ids.optString(it) }
+        val xml = get(
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi" +
+                "?db=pubmed&id=" + joined + "&retmode=xml",
+        )
+        val docs = ArrayList<ResearchDoc>()
+        Regex("(?is)<PubmedArticle\\b.*?</PubmedArticle>").findAll(xml).forEachIndexed { index, match ->
+            val record = match.value
+            fun tag(name: String): String = Regex(
+                "(?is)<" + name + "(?:\\s+[^>]*)?>(.*?)</" + name + ">",
+            ).findAll(record).joinToString(" ") { stripHtml(it.groupValues[1]) }
+            val title = tag("ArticleTitle")
+            val abstract = tag("AbstractText")
+            val pmid = Regex("(?is)<PMID(?:\\s+[^>]*)?>(\\d+)</PMID>")
+                .find(record)?.groupValues?.get(1).orEmpty()
+            if (title.isBlank() || abstract.length < 40 || pmid.isBlank()) return@forEachIndexed
+            val year = Regex("(?is)<Year>(\\d{4})</Year>").find(record)?.groupValues?.get(1)?.toIntOrNull()
+            docs += ResearchDoc(
+                title = title, url = "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/",
+                snippet = abstract.take(1200), source = "PubMed", year = year,
+                score = 1.16 + (6 - index) * 0.08,
+            )
+        }
+        return docs
+    }
+
+    // ---------------------------------------------------------- Hugging Face datasets
+    suspend fun huggingFaceDatasets(theme: String): List<ResearchDoc> {
+        val url = "https://huggingface.co/api/datasets?search=" + enc(theme) +
+            "&limit=6&sort=downloads&direction=-1"
+        val results = JSONArray(get(url))
+        val docs = ArrayList<ResearchDoc>()
+        for (i in 0 until results.length()) {
+            val item = results.optJSONObject(i) ?: continue
+            val id = item.optString("id").ifBlank { item.optString("_id") }
+            if (id.isBlank()) continue
+            val tags = item.optJSONArray("tags")?.let { array ->
+                (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() }
+                    .take(6).joinToString(", ")
+            }.orEmpty()
+            val details = buildString {
+                append("Dataset público ").append(id)
+                append(". Downloads: ").append(item.optLong("downloads"))
+                append(". Likes: ").append(item.optInt("likes"))
+                if (tags.isNotBlank()) append(". Tags: ").append(tags)
+                append(". README do dataset disponível para ingestão textual.")
+            }
+            docs += ResearchDoc(
+                title = id, url = "https://huggingface.co/datasets/" + id + "/raw/main/README.md",
+                snippet = details.take(1200), source = "Hugging Face Datasets",
+                score = 1.04 + (6 - i) * 0.08,
             )
         }
         return docs
