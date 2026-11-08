@@ -6,7 +6,7 @@
 - Monitora pressão de RAM durante o treino, solicita parada cooperativa ao fim da época e preserva checkpoint LoRA por época.
 - Pesquisa autônoma com GitHub em primeiro lugar, priorização por estrelas/atividade e ingestão do README de projetos para fundamentar síntese e dataset.
 - Alternância Pure Black OLED persistente; animações de fundo suspensas nesse modo para reduzir trabalho gráfico, com gráficos de barras e linhas animados.
-- Preserva o piloto automático, o autoaprendizado iterativo e os recursos já existentes. Não há limite artificial de tamanho do APK definido pelo projeto.
+- Acrescenta árvore de habilidades persistente, revisão espaçada e painel de domínio por tópico.\n- Adiciona consolidação offline de experiências, agrupamento de padrões e revisão de falhas com evidências/confiança.\n- Preserva o piloto automático, o autoaprendizado iterativo e os recursos já existentes. Não há limite artificial de tamanho do APK definido pelo projeto.
 
 ## Observação de hardware
 Em aparelhos com 4 GB, o perfil seguro prioriza LoRA pequeno e ciclos curtos; fine-tuning completo fica bloqueado quando a memória total/disponível não atende ao orçamento. Isso evita confundir “APK sem limite de tamanho” com memória RAM ilimitada.
