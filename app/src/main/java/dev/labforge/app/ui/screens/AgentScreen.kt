@@ -57,6 +57,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.labforge.app.core.Handoff
+import dev.labforge.app.ui.components.ConversationWelcome
+import dev.labforge.app.ui.components.ConversationComposer
+import dev.labforge.app.ui.components.ExecutionCard
 import dev.labforge.app.ui.components.Console
 import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.Pill
@@ -149,99 +152,20 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (agentVm.messages.isEmpty()) {
-                item {
-                    GlassCard {
-                        Text("Peça uma tarefa. Exemplos:", fontSize = 11.sp, color = Lab.Muted)
-                        Spacer(Modifier.height(8.dp))
-                        listOf(
-                            "Crie um script que converte JSONL em texto de treino e teste com um arquivo de exemplo.",
-                            "Analise o dataset atual, encontre linhas inválidas e escreva um relatório em RELATORIO.md.",
-                            "Crie um repositório git, escreva um README e faça o primeiro commit.",
-                        ).forEach { s ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Lab.Surface)
-                                    .clickable { input = s }
-                                    .padding(10.dp),
-                            ) {
-                                Icon(Icons.Rounded.AutoAwesome, null, tint = Lab.Violet, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(s, fontSize = 11.sp, color = Lab.Text, lineHeight = 15.sp)
-                            }
-                        }
-                    }
-                }
+                item { ConversationWelcome { input = it } }
             }
             items(agentVm.messages, key = { it.id }) { m -> MessageBubble(m, onOpenCodex) }
             item { Spacer(Modifier.height(6.dp)) }
         }
 
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Row(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Lab.Surface)
-                    .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 13.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BasicTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = Lab.Text),
-                    maxLines = 4,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = {
-                        if (input.isNotBlank() && !agentVm.running) {
-                            agentVm.send(input.trim())
-                            input = ""
-                        }
-                    }),
-                    decorationBox = { inner ->
-                        if (input.isEmpty()) Text("Descreva a tarefa…", fontSize = 13.sp, color = Lab.Muted)
-                        inner()
-                    },
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(if (agentVm.running) Lab.Red.copy(alpha = 0.85f) else Lab.Violet)
-                    .clickable {
-                        if (agentVm.running) agentVm.stop()
-                        else if (input.isNotBlank()) {
-                            agentVm.send(input.trim())
-                            input = ""
-                        }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (agentVm.running) Icons.Rounded.Stop else Icons.Rounded.Send,
-                    null,
-                    tint = Lab.OnPrimary,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
+        ConversationComposer(input, agentVm.running, { input = it }, {
+            if (input.isNotBlank() && !agentVm.running) { agentVm.send(input.trim()); input = "" }
+        }, agentVm::stop)
     }
 }
 
 @Composable
 private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
-    var expanded by remember(m.id) { mutableStateOf(false) }
     when (m.role) {
         AgentMessage.Role.USER -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Box(
@@ -255,65 +179,10 @@ private fun MessageBubble(m: AgentMessage, onOpenCodex: () -> Unit) {
             }
         }
 
-        AgentMessage.Role.THOUGHT -> Row(Modifier.fillMaxWidth()) {
-            Icon(Icons.Rounded.AutoAwesome, null, tint = Lab.Violet.copy(alpha = 0.7f), modifier = Modifier.size(15.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                m.text,
-                fontSize = 11.5.sp,
-                color = Lab.Muted,
-                lineHeight = 17.sp,
-                fontStyle = FontStyle.Italic,
-                modifier = Modifier.fillMaxWidth(0.92f),
-                maxLines = if (expanded) 60 else 8,
-            )
-        }
+        AgentMessage.Role.THOUGHT -> ExecutionCard("Análise do agente", m.text, "Registro da execução")
 
-        AgentMessage.Role.TOOL -> GlassCard(padding = 11, onClick = { expanded = !expanded }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(22.dp)
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(if (m.ok) Lab.Cyan.copy(alpha = 0.16f) else Lab.Red.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Rounded.Terminal, null, tint = if (m.ok) Lab.Cyan else Lab.Red, modifier = Modifier.size(13.dp))
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    m.toolName.ifBlank { "tool" },
-                    fontSize = 11.sp,
-                    color = Lab.Text,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    fontFamily = FontFamily.Monospace,
-                )
-                if (m.pending) {
-                    Text("…", fontSize = 14.sp, color = Lab.Amber)
-                } else {
-                    Text(if (expanded) "−" else "+", fontSize = 13.sp, color = Lab.Muted)
-                }
-            }
-            if (m.toolArgs.isNotBlank() && m.toolArgs != "{}") {
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    m.toolArgs.take(180),
-                    fontSize = 11.sp,
-                    color = Lab.Muted,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 2,
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                m.text.take(if (expanded) 6000 else 320),
-                fontSize = 11.sp,
-                color = if (m.ok) Color(0xFFB9C6E8) else Lab.Red.copy(alpha = 0.9f),
-                fontFamily = FontFamily.Monospace,
-                lineHeight = 14.sp,
-            )
-        }
+        AgentMessage.Role.TOOL -> ExecutionCard(m.toolName.ifBlank { "Ferramenta" }, m.text,
+            if (m.pending) "Aguardando resultado" else if (m.ok) "Executada" else "Falhou", m.toolArgs, failed = !m.ok && !m.pending)
 
         AgentMessage.Role.FINAL -> GlassCard(padding = 13) {
             Row(verticalAlignment = Alignment.CenterVertically) {

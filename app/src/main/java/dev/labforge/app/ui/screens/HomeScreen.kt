@@ -55,6 +55,8 @@ import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.service.MemoryBooster
 import dev.labforge.app.service.MemoryGuard
 import dev.labforge.app.ui.Routes
+import dev.labforge.app.ui.components.StudioHero
+import dev.labforge.app.ui.components.WorkspaceGrid
 import dev.labforge.app.ui.components.AnimatedNumber
 import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.GradientButton
@@ -132,66 +134,17 @@ fun HomeScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        // ------------------------------------------------------------- hero
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF3B2E0B), Color(0xFF1B1C0C), Color(0xFF0D1B12)),
-                    ),
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(26.dp)),
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Pill("AUTÔNOMO", Lab.Green, filled = true)
-                    Spacer(Modifier.width(6.dp))
-                    Pill("llama.cpp", Lab.Cyan)
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Pesquise. Aprenda.\nFaça florescer.",
-                    fontSize = 25.sp,
-                    lineHeight = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    "O agente pesquisa em 7 fontes gratuitas (incluindo GitHub) e no Brave Search, se configurado. Depois monta o currículo, gera o dataset e ajusta os hiperparâmetros.",
-                    fontSize = 11.sp,
-                    lineHeight = 17.sp,
-                    color = Color.White.copy(alpha = 0.66f),
-                    modifier = Modifier.fillMaxWidth(0.78f),
-                )
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    GradientButton("Pesquisar tema") { onOpenLab(3) }
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
-                            .clickable { onNavigate(Routes.CODEX) }
-                            .padding(horizontal = 14.dp, vertical = 13.dp),
-                    ) {
-                        Text("Abrir Codex", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 14.dp, end = 6.dp)
-                    .size(104.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                SunflowerSpinner(96.dp, 14)
-            }
-        }
-
-        Spacer(Modifier.height(14.dp))
+        StudioHero(onChat = { onNavigate(Routes.AGENT) }, onStudy = { onOpenLab(3) })
+        Spacer(Modifier.height(24.dp))
+        WorkspaceGrid { action -> when (action) {
+            0 -> onNavigate(Routes.AGENT)
+            1 -> onNavigate(Routes.CODEX)
+            2 -> onOpenLab(3)
+            3 -> onOpenLab(5)
+        } }
+        Spacer(Modifier.height(24.dp))
+        SectionHeader("Seu espaço de trabalho", "recursos e atividades do aparelho")
+        Spacer(Modifier.height(12.dp))
 
         // ------------------------------------------------------- bento cards
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {

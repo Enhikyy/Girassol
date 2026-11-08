@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "downloadedBy": "CodeRabbit Coding Agent",
+  "references": [
+    {
+      "file": "Jetchat-Conversation.kt",
+      "url": "https://raw.githubusercontent.com/android/compose-samples/main/Jetchat/app/src/main/java/com/example/compose/jetchat/conversation/Conversation.kt",
+      "sha256": "faee4f85be501824d7bd3d6765f9ec44d4518ade1c6693d96d1c983bd799b4c0",
+      "http": 200,
+      "license": "Apache-2.0",
+      "purpose": "Downloaded visual reference; not compiled into the app",
+      "ref": "main",
+      "identity": "sha256 of downloaded content; raw SHA URL returned404"
+    },
+    {
+      "file": "Jetchat-UserInput.kt",
+      "url": "https://raw.githubusercontent.com/android/compose-samples/main/Jetchat/app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt",
+      "sha256": "d0a4000f62913da0ffd5d8234756b4a6f7a9d6b3fd7abfc97bceb3d46d30e065",
+      "http": 200,
+      "license": "Apache-2.0",
+      "purpose": "Downloaded visual reference; not compiled into the app",
+      "ref": "main",
+      "identity": "sha256 of downloaded content; raw SHA URL returned404"
+    },
+    {
+      "file": "Reply-Content.kt",
+      "url": "https://raw.githubusercontent.com/android/compose-samples/main/Reply/app/src/main/java/com/example/reply/ui/ReplyListContent.kt",
+      "sha256": "18aaae2c105fb9bd0cb96be719aeea7d0a850a3a87d11aed635e6f56f5938965",
+      "http": 200,
+      "license": "Apache-2.0",
+      "purpose": "Downloaded visual reference; not compiled into the app",
+      "ref": "main",
+      "identity": "sha256 of downloaded content; raw SHA URL returned404"
+    },
+    {
+      "file": "LICENSE",
+      "url": "https://raw.githubusercontent.com/android/compose-samples/main/LICENSE",
+      "sha256": "0a3428546fa34277a64d60b372f74f880a1aa9a30b6c96ac76d30740b6ad9326",
+      "http": 200,
+      "license": "Apache-2.0",
+      "purpose": "Downloaded visual reference; not compiled into the app",
+      "ref": "main",
+      "identity": "sha256 of downloaded content; raw SHA URL returned404"
+    },
+    {
+      "file": "auto_awesome.svg",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/master/src/image/auto_awesome/materialiconsround/24px.svg",
+      "sha256": "920925b40ca20aeb30072237f4be1c9dd32c811b048e9bf9f568f533026dce6a",
+      "license": "Apache-2.0",
+      "usage": "Converted to native ic_studio_spark.xml; path data preserved"
+    },
+    {
+      "file": "MaterialIcons-LICENSE",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/master/LICENSE",
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "license": "Apache-2.0"
+    }
+  ]
+}

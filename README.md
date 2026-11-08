@@ -210,7 +210,17 @@ O APK é validado por teste: `com.llamatik.core.platform.LlamaBridge` **não** e
 
 **Laboratório → Compilar** oferece diagnóstico, testes, lint, montagem e verificação de APK/assinatura, com logs por etapa, metadados SHA-256 e relatório persistido. A interface adaptável usa padrões Material pesquisados na documentação Flutter, implementados nativamente em Compose. Veja [uso, ambiente e limites](docs/BUILD_CENTER.md).
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:87c3747a2ef34318f182dbaa9d5b38a0763bbec505d5111965ad15981341679b -->
+
+## Modelos visuais nativos
+
+A página inicial e o chat aplicam modelos abertos semelhantes às referências Figma, adaptados de Jetchat/Reply e Material Icons: destaque, grade de atalhos, sugestões, compositor e cartões expansíveis. [Modelos, downloads, licenças e cobertura](docs/VISUAL_TEMPLATES.md).
+
 ## Design
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 <!-- /coderabbit-ai-generated:v1 -->
 
