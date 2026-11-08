@@ -16,14 +16,17 @@ import dev.labforge.app.core.research.FreeResearchApis
 import dev.labforge.app.core.research.ResearchBundle
 import dev.labforge.app.core.research.ResearchDoc
 import dev.labforge.app.core.research.ResearchEngine
+import dev.labforge.app.core.research.ResearchDownloader
 import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.settings.SettingsRepository
+import dev.labforge.app.core.settings.researchKeys
 import dev.labforge.app.core.train.AutoTuner
 import dev.labforge.app.core.train.ChatFormat
 import dev.labforge.app.core.train.DatasetBuilder
 import dev.labforge.app.core.train.DatasetStats
 import dev.labforge.app.core.train.TrainingPreset
 import dev.labforge.app.service.MemoryGuard
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -36,6 +39,7 @@ import java.io.File
 enum class StudyStage(val label: String, val icon: String) {
     IDLE("Pronto", "○"),
     RESEARCH("Pesquisando", "⌕"),
+    DOWNLOAD("Baixando", "↓"),
     SYNTHESIS("Sintetizando", "✦"),
     CURRICULUM("Currículo", "≡"),
     DATASET("Dataset", "▤"),
@@ -45,6 +49,14 @@ enum class StudyStage(val label: String, val icon: String) {
 }
 
 data class StudyTopic(val title: String, val done: Boolean = false, val examples: Int = 0)
+
+data class StudyCycleMetric(
+    val at: Long,
+    val documents: Int,
+    val downloads: Int,
+    val tokens: Long,
+    val examples: Int,
+)
 
 data class StudyProject(
     val theme: String,
@@ -119,7 +131,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     private val store = ModelStore(app)
     private val settingsRepo = SettingsRepository(app)
     private val repo = ResearchRepository(store.researchDir)
-    private val engine = ResearchEngine(repo)
+    private val downloader = ResearchDownloader(File(store.researchDir, "downloads"))
+    private val metricsFile = File(store.researchDir, "autodidact-cycles.json")
 
     var theme by mutableStateOf("")
     var topicCount by mutableStateOf(6)
@@ -151,13 +164,23 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     var datasetStats by mutableStateOf<DatasetStats?>(null)
         private set
     var autoTrain by mutableStateOf(false)
+    var autopilotMode by mutableStateOf(false)
+    var autopilotIntervalMinutes by mutableStateOf(30)
+    var autopilotRunning by mutableStateOf(false)
+        private set
+    var downloadedCount by mutableStateOf(0)
+        private set
+    var cycleHistory by mutableStateOf<List<StudyCycleMetric>>(emptyList())
+        private set
 
     private var job: Job? = null
+    private var autopilotJob: Job? = null
 
     init {
         viewModelScope.launch {
             bundle = withContext(Dispatchers.IO) { repo.latest() }
             history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
+            cycleHistory = withContext(Dispatchers.IO) { loadCycleMetrics() }
             bundle?.let { b ->
                 if (theme.isBlank()) theme = b.theme
                 AppSelection.researchTheme = b.theme
@@ -189,6 +212,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         project = null
         preset = null
         datasetStats = null
+        downloadedCount = 0
         val themeValue = theme.trim()
 
         job = viewModelScope.launch {
@@ -200,22 +224,38 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 llmReady = llm != null
 
                 // 1. research
-                val found = engine.research(themeValue) { st ->
+                val researched = ResearchEngine(repo, cfg.researchKeys()).research(themeValue) { st ->
                     status = "${st.label}: ${st.detail}"
                     append("${st.label} · ${st.detail}")
                 }
+                if (researched.docs.isEmpty()) error("nenhuma fonte encontrada para o tema")
+                progress = 0.30f
+                append("${researched.docs.size} fontes consolidadas de ${researched.sourceCounts.size} provedores")
+
+                // Download and ingest readable source content before synthesis and dataset generation.
+                stage = StudyStage.DOWNLOAD
+                status = "baixando e incorporando conteúdo das fontes…"
+                progress = 0.34f
+                val enrichment = downloader.enrich(researched.docs, maxDocuments = 8)
+                downloadedCount = enrichment.downloadedDocuments
+                val found = researched.copy(docs = enrichment.documents)
+                withContext(Dispatchers.IO) { repo.save(found) }
                 bundle = found
-                progress = 0.32f
-                append("${found.docs.size} fontes consolidadas de ${found.sourceCounts.size} provedores")
-                if (found.docs.isEmpty()) error("nenhuma fonte encontrada para o tema")
+                append("${enrichment.downloadedDocuments} conteúdos incorporados · ${enrichment.bytesWritten} bytes lidos")
 
                 // 2. synthesis
                 stage = StudyStage.SYNTHESIS
                 status = if (llm != null) "sintetizando com o modelo…" else "sintetizando extrativamente (sem LLM)"
                 progress = 0.38f
-                val summary = if (llm != null) runCatching { synthesize(llm, found) }.getOrElse {
-                    append("LLM falhou (${it.message}); usando resumo extrativo")
-                    found.autoSummary
+                val summary = if (llm != null) {
+                    try {
+                        synthesize(llm, found)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        append("LLM falhou (${error.message}); usando resumo extrativo")
+                        found.autoSummary
+                    }
                 } else found.autoSummary
                 append("Resumo: ${summary.take(280)}")
 
@@ -223,7 +263,11 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 stage = StudyStage.CURRICULUM
                 progress = 0.46f
                 val curriculum = if (llm != null) {
-                    runCatching { llmCurriculum(llm, themeValue, summary, found) }.getOrElse {
+                    try {
+                        llmCurriculum(llm, themeValue, summary, found)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
                         append("currículo via LLM falhou; derivando das fontes")
                         extractiveCurriculum(themeValue, found, topicCount)
                     }
@@ -243,7 +287,11 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                     status = "gerando material: ${index + 1}/${topics.size} · ${topic.title}"
                     val retrieved = repo.retrieve(found, "${topic.title} $themeValue", 4)
                     val pairs = if (llm != null) {
-                        runCatching { generateWithLlm(llm, themeValue, topic.title, retrieved, perTopic) }.getOrElse {
+                        try {
+                            generateWithLlm(llm, themeValue, topic.title, retrieved, perTopic)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
                             append("Q&A via LLM falhou em '${topic.title}'; usando extrativo")
                             extractivePairs(topic.title, retrieved, perTopic)
                         }
@@ -309,7 +357,19 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                     sources = found.docs,
                 )
                 project = proj
-                withContext(Dispatchers.IO) { saveProject(proj) }
+                val completedCycles = withContext(Dispatchers.IO) {
+                    saveProject(proj)
+                    appendCycleMetric(
+                        StudyCycleMetric(
+                            at = System.currentTimeMillis(),
+                            documents = found.docs.size,
+                            downloads = enrichment.downloadedDocuments,
+                            tokens = tokens,
+                            examples = total,
+                        ),
+                    )
+                }
+                cycleHistory = completedCycles
                 history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
 
                 stage = StudyStage.DONE
@@ -348,6 +408,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                         append("Auto-treino ativo, mas nenhum modelo base foi selecionado.")
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
                 stage = StudyStage.ERROR
                 status = "falhou: ${t.message}"
@@ -493,11 +555,65 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         AppSelection.researchBundleId = b.id
     }
 
+    /** Repeats research, ingestion, dataset creation and tuning while this ViewModel is alive. */
+    fun startAutopilot(intervalMinutes: Int = autopilotIntervalMinutes) {
+        if (autopilotRunning || running || theme.isBlank()) return
+        autopilotIntervalMinutes = intervalMinutes.coerceIn(5, 1440)
+        autopilotRunning = true
+        autopilotJob = viewModelScope.launch {
+            try {
+                while (autopilotRunning) {
+                    start()
+                    job?.join()
+                    if (!autopilotRunning) break
+                    status = "ciclo concluído · próximo ciclo em " + autopilotIntervalMinutes + " min"
+                    kotlinx.coroutines.delay(autopilotIntervalMinutes * 60_000L)
+                }
+            } finally {
+                autopilotRunning = false
+            }
+        }
+    }
+
     fun stop() {
+        autopilotRunning = false
+        autopilotJob?.cancel()
+        autopilotJob = null
         job?.cancel()
         running = false
         stage = StudyStage.IDLE
         status = "interrompido"
+    }
+
+    private fun loadCycleMetrics(): List<StudyCycleMetric> = runCatching {
+        val array = JSONArray(metricsFile.readText())
+        (0 until array.length()).mapNotNull { index ->
+            val item = array.optJSONObject(index) ?: return@mapNotNull null
+            StudyCycleMetric(
+                at = item.optLong("at"),
+                documents = item.optInt("documents"),
+                downloads = item.optInt("downloads"),
+                tokens = item.optLong("tokens"),
+                examples = item.optInt("examples"),
+            )
+        }.takeLast(30)
+    }.getOrDefault(emptyList())
+
+    private fun appendCycleMetric(metric: StudyCycleMetric): List<StudyCycleMetric> {
+        val updated = (loadCycleMetrics() + metric).takeLast(30)
+        metricsFile.parentFile?.mkdirs()
+        metricsFile.writeText(JSONArray().apply {
+            updated.forEach { item ->
+                put(JSONObject().apply {
+                    put("at", item.at)
+                    put("documents", item.documents)
+                    put("downloads", item.downloads)
+                    put("tokens", item.tokens)
+                    put("examples", item.examples)
+                })
+            }
+        }.toString(2))
+        return updated
     }
 
     fun trainingDataset(): File? = project?.txt ?: project?.jsonl

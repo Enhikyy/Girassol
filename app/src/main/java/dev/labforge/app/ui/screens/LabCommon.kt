@@ -70,7 +70,7 @@ fun SelectRow(
 ) {
     var open by remember { mutableStateOf(false) }
     Column(modifier) {
-        Text(label, fontSize = 10.5.sp, color = Lab.Muted, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 11.sp, color = Lab.Muted, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(5.dp))
         Box {
             Row(
@@ -133,7 +133,7 @@ fun ToggleRow(
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.Medium)
-            if (subtitle.isNotBlank()) Text(subtitle, fontSize = 10.sp, color = Lab.Muted)
+            if (subtitle.isNotBlank()) Text(subtitle, fontSize = 11.sp, color = Lab.Muted)
         }
         Switch(
             checked = checked,
@@ -159,7 +159,7 @@ fun Stepper(
     onSelect: (Int) -> Unit,
 ) {
     Column(modifier) {
-        Text(label, fontSize = 10.5.sp, color = Lab.Muted, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 11.sp, color = Lab.Muted, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(5.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             options.forEach { opt ->

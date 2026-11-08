@@ -53,7 +53,6 @@ object MemoryGuard {
     /** Best-effort memory release before a heavy allocation. */
     fun trim() {
         runCatching { Runtime.getRuntime().gc() }
-        System.runFinalization()
     }
 
     fun fitsContext(params: Long, ctx: Int, availableGb: Double): Int {

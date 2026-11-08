@@ -16,9 +16,11 @@ object Lab {
     val BgElev = Color(0xFF0C0E09)
     val Surface = Color(0xFF13160F)
     val SurfaceHigh = Color(0xFF1C2015)
-    val Outline = Color(0xFF2E331F)
+    val Outline = Color(0xFF3A4028)
     val Text = Color(0xFFFBF6E7)
-    val Muted = Color(0xFFA2A78E)
+    val Muted = Color(0xFFB4B89F)
+    val OnPrimary = Color(0xFF1A1405)
+    val Field = Color(0xFF0F110B)
     val Violet = Color(0xFFF2C14E)
     val VioletDeep = Color(0xFFC6922A)
     val Indigo = Color(0xFFE6A93C)
@@ -31,9 +33,9 @@ object Lab {
 
 private val scheme = darkColorScheme(
     primary = Lab.Violet,
-    onPrimary = Color.White,
+    onPrimary = Lab.OnPrimary,
     primaryContainer = Lab.VioletDeep,
-    onPrimaryContainer = Color.White,
+    onPrimaryContainer = Lab.OnPrimary,
     secondary = Lab.Cyan,
     onSecondary = Color(0xFF16200A),
     tertiary = Lab.Pink,
@@ -56,10 +58,10 @@ private val typography = Typography(
     titleMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 15.sp),
     bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 15.sp, lineHeight = 22.sp),
     bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 13.sp, lineHeight = 19.sp),
-    bodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 11.sp, lineHeight = 16.sp),
+    bodySmall = TextStyle(fontFamily = FontFamily.SansSerif, fontSize = 12.sp, lineHeight = 16.sp),
     labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.2.sp),
     labelMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.4.sp),
-    labelSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 10.sp, letterSpacing = 0.6.sp),
+    labelSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.6.sp),
 )
 
 @Composable

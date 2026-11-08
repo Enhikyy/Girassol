@@ -28,6 +28,9 @@ class LlamatikRuntimeTest {
         assertTrue(ids.contains("datetime"))
         assertTrue(ids.contains("public_api_posts"))
         assertTrue(ids.contains("research_web"))
+        assertTrue(ids.contains("github_search_repos"))
+        assertTrue(ids.contains("github_create_issue"))
+        assertTrue(ids.contains("git_push"))
     }
 
     @Test

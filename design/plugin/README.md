@@ -13,6 +13,6 @@ Gera o arquivo visual completo em qualquer documento Figma:
 2. Menu **Plugins → Development → Import plugin from manifest…**
 3. Selecione `design/plugin/manifest.json`.
 4. Rode **Plugins → Development → Girassol Design System**.
-5. Aguarde alguns segundos; as 4 páginas são criadas.
+5. Aguarde alguns segundos; as páginas são criadas (o fluxo fica dentro de `02 · Telas`, compatível com o limite de 3 páginas do plano Starter).
 
 O plugin usa a fonte Inter (fallback Roboto/Arial) e não precisa de imagens externas: a marca é vetorial.

@@ -78,14 +78,14 @@ fun ModelsScreen(vm: LabViewModel, onOpen: (String) -> Unit) {
             }
             Box(
                 Modifier
-                    .size(40.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
                     .background(Lab.Violet.copy(alpha = 0.15f))
                     .border(1.dp, Lab.Violet.copy(alpha = 0.4f), CircleShape)
                     .clickable { picker.launch(arrayOf("*/*")) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.Add, null, tint = Lab.Violet, modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.Add, "Importar GGUF", tint = Lab.Violet, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -155,13 +155,13 @@ fun ModelsScreen(vm: LabViewModel, onOpen: (String) -> Unit) {
                                 Spacer(Modifier.height(3.dp))
                                 Text(
                                     "${m.meta?.parameterLabel ?: "?"} params · ${m.meta?.architecture ?: "?"} · ${humanBytes(m.sizeBytes)}",
-                                    fontSize = 10.5.sp,
+                                    fontSize = 11.sp,
                                     color = Lab.Muted,
                                     maxLines = 1,
                                 )
                                 if (m.error != null) {
                                     Spacer(Modifier.height(4.dp))
-                                    Text(m.error, fontSize = 10.sp, color = Lab.Red, maxLines = 2)
+                                    Text(m.error, fontSize = 11.sp, color = Lab.Red, maxLines = 2)
                                 }
                             }
                             Column(horizontalAlignment = Alignment.End) {

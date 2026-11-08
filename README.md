@@ -8,11 +8,11 @@
 
 <p align="center">
   <a href="https://github.com/Enhikyy/girassol/actions/workflows/android.yml"><img alt="Android APK" src="https://github.com/Enhikyy/girassol/actions/workflows/android.yml/badge.svg"></a>
-  <img alt="versão" src="https://img.shields.io/badge/versão-1.3.1-F2C14E">
+  <img alt="versão" src="https://img.shields.io/badge/versão-1.6.0-F2C14E">
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-84D98A">
   <img alt="ABI" src="https://img.shields.io/badge/ABI-arm64--v8a-A9D96B">
   <img alt="tamanho" src="https://img.shields.io/badge/APK-36%20MB-FFD166">
-  <img alt="testes" src="https://img.shields.io/badge/testes-25%2F25-84D98A">
+  <img alt="testes" src="https://img.shields.io/badge/testes-40%20casos-84D98A">
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 <p align="center">
   <b>Pesquise. Aprenda. Faça florescer.</b><br/>
-  <sub>Pesquisa em APIs gratuitas → currículo → dataset → auto-tuning → LoRA no dispositivo.</sub>
+  <sub>Pesquisa em APIs gratuitas → download e ingestão textual → currículo → dataset → auto-tuning → LoRA no dispositivo.</sub>
 </p>
 
 ---
@@ -30,17 +30,17 @@
 
 O APK é gerado pelo GitHub Actions em cada push:
 
-1. abra **Actions → Android APK → último run**;
-2. baixe o artifact **`Girassol-APK`**;
+1. abra **Actions → Android CI → último run**;
+2. baixe o artifact **`girassol-debug-apk`**;
 3. ou baixe a release assinada em **Releases** (tags `v*`).
 
 ```bash
-adb install -r Girassol-1.3.1-debug.apk
+adb install -r app-debug.apk
 ```
 
 > Requer Android 8.0+ (API 26) e **arm64-v8a**. O APK tem ~36 MB.
 
-> **CI:** o workflow está em [`ci/android.yml`](ci/android.yml). Para ativá-lo, siga [`docs/CI.md`](docs/CI.md) (o conector do agente não tem a permissão `Workflows` do GitHub).
+> **CI:** o workflow está em [`ci/android.yml`](ci/android.yml). O workflow executa build e testes; falhas nos testes bloqueiam a entrega.
 
 ---
 
@@ -55,10 +55,12 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **Quantização** | Executa o quantizador nativo do llama.cpp no dispositivo, com presets K-quants e I-quants. |
 | **Fine-tuning** | Treino completo (AdamW) com checkpoints, loss, amostras e retomada. |
 | **LoRA nativo** | Base congelada + adapters A/B via llama.cpp; validação de loss e reload do adapter. |
-| **Autoestudo** | Pesquisa 6 APIs gratuitas, deduplica/ranqueia, monta RAG BM25, currículo, dataset e preset. |
+| **Autoestudo** | Pesquisa 9 fontes gratuitas, mais GitHub e Brave Search opcionais, deduplica/ranqueia, monta RAG BM25, currículo, dataset e preset. |
 | **Auto-tuning** | rank, alpha, epochs, lr, contexto, alvos e ETA calculados a partir do corpus e da RAM. |
+| **Piloto automático** | Repete pesquisa, ingestão textual, dataset e autoajuste em ciclos configuráveis; persiste métricas e mostra gráficos de evolução. |
 | **Codex** | Agente de código com plano, edição de arquivos, shell, Git e revisão. |
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
+| **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
 | **Llamatik** | SDK de agentes 2.2.2 integrado: tools, executor, permissões, memória persistente e streaming. |
 | **RAM** | Mede memória, encerra processos de terceiros, limpa cache e informa o ganho real. |
 
@@ -92,7 +94,7 @@ A pesquisa usa **Wikipedia (pt/en), OpenAlex, arXiv, Stack Overflow, DuckDuckGo 
 ```mermaid
 flowchart TD
     UI[Jetpack Compose] --> VM[ViewModels]
-    VM --> RESEARCH[ResearchEngine<br/>6 APIs + BM25]
+    VM --> RESEARCH[ResearchEngine<br/>7 fontes + Brave + BM25]
     VM --> DATASET[DatasetBuilder]
     VM --> TUNER[AutoTuner]
     VM --> JOB[JobEngine]

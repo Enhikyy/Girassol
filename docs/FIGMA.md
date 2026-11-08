@@ -12,7 +12,7 @@ O design é reproduzível dentro do Figma por um plugin local. Ele não depende 
    - `00 · Capa` — 1600×900;
    - `01 · Design System` — paleta, tipografia, botões, pills, card e marca;
    - `02 · Telas` — 8 telas 390×844;
-   - `03 · Fluxo` — pipeline e decisões.
+   - `03 · Fluxo` — pipeline e decisões (quadro dentro de `02 · Telas`, para caber no limite de 3 páginas do plano Starter).
 
 ## Estrutura das telas
 

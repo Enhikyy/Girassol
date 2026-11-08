@@ -151,7 +151,7 @@ fun QuantizePane(vm: LabViewModel) {
                     )
                     Text(
                         "${"%.1f".format(opt.bits)} bpw · ${opt.note}",
-                        fontSize = 8.5.sp,
+                        fontSize = 11.sp,
                         color = if (active) Lab.Cyan else Lab.Muted,
                     )
                 }
@@ -164,18 +164,18 @@ fun QuantizePane(vm: LabViewModel) {
                 Icon(Icons.Rounded.Bolt, null, tint = Lab.Amber, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.height(0.dp))
                 Column(Modifier.padding(start = 10.dp).weight(1f)) {
-                    Text("Estimativa de saída", fontSize = 10.sp, color = Lab.Muted)
+                    Text("Estimativa de saída", fontSize = 11.sp, color = Lab.Muted)
                     Text(humanBytes(estimate), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("origem", fontSize = 9.sp, color = Lab.Muted)
+                    Text("origem", fontSize = 11.sp, color = Lab.Muted)
                     Text(humanBytes(model?.sizeBytes ?: 0), fontSize = 12.sp, color = Lab.Muted)
                 }
             }
             Spacer(Modifier.height(8.dp))
             Text(
                 "Estimativa por tensor (1D mantidos em F32). O tamanho real pode variar ±5%%.",
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Lab.Muted,
             )
         }
@@ -307,7 +307,7 @@ fun JobPanel(vm: LabViewModel) {
                     Spacer(Modifier.height(3.dp))
                     Text(
                         "restam ~${dev.labforge.app.core.Perf.fmtEta(vm.jobStartedAt, vm.jobProgress)}",
-                        fontSize = 9.sp, color = Lab.Muted,
+                        fontSize = 11.sp, color = Lab.Muted,
                     )
                     Spacer(Modifier.height(4.dp))
                     LabProgress(vm.jobProgress.coerceAtLeast(0.03f), Lab.Amber, 5)
@@ -319,7 +319,7 @@ fun JobPanel(vm: LabViewModel) {
             } else if (vm.jobDone) {
                 Text(
                     "limpar",
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Lab.Violet,
                     modifier = Modifier.clickable { vm.clearJob() },
                 )

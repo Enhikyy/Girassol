@@ -213,7 +213,6 @@ class TerminalTool(ws: File) : AgentTool(ws) {
 }
 
 class GitTool(ws: File, private val action: String) : AgentTool(ws) {
-    private val repo = GitRepo(ws)
     override val name = "git_$action"
     override val description = when (action) {
         "status" -> "Mostra o estado do repositório git do workspace."
@@ -223,16 +222,20 @@ class GitTool(ws: File, private val action: String) : AgentTool(ws) {
         else -> "Operação git"
     }
     override fun parameters() = schema(JSONObject().apply {
+        put("dir", prop("string", "Pasta do repositório dentro do workspace (padrão: raiz; use a pasta clonada)"))
         if (action == "commit") put("message", prop("string", "Mensagem do commit"))
         if (action == "reset") put("rev", prop("string", "Revisão alvo (padrão HEAD~1)"))
         if (action == "log") put("limit", prop("integer", "Quantidade de commits (padrão 10)"))
     })
-    override suspend fun execute(args: JSONObject): ToolResult = when (action) {
-        "status" -> ToolResult(true, repo.status())
-        "commit" -> ToolResult(true, repo.commit(args.optString("message", "checkpoint do agente")))
-        "log" -> ToolResult(true, repo.log(args.optInt("limit", 10)))
-        "reset" -> ToolResult(true, repo.resetHard(args.optString("rev", "HEAD~1")))
-        else -> ToolResult(false, "ação desconhecida")
+    override suspend fun execute(args: JSONObject): ToolResult {
+        val repo = GitRepo(resolve(args.optString("dir").ifBlank { "." }))
+        return when (action) {
+            "status" -> ToolResult(true, repo.status())
+            "commit" -> ToolResult(true, repo.commit(args.optString("message", "checkpoint do agente")))
+            "log" -> ToolResult(true, repo.log(args.optInt("limit", 10)))
+            "reset" -> ToolResult(true, repo.resetHard(args.optString("rev", "HEAD~1")))
+            else -> ToolResult(false, "ação desconhecida")
+        }
     }
 }
 
@@ -267,16 +270,16 @@ class MemorySearchTool(ws: File, private val lessons: LessonStore) : AgentTool(w
     }
 }
 
-class ResearchWebTool(ws: File) : AgentTool(ws) {
+class ResearchWebTool(ws: File, private val keys: dev.labforge.app.core.research.ResearchKeys = dev.labforge.app.core.research.ResearchKeys()) : AgentTool(ws) {
     override val name = "research_web"
-    override val description = "Pesquisa um tema em APIs gratuitas (Wikipedia, OpenAlex, arXiv, Stack Overflow, DuckDuckGo) e salva o material com fontes."
+    override val description = "Pesquisa um tema na web (Brave Search se configurado, GitHub, Wikipedia, OpenAlex, arXiv, Semantic Scholar, Stack Overflow, DuckDuckGo) e salva o material com fontes."
     override fun parameters() = schema(JSONObject().apply {
         put("theme", prop("string", "Tema ou pergunta de pesquisa"))
     }, listOf("theme"))
     override suspend fun execute(args: JSONObject): ToolResult = withContext(Dispatchers.IO) {
         runCatching {
             val repo = ResearchRepository(File(workspace, "research"))
-            val engine = ResearchEngine(repo)
+            val engine = ResearchEngine(repo, keys)
             val bundle = engine.research(args.getString("theme"))
             val text = bundle.docs.take(8).joinToString("\n\n") {
                 "[${it.source}] ${it.title}\n${it.snippet.take(500)}\n${it.url}"
@@ -324,7 +327,11 @@ class LlamatikToolBridge(private val toolId: String, ws: File) : AgentTool(ws) {
     }
 }
 
-fun defaultTools(workspace: File, lessons: LessonStore): List<AgentTool> = listOf(
+fun defaultTools(
+    workspace: File,
+    lessons: LessonStore,
+    settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
+): List<AgentTool> = listOf(
     ListDirTool(workspace),
     ReadFileTool(workspace),
     WriteFileTool(workspace),
@@ -337,7 +344,7 @@ fun defaultTools(workspace: File, lessons: LessonStore): List<AgentTool> = listO
     GitTool(workspace, "reset"),
     MemorySaveTool(workspace, lessons),
     MemorySearchTool(workspace, lessons),
-    ResearchWebTool(workspace),
+    ResearchWebTool(workspace, dev.labforge.app.core.research.ResearchKeys(settings.braveApiKey, settings.githubToken)),
     ResearchSearchTool(workspace),
     LlamatikToolBridge("public_api_posts", workspace),
-)
+) + gitHubTools(workspace, settings.githubToken)

@@ -141,6 +141,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                 lessons = lessons,
                 llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
                 maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
+                settings = cfg,
                 onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
             )
             agent.run(task)

@@ -21,13 +21,13 @@ O workflow [`android.yml`](../.github/workflows/android.yml) roda em:
 ### Baixar
 
 - **Actions** → último run → artifact `Girassol-APK`;
-- ou **Releases** → tag `v1.3.1` → `Girassol-1.3.1-*.apk`.
+- ou **Releases** → tag `v1.4.0` → `Girassol-1.4.0-*.apk`.
 
 ### Criar uma release
 
 ```bash
-git tag v1.3.1
-git push origin v1.3.1
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 O workflow cria a release e anexa o APK.

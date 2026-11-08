@@ -65,6 +65,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var model by remember { mutableStateOf("") }
     var temperature by remember { mutableStateOf(0.2f) }
     var maxSteps by remember { mutableStateOf(15) }
+    var braveKey by remember { mutableStateOf("") }
+    var githubToken by remember { mutableStateOf("") }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var boosting by remember { mutableStateOf(false) }
@@ -76,6 +78,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
         model = vm.settings.model
         temperature = vm.settings.temperature.toFloat()
         maxSteps = vm.settings.maxSteps
+        braveKey = vm.settings.braveApiKey
+        githubToken = vm.settings.githubToken
     }
 
     Column(
@@ -100,12 +104,12 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Spacer(Modifier.height(6.dp))
             Text(
                 "URL final: ${LlmClient.describeNormalized(endpoint)}",
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = Lab.Muted,
                 fontFamily = FontFamily.Monospace,
             )
             Spacer(Modifier.height(14.dp))
-            Text("Temperatura · %.2f".format(temperature), fontSize = 10.5.sp, color = Lab.Muted)
+            Text("Temperatura · %.2f".format(temperature), fontSize = 11.sp, color = Lab.Muted)
             Slider(
                 value = temperature,
                 onValueChange = { temperature = it },
@@ -117,6 +121,17 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 ),
             )
             Stepper("Máximo de passos (0 = autônomo)", maxSteps, listOf(0, 10, 15, 25), Modifier.fillMaxWidth()) { maxSteps = it }
+            Spacer(Modifier.height(18.dp))
+            Text("Pesquisa e GitHub", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
+            Text(
+                "Brave Search entra no autoestudo como fonte extra. O token do GitHub libera busca de código, push, issues e PRs pelo agente. Ficam só neste aparelho.",
+                fontSize = 11.sp,
+                color = Lab.Muted,
+            )
+            Spacer(Modifier.height(10.dp))
+            LabField("Brave Search API key", braveKey, placeholder = "BSA…", secret = true) { braveKey = it }
+            Spacer(Modifier.height(10.dp))
+            LabField("GitHub token", githubToken, placeholder = "github_pat_… / ghp_…", secret = true) { githubToken = it }
             Spacer(Modifier.height(14.dp))
             GradientButton(
                 "Salvar",
@@ -130,6 +145,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                         model = model.trim(),
                         temperature = temperature.toDouble(),
                         maxSteps = maxSteps,
+                        braveApiKey = braveKey.trim(),
+                        githubToken = githubToken.trim(),
                     )
                 }
                 testResult = "ajustes salvos"
@@ -145,13 +162,13 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         testResult ?: "Dica: use um endpoint local (Ollama/LM Studio) para privacidade total.",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = if (testResult?.contains("erro", true) == true) Lab.Red else Lab.Muted,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
                         if (testing) "testando…" else "testar",
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = Lab.Cyan,
                         modifier = Modifier.padding(start = 8.dp),
                     )
@@ -212,7 +229,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Spacer(Modifier.width(10.dp))
                 Text(
                     vm.store.root.absolutePath,
-                    fontSize = 9.5.sp,
+                    fontSize = 11.sp,
                     color = Lab.Text,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f),
@@ -260,9 +277,9 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Spacer(Modifier.height(7.dp))
                 Text(
                     "+${r.freedMb} MB · ${r.appsTouched} apps tocados · ${r.cachesMb} MB de cache",
-                    fontSize = 9.5.sp, color = Lab.Green,
+                    fontSize = 11.sp, color = Lab.Green,
                 )
-                Text(r.note, fontSize = 8.5.sp, color = Lab.Muted, lineHeight = 12.sp)
+                Text(r.note, fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp)
             }
         }
 
@@ -273,7 +290,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             Text(
                 "O agente consulta essas fontes em paralelo e guarda tudo no RAG local. " +
                     "Nenhuma conta, chave ou cadastro.",
-                fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp,
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
             )
             Spacer(Modifier.height(9.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -287,6 +304,11 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Pill("DuckDuckGo", Lab.Green)
                 Pill("Semantic Scholar", Lab.Indigo)
             }
+            Spacer(Modifier.height(5.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Pill("GitHub", Lab.Text)
+                Pill("Brave Search · chave", Lab.Amber)
+            }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -297,7 +319,7 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 "Camada de agente oficial (ToolRegistry, AgentExecutor, PersistentMemory, AgentStreamChunk) " +
                     "com a tool REST Retrofit e a pesquisa gratuita. O core nativo fica desativado para não " +
                     "colidir com o llama.cpp de treino.",
-                fontSize = 9.5.sp, color = Lab.Muted, lineHeight = 14.sp,
+                fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
             )
             Spacer(Modifier.height(9.dp))
             Box(
@@ -320,14 +342,14 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Icon(Icons.Rounded.Info, null, tint = Lab.Muted, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(9.dp))
                 Column {
-                    Text("Girassol 1.3", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.SemiBold)
+                    Text("Girassol ${dev.labforge.app.BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Lab.Text, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(3.dp))
                     Text(
                         "Estúdio de GGUF/imatrix com LoRA nativo, Codex autônomo e autoestudo. " +
                             "Motor de quantização, treino, tokenização e adaptadores: llama.cpp (MIT). Git: Eclipse JGit. " +
                             "UI: Jetpack Compose. Jobs rodam em foreground service para sobreviver ao background. " +
                             "Nenhum dado sai do aparelho, exceto as chamadas ao endpoint do agente.",
-                        fontSize = 9.8.sp,
+                        fontSize = 11.sp,
                         lineHeight = 15.sp,
                         color = Lab.Muted,
                     )

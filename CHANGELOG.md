@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.6.0 — 2026-11-08
+
+Pesquisa ampliada, ingestão de conteúdo e piloto automático.
+
+- Acrescenta Crossref, PubMed e Hugging Face Datasets às fontes sem chave; Brave Search e GitHub permanecem opcionais.
+- Downloader integrado: coleta páginas HTTPS textuais, normaliza HTML/JSON/XML/Markdown e incorpora conteúdo ao corpus usado pela síntese e pelo dataset.
+- Piloto automático repete pesquisa → download → síntese → currículo → dataset → autoajuste; métricas de tokens, fontes, downloads e exemplos são persistidas e exibidas em gráficos.
+- Corrige propagação de cancelamento das buscas, valida destinos alternativos do Git push e trata rejeições do servidor como falha.
+- Permite commits e operações Git na pasta clonada e registra ferramentas GitHub no runtime Llamatik.
+- CI deixa de ignorar falhas nos testes unitários; testes e build passam a bloquear a entrega.
+
+
+## 1.5.0 — 2026-11-08
+
+Brave Search, GitHub para o agente e liquid glass.
+
+- Autoestudo com Brave Search (chave opcional em Ajustes) e busca de repositórios no GitHub como fontes extras.
+- Agente/Codex ganham ferramentas GitHub: `github_search_repos`, `github_search_code`, `github_read_file`, `github_list_issues`, `github_create_issue`, `github_create_pr`, `git_clone`, `git_branch` e `git_push`.
+- Token do GitHub só é enviado para `github.com`; push direto em `main`/`master` é bloqueado e o token é mascarado em erros.
+- Liquid glass: desfoque real de fundo (Haze, Android 12+) na barra de navegação e no seletor, bordas iluminadas e reflexo em cards e botões.
+- Animações: indicador líquido com mola nas abas, transições de tela com mola e escala, entrada dos cards, brilho nos botões e fundo aurora com mais movimento.
+
+## 1.4.0 — 2026-11-07
+
+Refinamento de UI/UX e correções visuais.
+
+- Texto escuro (`Lab.OnPrimary`) sobre o dourado: contraste ~10.9:1 (antes ~1.7:1).
+- Piso tipográfico de 11sp; `Muted`/`Outline` mais legíveis; campos e console sem fundos azulados.
+- Navegação com 5 abas: "Agentes" reúne Chat e Codex; back de Codex/Llamatik volta à origem.
+- Alvos de toque ≥ 44–48dp e rótulos de acessibilidade em ícones de ação.
+- `GradientButton` desabilitado não desenha mais um retângulo preto atrás do texto.
+- "6 APIs" corrigido; versão em Ajustes vem de `BuildConfig.VERSION_NAME`.
+- Plugin Figma: corrigido `y` indefinido em Ajustes; compatível com o limite de 3 páginas do Starter.
+
 ## 1.3.2 — 2026-11-07
 
 Revisão completa de código: bugs, segurança, performance e arquitetura.

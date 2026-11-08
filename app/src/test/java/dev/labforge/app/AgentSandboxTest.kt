@@ -42,9 +42,13 @@ class AgentSandboxTest {
     }
 
     @Test
-    fun `rejects absolute path outside the workspace`() {
+    fun `confines absolute paths to the workspace`() {
+        // resolve() strips the leading "/", so absolute paths are re-rooted inside the workspace.
         val ws = workspace()
-        assertFalse(write(ws, "/data/local/tmp/pwned.txt"))
+        val outside = File(ws.parentFile, "pwned-${ws.name}.txt")
+        assertTrue(write(ws, outside.absolutePath))
+        assertFalse(outside.exists())
+        assertTrue(File(ws, outside.absolutePath.removePrefix("/")).isFile)
     }
 
     @Test

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.labforge.app.ui.theme.Lab
+import dev.chrisbanes.haze.hazeSource
 import kotlin.math.min
 
 @Composable
@@ -53,14 +54,29 @@ fun AnimatedAuroraBackground(content: @Composable () -> Unit) {
         animationSpec = infiniteRepeatable(tween(24000, easing = LinearEasing), RepeatMode.Reverse),
         label = "b",
     )
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06))),
-            ),
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
+    val c = t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(31000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "c",
+    ).value
+    val haze = LocalHazeState.current
+    Box(Modifier.fillMaxSize()) {
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .then(if (haze != null) Modifier.hazeSource(haze) else Modifier)
+                .background(Brush.verticalGradient(listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06)))),
+        ) {
+            val c4 = Offset(size.width * (0.20f + 0.60f * c), size.height * (0.62f + 0.10f * b))
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Lab.Violet.copy(alpha = 0.07f + 0.04f * c), Color.Transparent),
+                    center = c4,
+                    radius = size.width * (0.55f + 0.15f * a),
+                ),
+                radius = size.width * (0.55f + 0.15f * a),
+                center = c4,
+            )
             val c1 = Offset(size.width * (0.05f + 0.18f * a), size.height * (0.02f + 0.10f * b))
             drawCircle(
                 brush = Brush.radialGradient(
@@ -143,7 +159,7 @@ fun ProgressRing(
                 color = Lab.Text,
             )
             if (caption != null) {
-                Text(caption, fontSize = 8.sp, color = Lab.Muted)
+                Text(caption, fontSize = 11.sp, color = Lab.Muted)
             }
         }
     }
@@ -190,7 +206,7 @@ fun DonutChart(
                 Text(centerLabel, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
             }
             if (centerCaption != null) {
-                Text(centerCaption, fontSize = 8.sp, color = Lab.Muted)
+                Text(centerCaption, fontSize = 11.sp, color = Lab.Muted)
             }
         }
     }
@@ -319,7 +335,7 @@ fun SunflowerSpinner(size: Dp = 44.dp, petals: Int = 12) {
 fun MiniMetric(label: String, value: String, accent: Color = Lab.Cyan) {
     Column(Modifier.padding(2.dp)) {
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = accent)
-        Text(label, fontSize = 8.sp, color = Lab.Muted)
+        Text(label, fontSize = 11.sp, color = Lab.Muted)
     }
 }
 

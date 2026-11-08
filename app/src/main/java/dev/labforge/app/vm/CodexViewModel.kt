@@ -111,6 +111,7 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
                     llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
                     maxSteps = 0,
                     systemOverride = ReActAgent.CODEX_SYSTEM,
+                    settings = cfg,
                     onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
                 )
                 val summary = agent.run(currentTask)
