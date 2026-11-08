@@ -7,9 +7,11 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.labforge.app.core.Handoff
+import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.agent.AgentEvent
 import dev.labforge.app.core.agent.LessonStore
 import dev.labforge.app.core.agent.LlmClient
+import dev.labforge.app.core.agent.NativeLlmClient
 import dev.labforge.app.core.agent.ReActAgent
 import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.settings.SettingsRepository
@@ -20,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Autonomous coding agent ("Codex" tab): plan → edit → test → fix, with an
@@ -91,10 +94,33 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 rounds++
                 iteration = rounds
+                val localModel = AppSelection.modelPath
+                    ?.let(::File)
+                    ?.takeIf { it.isFile && it.extension.equals("gguf", true) }
+                val backend = if (localModel != null) {
+                    val contextSize = when {
+                        localModel.length() > 2_600_000_000L -> 512
+                        localModel.length() > 1_600_000_000L -> 768
+                        else -> 1536
+                    }
+                    NativeLlmClient(
+                        localModel.absolutePath, contextSize,
+                        Runtime.getRuntime().availableProcessors().coerceIn(1, 4),
+                        if (contextSize <= 512) 128 else if (contextSize <= 768) 192 else 384,
+                        cfg.temperature.toFloat(),
+                    )
+                } else {
+                    LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
+                }
+                messages = messages + AgentMessage(
+                    ++seq, AgentMessage.Role.SYSTEM,
+                    if (localModel != null) "Codex usando inferência local llama.cpp: ${localModel.name}"
+                    else "Codex usando endpoint remoto: ${LlmClient.describeNormalized(cfg.endpoint)}",
+                )
                 val agent = ReActAgent(
                     workspace = store.workspace(),
                     lessons = lessons,
-                    llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
+                    llm = backend,
                     maxSteps = 0,
                     systemOverride = ReActAgent.CODEX_SYSTEM,
                     settings = cfg,
@@ -209,6 +235,7 @@ Resumo do que já foi feito: ${summary.take(1200)}
     }
 
     fun stop() {
+        LlamaBridge.requestChatStop()
         job?.cancel()
         running = false
         status = "interrompido"
