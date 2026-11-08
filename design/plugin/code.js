@@ -163,7 +163,7 @@ function card(parent, name, x, y, w, h, opts = {}) {
 }
 
 function pill(parent, label, x, y, color = C.lime, filled = false) {
-  const w = Math.max(58, label.length * 6.4 + 22);
+  const w = Math.max(64, label.length * 7.6 + 26);
   const node = frame(parent, `Pill / ${label}`, x, y, w, 22, filled ? color : null, 11);
   if (!filled) {
     node.strokes = [solid(color, 0.55)];
@@ -243,7 +243,7 @@ function phone(page, name, x, y) {
 }
 
 function bottomNav(p, active) {
-  const bar = frame(p, "Bottom navigation", 12, 772, 366, 60, "#F01B1E14", 22);
+  const bar = frame(p, "Bottom navigation", 12, 772, 366, 60, "#1B1E14", 22);
   bar.strokes = [solid(C.white, 0.07)];
   bar.strokeWeight = 1;
   bar.strokeAlign = "INSIDE";
@@ -308,7 +308,7 @@ function screenHome(page, x, y) {
   text(
     hero,
     "sub",
-    "O agente pesquisa em 5 APIs gratuitas, monta o currículo, gera o dataset e redefine os hiperparâmetros.",
+    "O agente pesquisa em 6 APIs gratuitas, monta o currículo, gera o dataset e ajusta os hiperparâmetros.",
     18,
     112,
     250,
@@ -328,7 +328,7 @@ function screenHome(page, x, y) {
   sectionTitle(p, "Visão do laboratório", 326, "tempo real");
   const stats = [
     ["RAM livre", "6.1 GB", "boost +1.2 GB", C.green],
-    ["Pesquisa", "5 APIs", "sem chave", C.lime],
+    ["Pesquisa", "6 APIs", "sem chave", C.lime],
     ["Pipeline", "4 etapas", "pronto", C.gold],
     ["Modelos", "3 GGUF", "arm64", C.orange],
   ];
@@ -661,7 +661,7 @@ function screenLlamatik(page, x, y) {
   text(p, "tools meta", "2 chamadas", 300, 407, 72, 8, C.muted, "regular", { align: "RIGHT" });
   const tools = [
     ["public_api_posts", "Retrofit 3 · 200 OK · 184 ms", C.lime],
-    ["research_web", "5 APIs · 12 fontes · 2.1 s", C.green],
+    ["research_web", "6 APIs · 12 fontes · 2.1 s", C.green],
   ];
   tools.forEach(([name, meta, color], i) => {
     const c = card(p, `Tool ${name}`, 16, 434 + i * 66, 358, 54, { radius: 16 });
@@ -810,7 +810,7 @@ function screenHomePreview(p) {
   button(hero, "Pesquisar tema", 18, 154, 122, 38);
   const stats = [
     ["RAM livre", "6.1 GB", C.green],
-    ["Pesquisa", "5 APIs", C.lime],
+    ["Pesquisa", "6 APIs", C.lime],
     ["Pipeline", "4 etapas", C.gold],
     ["Modelos", "3 GGUF", C.orange],
   ];
@@ -881,7 +881,7 @@ function screenHomePreview(p) {
     ["Display", 40, "bold", "Pesquise. Aprenda."],
     ["Headline", 28, "semibold", "Autoestudo autônomo"],
     ["Title", 17, "semibold", "Fontes consolidadas"],
-    ["Body", 13, "regular", "Pesquisa em 5 APIs gratuitas, sem chave."],
+    ["Body", 13, "regular", "Pesquisa em 6 APIs gratuitas, sem chave."],
     ["Label", 11, "medium", "RANK · EPOCHS · LR"],
   ];
   types.forEach(([label, size, weight, sample], i) => {
