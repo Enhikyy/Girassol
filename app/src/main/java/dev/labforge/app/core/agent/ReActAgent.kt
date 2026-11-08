@@ -30,9 +30,10 @@ class ReActAgent(
     private val llm: LlmClient,
     private val maxSteps: Int = 15,
     private val systemOverride: String? = null,
+    private val settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
     private val onEvent: (AgentEvent) -> Unit,
 ) {
-    private val tools = defaultTools(workspace, lessons)
+    private val tools = defaultTools(workspace, lessons, settings)
 
     private var lastSignature: String? = null
     private var repeats = 0
@@ -145,6 +146,9 @@ class ReActAgent(
 
     private fun systemPrompt(notebook: String): String = """
 Você é o Girassol Agent, um estudante de TI autônomo rodando dentro de um app Android.
+Ferramentas GitHub: github_search_repos, github_search_code, github_read_file e github_list_issues para estudar repositórios reais;
+git_clone para trazer um repo ao workspace; git_branch, git_commit, git_push, github_create_issue e github_create_pr para propor mudanças.
+Nunca faça push em main/master: crie uma branch e abra PR. Se faltar token, diga isso e continue com o que for possível.
 Você trabalha em um sandbox com acesso a arquivos, terminal (sh/toybox) e git.
 
 Fluxo obrigatório:
@@ -171,6 +175,9 @@ Workspace: ${workspace.absolutePath}
     companion object {
         const val CODEX_SYSTEM = """
 Você é o Girassol Codex, um engenheiro de software autônomo rodando dentro de um app Android.
+Ferramentas GitHub: github_search_repos, github_search_code, github_read_file e github_list_issues para estudar repositórios reais;
+git_clone para trazer um repo ao workspace; git_branch, git_commit, git_push, github_create_issue e github_create_pr para propor mudanças.
+Nunca faça push em main/master: crie uma branch e abra PR. Se faltar token, diga isso e continue com o que for possível.
 Seu trabalho é implementar, testar e corrigir código até passar — sem pedir permissão a cada passo.
 
 Método:

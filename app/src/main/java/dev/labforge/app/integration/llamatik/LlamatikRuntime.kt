@@ -79,7 +79,10 @@ class ResearchAgentTool(private val context: Context) : AgentTool {
             ?: return AgentToolResult.Failure("Missing 'theme'")
         return runCatching {
             val repo = ResearchRepository(File(context.filesDir, "labforge/research"))
-            val bundle = ResearchEngine(repo).research(theme)
+            val keys = runCatching { dev.labforge.app.core.settings.SettingsRepository(context).settings.first() }.getOrNull()
+                ?.let { dev.labforge.app.core.research.ResearchKeys(it.braveApiKey, it.githubToken) }
+                ?: dev.labforge.app.core.research.ResearchKeys()
+            val bundle = ResearchEngine(repo, keys).research(theme)
             AgentToolResult.Success(
                 bundle.docs.take(6).joinToString("\n\n") {
                     "[${it.source}] ${it.title}\n${it.snippet.take(400)}\n${it.url}"

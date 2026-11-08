@@ -160,7 +160,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    "O agente pesquisa em 6 APIs gratuitas, monta o currículo, gera o dataset e ajusta os hiperparâmetros.",
+                    "O agente pesquisa em 7 fontes gratuitas (incluindo GitHub) e no Brave Search, se configurado. Depois monta o currículo, gera o dataset e ajusta os hiperparâmetros.",
                     fontSize = 11.sp,
                     lineHeight = 17.sp,
                     color = Color.White.copy(alpha = 0.66f),
@@ -262,7 +262,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    study.bundle?.let { "${it.docs.size} fontes · ${it.sourceCounts.size} APIs" } ?: "6 APIs gratuitas",
+                    study.bundle?.let { "${it.docs.size} fontes · ${it.sourceCounts.size} APIs" } ?: "7 fontes + Brave",
                     fontSize = 11.sp,
                     color = Lab.Muted,
                 )
@@ -294,7 +294,7 @@ fun HomeScreen(
         Spacer(Modifier.height(9.dp))
         GlassCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PipelineStep("1", "Pesquisa", "6 APIs", Lab.Cyan)
+                PipelineStep("1", "Pesquisa", "7+ fontes", Lab.Cyan)
                 PipelineLine()
                 PipelineStep("2", "Currículo", "LLM", Lab.Violet)
                 PipelineLine()

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0 — 2026-11-08
+
+Brave Search, GitHub para o agente e liquid glass.
+
+- Autoestudo com Brave Search (chave opcional em Ajustes) e busca de repositórios no GitHub como fontes extras.
+- Agente/Codex ganham ferramentas GitHub: `github_search_repos`, `github_search_code`, `github_read_file`, `github_list_issues`, `github_create_issue`, `github_create_pr`, `git_clone`, `git_branch` e `git_push`.
+- Token do GitHub só é enviado para `github.com`; push direto em `main`/`master` é bloqueado e o token é mascarado em erros.
+- Liquid glass: desfoque real de fundo (Haze, Android 12+) na barra de navegação e no seletor, bordas iluminadas e reflexo em cards e botões.
+- Animações: indicador líquido com mola nas abas, transições de tela com mola e escala, entrada dos cards, brilho nos botões e fundo aurora com mais movimento.
+
 ## 1.4.0 — 2026-11-07
 
 Refinamento de UI/UX e correções visuais.

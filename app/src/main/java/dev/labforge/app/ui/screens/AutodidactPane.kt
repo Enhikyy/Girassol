@@ -124,7 +124,7 @@ fun AutodidactPane(
                 Column(Modifier.weight(1f)) {
                     Text("Pesquisa autônoma", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
-                        "6 APIs gratuitas · RAG local · currículo · dataset · auto-tuning",
+                        "7 fontes + Brave · RAG local · currículo · dataset · auto-tuning",
                         fontSize = 11.sp, color = Lab.Muted, lineHeight = 14.sp,
                     )
                 }

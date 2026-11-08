@@ -107,18 +107,27 @@ fun GlassCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(20.dp)
+    val interaction = remember { MutableInteractionSource() }
     Column(
         modifier
+            .springEntrance()
+            .then(if (onClick != null) Modifier.pressScale(interaction, 0.975f) else Modifier)
             .clip(shape)
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFF1A1D12), Color(0xFF0F110B)),
+                    listOf(Color(0xE61A1D12), Color(0xD90F110B)),
                     start = Offset.Zero,
                     end = Offset(900f, 700f),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.07f), shape)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .liquidGlass(shape, intensity = 0.8f)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(interactionSource = interaction, indication = LocalIndication.current) { onClick() }
+                } else {
+                    Modifier
+                },
+            )
             .padding(padding.dp),
         content = content,
     )
@@ -170,7 +179,11 @@ fun GradientButton(
     val shape = RoundedCornerShape(14.dp)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.965f else 1f, tween(120), label = "press")
+    val scale by animateFloatAsState(
+        if (pressed) 0.95f else 1f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 560f),
+        label = "press",
+    )
     val contentAlpha by animateFloatAsState(if (enabled && !loading) 1f else 0.6f, label = "btn")
     Row(
         modifier
@@ -179,7 +192,7 @@ fun GradientButton(
                 if (enabled) Brush.horizontalGradient(listOf(Lab.Violet, Lab.Indigo))
                 else Brush.horizontalGradient(listOf(Lab.SurfaceHigh, Lab.SurfaceHigh)),
             )
-            .border(1.dp, Color.White.copy(alpha = if (enabled) 0.16f else 0.05f), shape)
+            .then(if (enabled) Modifier.liquidGlass(shape, glow = Color.White, intensity = 0.9f).glassSheen(alpha = 0.22f) else Modifier.border(1.dp, Color.White.copy(alpha = 0.05f), shape))
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(
                 interactionSource = interaction,
@@ -388,38 +401,30 @@ fun Segmented(
     modifier: Modifier = Modifier,
     onSelect: (Int) -> Unit,
 ) {
-    Row(
-        modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Lab.Surface)
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp))
+    LiquidTabs(
+        count = options.size,
+        selected = selected,
+        modifier = modifier
+            .glassBackdrop(RoundedCornerShape(16.dp))
             .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        options.forEachIndexed { i, label ->
-            val active = i == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (active) Lab.Violet.copy(alpha = 0.22f) else Color.Transparent)
-                    .border(
-                        1.dp,
-                        if (active) Lab.Violet.copy(alpha = 0.45f) else Color.Transparent,
-                        RoundedCornerShape(10.dp),
-                    )
-                    .clickable { onSelect(i) }
-                    .padding(vertical = 11.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    fontSize = 13.sp,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (active) Lab.Text else Lab.Muted,
-                    maxLines = 1,
-                )
-            }
+        corner = 12.dp,
+    ) { i, active ->
+        val color by animateColorAsState(if (active) Lab.Text else Lab.Muted, label = "segText")
+        Box(
+            Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onSelect(i) }
+                .padding(vertical = 11.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                options[i],
+                fontSize = 13.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                color = color,
+                maxLines = 1,
+            )
         }
     }
 }

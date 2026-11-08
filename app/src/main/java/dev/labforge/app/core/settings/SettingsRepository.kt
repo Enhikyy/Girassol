@@ -3,6 +3,7 @@ package dev.labforge.app.core.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -20,7 +21,11 @@ data class AppSettings(
     val temperature: Double = 0.2,
     val maxSteps: Int = 15,
     val autoCommit: Boolean = true,
+    val braveApiKey: String = "",
+    val githubToken: String = "",
 )
+
+fun AppSettings.researchKeys() = dev.labforge.app.core.research.ResearchKeys(braveApiKey, githubToken)
 
 class SettingsRepository(private val context: Context) {
 
@@ -31,31 +36,28 @@ class SettingsRepository(private val context: Context) {
         val temperature = doublePreferencesKey("temperature")
         val maxSteps = intPreferencesKey("max_steps")
         val autoCommit = booleanPreferencesKey("auto_commit")
+        val braveApiKey = stringPreferencesKey("brave_api_key")
+        val githubToken = stringPreferencesKey("github_token")
     }
 
-    val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
-        AppSettings(
-            endpoint = p[Keys.endpoint] ?: "https://api.openai.com/v1",
-            apiKey = p[Keys.apiKey] ?: "",
-            model = p[Keys.model] ?: "gpt-4o-mini",
-            temperature = p[Keys.temperature] ?: 0.2,
-            maxSteps = p[Keys.maxSteps] ?: 15,
-            autoCommit = p[Keys.autoCommit] ?: true,
-        )
-    }
+    private fun read(p: Preferences) = AppSettings(
+        endpoint = p[Keys.endpoint] ?: "https://api.openai.com/v1",
+        apiKey = p[Keys.apiKey] ?: "",
+        model = p[Keys.model] ?: "gpt-4o-mini",
+        temperature = p[Keys.temperature] ?: 0.2,
+        maxSteps = p[Keys.maxSteps] ?: 15,
+        autoCommit = p[Keys.autoCommit] ?: true,
+        braveApiKey = p[Keys.braveApiKey] ?: "",
+        githubToken = p[Keys.githubToken] ?: "",
+    )
+
+    val settings: Flow<AppSettings> = context.dataStore.data.map { read(it) }
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         // Transform inside edit{}: reading the snapshot first and writing after is a
         // read-modify-write race that silently drops concurrent changes.
         context.dataStore.edit { p ->
-            val current = AppSettings(
-                endpoint = p[Keys.endpoint] ?: "https://api.openai.com/v1",
-                apiKey = p[Keys.apiKey] ?: "",
-                model = p[Keys.model] ?: "gpt-4o-mini",
-                temperature = p[Keys.temperature] ?: 0.2,
-                maxSteps = p[Keys.maxSteps] ?: 15,
-                autoCommit = p[Keys.autoCommit] ?: true,
-            )
+            val current = read(p)
             val next = transform(current)
             p[Keys.endpoint] = next.endpoint
             p[Keys.apiKey] = next.apiKey
@@ -63,6 +65,8 @@ class SettingsRepository(private val context: Context) {
             p[Keys.temperature] = next.temperature
             p[Keys.maxSteps] = next.maxSteps
             p[Keys.autoCommit] = next.autoCommit
+            p[Keys.braveApiKey] = next.braveApiKey
+            p[Keys.githubToken] = next.githubToken
         }
     }
 }

@@ -55,10 +55,11 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **Quantização** | Executa o quantizador nativo do llama.cpp no dispositivo, com presets K-quants e I-quants. |
 | **Fine-tuning** | Treino completo (AdamW) com checkpoints, loss, amostras e retomada. |
 | **LoRA nativo** | Base congelada + adapters A/B via llama.cpp; validação de loss e reload do adapter. |
-| **Autoestudo** | Pesquisa 6 APIs gratuitas, deduplica/ranqueia, monta RAG BM25, currículo, dataset e preset. |
+| **Autoestudo** | Pesquisa 7 fontes gratuitas (incluindo GitHub) e Brave Search opcional, deduplica/ranqueia, monta RAG BM25, currículo, dataset e preset. |
 | **Auto-tuning** | rank, alpha, epochs, lr, contexto, alvos e ETA calculados a partir do corpus e da RAM. |
 | **Codex** | Agente de código com plano, edição de arquivos, shell, Git e revisão. |
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
+| **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
 | **Llamatik** | SDK de agentes 2.2.2 integrado: tools, executor, permissões, memória persistente e streaming. |
 | **RAM** | Mede memória, encerra processos de terceiros, limpa cache e informa o ganho real. |
 
@@ -92,7 +93,7 @@ A pesquisa usa **Wikipedia (pt/en), OpenAlex, arXiv, Stack Overflow, DuckDuckGo 
 ```mermaid
 flowchart TD
     UI[Jetpack Compose] --> VM[ViewModels]
-    VM --> RESEARCH[ResearchEngine<br/>6 APIs + BM25]
+    VM --> RESEARCH[ResearchEngine<br/>7 fontes + Brave + BM25]
     VM --> DATASET[DatasetBuilder]
     VM --> TUNER[AutoTuner]
     VM --> JOB[JobEngine]

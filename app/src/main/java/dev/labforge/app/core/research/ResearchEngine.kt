@@ -41,7 +41,10 @@ class ResearchRepository(private val dir: File) {
  * Autonomous research: query several free APIs in parallel, rank the material,
  * persist it and expose a local BM25 index for the rest of the app.
  */
-class ResearchEngine(private val repo: ResearchRepository) {
+class ResearchEngine(
+    private val repo: ResearchRepository,
+    private val keys: ResearchKeys = ResearchKeys(),
+) {
 
     data class Stage(val label: String, val detail: String)
 
@@ -52,7 +55,7 @@ class ResearchEngine(private val repo: ResearchRepository) {
         val clean = theme.trim()
         require(clean.length >= 3) { "tema muito curto" }
 
-        onStage(Stage("Pesquisando", "Wikipedia, OpenAlex, arXiv, Stack Overflow, DuckDuckGo"))
+        onStage(Stage("Pesquisando", (if (keys.brave.isNotBlank()) "Brave Search, " else "") + "GitHub, Wikipedia, OpenAlex, arXiv, Stack Overflow, DuckDuckGo"))
         val jobs = listOf(
             async { runCatching { FreeResearchApis.wikipedia(clean) }.getOrDefault(emptyList()) },
             async { runCatching { FreeResearchApis.wikipedia(clean, "en") }.getOrDefault(emptyList()) },
@@ -61,6 +64,8 @@ class ResearchEngine(private val repo: ResearchRepository) {
             async { runCatching { FreeResearchApis.stackExchange(clean) }.getOrDefault(emptyList()) },
             async { runCatching { FreeResearchApis.duckDuckGo(clean) }.getOrDefault(emptyList()) },
             async { runCatching { FreeResearchApis.semanticScholar(clean) }.getOrDefault(emptyList()) },
+            async { runCatching { KeyedResearchApis.githubRepos(clean, keys.github) }.getOrDefault(emptyList()) },
+            async { runCatching { KeyedResearchApis.brave(clean, keys.brave) }.getOrDefault(emptyList()) },
         )
         var docs = jobs.awaitAll().flatten()
 

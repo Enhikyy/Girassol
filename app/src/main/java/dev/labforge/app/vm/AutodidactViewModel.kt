@@ -18,6 +18,7 @@ import dev.labforge.app.core.research.ResearchDoc
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.settings.SettingsRepository
+import dev.labforge.app.core.settings.researchKeys
 import dev.labforge.app.core.train.AutoTuner
 import dev.labforge.app.core.train.ChatFormat
 import dev.labforge.app.core.train.DatasetBuilder
@@ -200,7 +201,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 llmReady = llm != null
 
                 // 1. research
-                val found = engine.research(themeValue) { st ->
+                val found = ResearchEngine(repo, cfg.researchKeys()).research(themeValue) { st ->
                     status = "${st.label}: ${st.detail}"
                     append("${st.label} · ${st.detail}")
                 }

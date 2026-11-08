@@ -65,6 +65,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     var model by remember { mutableStateOf("") }
     var temperature by remember { mutableStateOf(0.2f) }
     var maxSteps by remember { mutableStateOf(15) }
+    var braveKey by remember { mutableStateOf("") }
+    var githubToken by remember { mutableStateOf("") }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var boosting by remember { mutableStateOf(false) }
@@ -76,6 +78,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
         model = vm.settings.model
         temperature = vm.settings.temperature.toFloat()
         maxSteps = vm.settings.maxSteps
+        braveKey = vm.settings.braveApiKey
+        githubToken = vm.settings.githubToken
     }
 
     Column(
@@ -117,6 +121,17 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 ),
             )
             Stepper("Máximo de passos (0 = autônomo)", maxSteps, listOf(0, 10, 15, 25), Modifier.fillMaxWidth()) { maxSteps = it }
+            Spacer(Modifier.height(18.dp))
+            Text("Pesquisa e GitHub", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
+            Text(
+                "Brave Search entra no autoestudo como fonte extra. O token do GitHub libera busca de código, push, issues e PRs pelo agente. Ficam só neste aparelho.",
+                fontSize = 11.sp,
+                color = Lab.Muted,
+            )
+            Spacer(Modifier.height(10.dp))
+            LabField("Brave Search API key", braveKey, placeholder = "BSA…", secret = true) { braveKey = it }
+            Spacer(Modifier.height(10.dp))
+            LabField("GitHub token", githubToken, placeholder = "github_pat_… / ghp_…", secret = true) { githubToken = it }
             Spacer(Modifier.height(14.dp))
             GradientButton(
                 "Salvar",
@@ -130,6 +145,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                         model = model.trim(),
                         temperature = temperature.toDouble(),
                         maxSteps = maxSteps,
+                        braveApiKey = braveKey.trim(),
+                        githubToken = githubToken.trim(),
                     )
                 }
                 testResult = "ajustes salvos"
@@ -286,6 +303,11 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 Pill("Stack Overflow", Lab.Amber)
                 Pill("DuckDuckGo", Lab.Green)
                 Pill("Semantic Scholar", Lab.Indigo)
+            }
+            Spacer(Modifier.height(5.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Pill("GitHub", Lab.Text)
+                Pill("Brave Search · chave", Lab.Amber)
             }
         }
 

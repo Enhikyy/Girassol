@@ -5,6 +5,8 @@ import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import java.net.URI
 import java.io.File
 
 /**
@@ -92,5 +94,42 @@ class GitRepo(private val dir: File) {
                 git.diff().call().joinToString("\n") { d -> d.toString() }.ifBlank { "(sem alterações)" }
             }
         }.getOrElse { "erro no diff: ${it.message}" }
+    }
+
+    /** Clones [url] into this directory. The token is only ever sent to https://github.com. */
+    suspend fun cloneFrom(url: String, token: String = ""): String = withContext(Dispatchers.IO) {
+        require(url.startsWith("https://")) { "use uma URL https://" }
+        require(!dir.exists() || dir.listFiles().isNullOrEmpty()) { "destino já existe e não está vazio" }
+        val cmd = Git.cloneRepository().setURI(url).setDirectory(dir).setCloneSubmodules(false)
+        githubCredentials(url, token)?.let { cmd.setCredentialsProvider(it) }
+        cmd.call().use { g -> "clonado em ${dir.name} (branch ${g.repository.branch})" }
+    }
+
+    suspend fun checkoutBranch(name: String): String = withContext(Dispatchers.IO) {
+        require(Regex("^[A-Za-z0-9._/-]+$").matches(name) && !name.contains("..")) { "nome de branch inválido" }
+        open().use { g ->
+            val exists = g.repository.findRef("refs/heads/$name") != null
+            g.checkout().setName(name).setCreateBranch(!exists).call()
+            "branch atual: $name" + if (exists) "" else " (criada)"
+        }
+    }
+
+    suspend fun push(token: String, remote: String = "origin"): String = withContext(Dispatchers.IO) {
+        open().use { g ->
+            val url = g.repository.config.getString("remote", remote, "url") ?: error("remote '$remote' não configurado")
+            val creds = githubCredentials(url, token) ?: error("push só é permitido para https://github.com com token configurado")
+            val branch = g.repository.branch
+            require(branch !in setOf("main", "master")) { "crie uma branch (git_branch) antes do push; push direto em $branch é bloqueado" }
+            val results = g.push().setRemote(remote).add(branch).setCredentialsProvider(creds).call()
+            results.flatMap { it.remoteUpdates }
+                .joinToString("\n") { "${it.remoteName}: ${it.status}" }
+                .ifBlank { "push de $branch concluído" }
+        }
+    }
+
+    private fun githubCredentials(url: String, token: String): UsernamePasswordCredentialsProvider? {
+        if (token.isBlank() || !url.startsWith("https://")) return null
+        val host = runCatching { URI(url).host?.lowercase() }.getOrNull()
+        return if (host == "github.com") UsernamePasswordCredentialsProvider("x-access-token", token.trim()) else null
     }
 }

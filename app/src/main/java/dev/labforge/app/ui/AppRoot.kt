@@ -48,6 +48,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.labforge.app.ui.components.AnimatedAuroraBackground
+import dev.labforge.app.ui.components.LiquidTabs
+import dev.labforge.app.ui.components.LocalHazeState
+import dev.labforge.app.ui.components.glassBackdrop
+import dev.labforge.app.ui.components.glassSheen
+import dev.chrisbanes.haze.rememberHazeState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
 import dev.labforge.app.ui.components.Segmented
 import dev.labforge.app.ui.screens.AgentScreen
 import dev.labforge.app.ui.screens.CodexScreen
@@ -114,7 +128,8 @@ fun AppRoot() {
         }
     }
 
-    AnimatedAuroraBackground {
+    val haze = rememberHazeState()
+    CompositionLocalProvider(LocalHazeState provides haze) { AnimatedAuroraBackground {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             if (route == Routes.AGENT || route == Routes.CODEX) {
                 Segmented(
@@ -129,8 +144,10 @@ fun AppRoot() {
                     // `route` == "model", so keying on route alone would not recompose.
                     targetState = route to arg,
                     transitionSpec = {
-                        (slideInHorizontally(tween(320)) { it / 7 } + fadeIn(tween(260))) togetherWith
-                            (slideOutHorizontally(tween(280)) { -it / 9 } + fadeOut(tween(200)))
+                        val slide = spring<IntOffset>(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                        val scale = spring<Float>(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow)
+                        (slideInHorizontally(slide) { it / 6 } + scaleIn(scale, initialScale = 0.94f) + fadeIn(tween(240))) togetherWith
+                            (slideOutHorizontally(slide) { -it / 10 } + scaleOut(scale, targetScale = 1.03f) + fadeOut(tween(180)))
                     },
                     label = "screens",
                 ) { (current, _) ->
@@ -167,7 +184,7 @@ fun AppRoot() {
                 }
             }
         }
-    }
+    }}
 }
 
 @Composable
@@ -215,54 +232,60 @@ private fun JobStrip(title: String, progress: Float, eta: String, onClick: () ->
 
 @Composable
 private fun BottomBar(current: String, onSelect: (String) -> Unit) {
+    val selected = tabs.indexOfFirst { it.route == current || (it.route == Routes.AGENT && current == Routes.CODEX) }
     Box(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Row(
-            Modifier
+        LiquidTabs(
+            count = tabs.size,
+            selected = selected,
+            modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xF01B1E14))
-                .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(22.dp))
-                .padding(vertical = 8.dp, horizontal = 6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            tabs.forEach { tab ->
-                val active = current == tab.route || (tab.route == Routes.AGENT && current == Routes.CODEX)
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onSelect(tab.route) }
-                        .padding(vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (active) Lab.Violet.copy(alpha = 0.16f) else Color.Transparent)
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            tab.icon,
-                            contentDescription = null,
-                            tint = if (active) Lab.Violet else Lab.Muted,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        tab.label,
-                        fontSize = 11.sp,
-                        color = if (active) Lab.Text else Lab.Muted,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                    )
-                }
+                .glassBackdrop(RoundedCornerShape(26.dp))
+                .glassSheen(periodMs = 9000, alpha = 0.07f)
+                .padding(vertical = 6.dp, horizontal = 6.dp),
+            corner = 20.dp,
+            inset = 2.dp,
+        ) { i, active ->
+            val tab = tabs[i]
+            val lift by animateFloatAsState(
+                if (active) 1f else 0f,
+                spring(dampingRatio = 0.42f, stiffness = 380f),
+                label = "lift",
+            )
+            val tint by animateColorAsState(if (active) Lab.Violet else Lab.Muted, label = "tint")
+            val labelColor by animateColorAsState(if (active) Lab.Text else Lab.Muted, label = "label")
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable { onSelect(tab.route) }
+                    .padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    tab.icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .graphicsLayer {
+                            val s = 1f + 0.14f * lift
+                            scaleX = s
+                            scaleY = s
+                            translationY = -2.dp.toPx() * lift
+                        },
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    tab.label,
+                    fontSize = 11.sp,
+                    color = labelColor,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1,
+                )
             }
         }
     }
