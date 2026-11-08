@@ -5,6 +5,7 @@
 #include <android/log.h>
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -155,6 +156,36 @@ static void capture_stop() {
     if (g_pipe_rd >= 0) { close(g_pipe_rd); g_pipe_rd = -1; }
     if (g_cb_obj) { JNIEnv * env = nullptr; if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) env->DeleteGlobalRef(g_cb_obj); g_cb_obj = nullptr; }
     g_capture_run = false;
+}
+
+// Keep the corpus on disk and sample a bounded window for each autonomous cycle.
+static constexpr size_t MAX_TRAIN_WINDOW_BYTES = 512 * 1024;
+static bool read_training_window(std::ifstream & file, std::string & text, uint64_t & source_bytes) {
+    file.seekg(0, std::ios::end);
+    const std::streamoff size = file.tellg();
+    if (size < 0) return false;
+    source_bytes = (uint64_t) size;
+    if (source_bytes <= MAX_TRAIN_WINDOW_BYTES) {
+        file.clear();
+        file.seekg(0, std::ios::beg);
+    } else {
+        const uint64_t max_start = source_bytes - MAX_TRAIN_WINDOW_BYTES;
+        const uint64_t seed = (uint64_t) std::chrono::steady_clock::now().time_since_epoch().count();
+        const uint64_t offset = max_start ? seed % (max_start + 1) : 0;
+        file.clear();
+        file.seekg((std::streamoff) offset, std::ios::beg);
+        if (offset > 0) { std::string partial; std::getline(file, partial); }
+    }
+    std::vector<char> buffer(MAX_TRAIN_WINDOW_BYTES);
+    file.read(buffer.data(), (std::streamsize) buffer.size());
+    const std::streamsize count = file.gcount();
+    if (count <= 0) return false;
+    text.assign(buffer.data(), (size_t) count);
+    if (source_bytes > MAX_TRAIN_WINDOW_BYTES) {
+        const size_t boundary = text.find_last_of('\n');
+        if (boundary != std::string::npos && boundary > 64) text.resize(boundary);
+    }
+    return !text.empty();
 }
 
 // -----------------------------------------------------------------------------
