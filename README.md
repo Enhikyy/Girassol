@@ -53,7 +53,9 @@ adb install -r app-debug.apk
 
 ---
 
-## Continuidade de aprendizado (1.7.0)\n\nO autoestudo mantém uma árvore de habilidades local, com revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline de falhas e padrões recorrentes. O painel permite marcar cada revisão como difícil, lembrada ou fácil. A memória é local, limitada por quantidade e não substitui validação factual das fontes.\n\n## O que é
+## Continuidade de aprendizado (1.8.0)
+
+O autoestudo mantém uma árvore de habilidades local, com revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline de falhas e padrões recorrentes. O painel permite marcar cada revisão como difícil, lembrada ou fácil. A memória é local, limitada por quantidade e não substitui validação factual das fontes.\n\n## O que é
 
 O Girassol transforma o celular em um laboratório de modelos locais:
 
@@ -213,7 +215,7 @@ O APK é validado por teste: `com.llamatik.core.platform.LlamaBridge` **não** e
 - Tipografia sans (Inter/Roboto), títulos com tracking negativo.
 - Componentes: aurora animada, glass cards, progress ring, donut, barras animadas, girassol spinner.
 
-O arquivo do Figma é gerado pelo plugin em [`design/plugin`](design/plugin). Veja [`docs/FIGMA.md`](docs/FIGMA.md).
+Referências Figma e a tradução visual nativa estão documentadas em [`docs/DESIGN_REFERENCES.md`](docs/DESIGN_REFERENCES.md).
 
 ---
 
