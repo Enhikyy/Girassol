@@ -134,7 +134,7 @@ fun TrainPane(vm: LabViewModel) {
             EmptyState(
                 icon = Icons.Rounded.AutoAwesome,
                 title = "Escolha um modelo base",
-                body = "LoRA funciona com qualquer GGUF (inclusive quantizado): os pesos ficam congelados e só as matrizes A/B são treinadas.",
+                body = "LoRA treina as matrizes A/B de um GGUF compatível, inclusive quantizado, mantendo os pesos base congelados.",
             )
             return@Column
         }
@@ -171,9 +171,9 @@ fun TrainPane(vm: LabViewModel) {
                     Spacer(Modifier.height(3.dp))
                     Text(
                         if (mode == 0)
-                            "Treina apenas A/B (rank $rank) e exporta um adaptador GGUF carregável em llama.cpp/Ollama. O modelo base fica congelado, então cabe muito mais no aparelho."
+                            "Treina apenas A/B (rank $rank) e exporta um adaptador GGUF. Bases BF16 usam uma cópia temporária F16; reserve espaço livre para a conversão."
                         else
-                            "Atualiza os pesos selecionados. Exige GGUF F32/F16 e RAM de ~4× o modelo; use apenas para modelos pequenos.",
+                            "Atualiza os pesos selecionados de GGUF F32/F16/BF16. F16/BF16 usam uma cópia temporária F32; reserve espaço em disco e RAM para pesos, gradientes e otimizador.",
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
                         color = Lab.Muted,

@@ -84,12 +84,18 @@ static std::string json_escape(const std::string & in) {
 static void emit_log(const std::string & line) {
     if (!g_cb_obj || !g_cb_log) return;
     if (line.empty()) return;
-    JNIEnv * env = g_call_env;
+    // JNIEnv belongs to the current thread. The pipe reader must never reuse
+    // the training thread's environment (ART aborts on this JNI violation).
+    JNIEnv * env = nullptr;
     bool attached = false;
     if (!env) {
         if (!g_vm) return;
         if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
+#ifdef __ANDROID__
             if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+#else
+            if (g_vm->AttachCurrentThread((void **) &env, nullptr) != JNI_OK) return;
+#endif
             attached = true;
         }
     }
@@ -123,7 +129,9 @@ static void capture_start(JNIEnv * env, jobject cb) {
     g_call_env = nullptr;
     if (cb) {
         g_cb_obj = env->NewGlobalRef(cb);
-        if (!g_cb_class) {
+        {
+            // Each job supplies a different anonymous NativeCallback class.
+            // Method IDs from the previous object's class are not transferable.
             jclass local = env->GetObjectClass(cb);
             g_cb_class = (jclass) env->NewGlobalRef(local);
             env->DeleteLocalRef(local);
@@ -154,7 +162,15 @@ static void capture_stop() {
     if (g_pipe_wr >= 0) { close(g_pipe_wr); g_pipe_wr = -1; }
     if (g_reader.joinable()) g_reader.join();
     if (g_pipe_rd >= 0) { close(g_pipe_rd); g_pipe_rd = -1; }
-    if (g_cb_obj) { JNIEnv * env = nullptr; if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) env->DeleteGlobalRef(g_cb_obj); g_cb_obj = nullptr; }
+    JNIEnv * env = nullptr;
+    if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) {
+        if (g_cb_obj) env->DeleteGlobalRef(g_cb_obj);
+        if (g_cb_class) env->DeleteGlobalRef(g_cb_class);
+    }
+    g_cb_obj = nullptr;
+    g_cb_class = nullptr;
+    g_cb_log = nullptr;
+    g_cb_epoch = nullptr;
     g_capture_run = false;
 }
 
@@ -334,9 +350,70 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeQuantize(
 // Fine-tune (llama_opt_* public training API)
 // -----------------------------------------------------------------------------
 
+// The CPU backward graph has no BF16 OUT_PROD kernel. Inference support for a
+// format does not imply training support: submitting that graph aborts ggml.
+// Convert a temporary copy, preserving the user's base GGUF. Full training also
+// needs F32 parameters (llama_set_param ignores other weight types).
+struct TrainingModelFile {
+    std::string path;
+    std::string temporary;
+    std::string error;
+
+    TrainingModelFile(const std::string & source, const std::string & output, bool full, int threads)
+        : path(source) {
+        gguf_init_params params{true, nullptr};
+        gguf_context * meta = gguf_init_from_file(source.c_str(), params);
+        if (!meta) return; // The model loader reports invalid/missing GGUFs.
+        bool convert = false;
+        for (int64_t i = 0; i < gguf_get_n_tensors(meta); ++i) {
+            const auto type = gguf_get_tensor_type(meta, i);
+            if (full && type != GGML_TYPE_F32 && type != GGML_TYPE_F16 && type != GGML_TYPE_BF16) {
+                error = "fine-tuning completo exige F32/F16/BF16; use LoRA para GGUF quantizado";
+            }
+            convert |= type == GGML_TYPE_BF16 || (full && type == GGML_TYPE_F16);
+        }
+        gguf_free(meta);
+        if (!error.empty() || !convert) return;
+
+        std::string pattern = output + ".training-XXXXXX";
+        std::vector<char> name(pattern.begin(), pattern.end());
+        name.push_back('\0');
+        const int fd = mkstemp(name.data());
+        if (fd < 0) {
+            error = "sem acesso/espaço para a cópia temporária de treino";
+            return;
+        }
+        close(fd);
+        temporary = name.data();
+        printf("[train] convertendo cópia temporária para %s; modelo original preservado\n", full ? "F32" : "F16");
+        auto qp = llama_model_quantize_default_params();
+        qp.ftype = full ? LLAMA_FTYPE_ALL_F32 : LLAMA_FTYPE_MOSTLY_F16;
+        qp.allow_requantize = true;
+        qp.nthread = threads > 0 ? threads : 1;
+        if (llama_model_quantize(source.c_str(), temporary.c_str(), &qp) != 0) {
+            error = "falha ao converter pesos para treino; confira espaço livre";
+        } else {
+            path = temporary;
+        }
+    }
+
+    ~TrainingModelFile() { if (!temporary.empty()) unlink(temporary.c_str()); }
+};
+
 struct TrainFilter {
     std::vector<std::string> include;
     bool all = true;
+
+    explicit TrainFilter(const std::string & filter) : all(filter.empty()) {
+        size_t start = 0;
+        while (start < filter.size()) {
+            const size_t end = filter.find(',', start);
+            const auto part = filter.substr(start, end == std::string::npos ? end : end - start);
+            if (!part.empty()) include.push_back(part);
+            if (end == std::string::npos) break;
+            start = end + 1;
+        }
+    }
 };
 
 static bool train_param_filter(const ggml_tensor * t, void * ud) {
@@ -346,6 +423,17 @@ static bool train_param_filter(const ggml_tensor * t, void * ud) {
     const std::string name = t->name;
     for (const auto & s : f->include) {
         if (name.find(s) != std::string::npos) return true;
+    }
+    return false;
+}
+
+static bool has_trainable_weights(llama_model * model, TrainFilter filter) {
+    for (const auto & item : model->tensors_by_name) {
+        const auto * tensor = item.second;
+        // Mirror llama_context::opt_init's exclusions before its fatal
+        // "no trainable parameters found" assertion can be reached.
+        if (tensor->type == GGML_TYPE_F32 && item.first != "token_embd.weight" &&
+            item.first != "rope_freqs.weight" && train_param_filter(tensor, &filter)) return true;
     }
     return false;
 }
@@ -404,9 +492,13 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                 mp.load_mode = LLAMA_LOAD_MODE_NONE;   // writable weights
                 mp.use_extra_bufts = false;
 
-                llama_model * model = llama_model_load_from_file(model_path.c_str(), mp);
+                TrainingModelFile prepared(model_path, out_path, true, nthreads);
+                llama_model * model = prepared.error.empty() ? llama_model_load_from_file(prepared.path.c_str(), mp) : nullptr;
                 if (!model) {
-                    err = "falha ao carregar o modelo (use um GGUF F32/F16)";
+                    err = prepared.error.empty() ? "falha ao carregar o modelo (use um GGUF F32/F16)" : prepared.error;
+                } else if (!has_trainable_weights(model, TrainFilter(filter))) {
+                    err = "nenhum peso treinável corresponde ao filtro de tensores";
+                    llama_model_free(model);
                 } else {
                     const llama_vocab * vocab = llama_model_get_vocab(model);
 
@@ -433,28 +525,28 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                             n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
                                                tokens.data(), (int32_t) tokens.size(), true, true);
                         }
-                        if (n <= llama_n_ctx(ctx) + 1) {
-                            err = "dataset curto demais para o contexto escolhido (" + std::to_string(n) + " tokens)";
+                        // common_opt_dataset_init uses floor((n - ctx - 1) / stride)
+                        // and aborts when that produces zero examples. Require
+                        // two so the 95/5 split also performs a training step.
+                        const int stride = (int) llama_n_ctx(ctx) / 2;
+                        const auto batch = std::min(llama_n_batch(ctx), llama_n_ctx(ctx));
+                        const auto ubatch = std::min(llama_n_ubatch(ctx), batch);
+                        if (llama_n_ctx(ctx) % batch != 0 || batch % ubatch != 0) {
+                            err = "contexto, batch e microbatch incompatíveis para treino";
+                        } else if (n < (int) llama_n_ctx(ctx) + 1 + 2 * stride) {
+                            err = "dataset curto demais para treino e avaliação (" + std::to_string(n) +
+                                " tokens; mínimo " + std::to_string((int) llama_n_ctx(ctx) + 1 + 2 * stride) + ")";
                         } else {
                             tokens.resize(n);
                             n_tokens = n;
                             printf("[train] %d tokens, ctx=%u, batch=%u, epochs=%d, lr=%.2g\n",
                                    n_tokens, llama_n_ctx(ctx), cp.n_batch, (int) epochs, (double) lr0);
 
-                            ggml_opt_dataset_t dataset = common_opt_dataset_init(ctx, tokens, llama_n_ctx(ctx) / 2);
+                            ggml_opt_dataset_t dataset = common_opt_dataset_init(ctx, tokens, stride);
                             n_seq = (int) ggml_opt_dataset_ndata(dataset);
 
-                            TrainFilter filt;
+                            TrainFilter filt(filter);
                             if (!filter.empty()) {
-                                filt.all = false;
-                                size_t start = 0;
-                                while (start <= filter.size()) {
-                                    size_t p = filter.find(',', start);
-                                    std::string tok = filter.substr(start, p == std::string::npos ? std::string::npos : p - start);
-                                    if (!tok.empty()) filt.include.push_back(tok);
-                                    if (p == std::string::npos) break;
-                                    start = p + 1;
-                                }
                                 printf("[train] filtro de tensores: %s\n", filter.c_str());
                             }
 
@@ -643,7 +735,9 @@ static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraT
         tmp.resize((size_t) ggml_nelements(lw.a));
         for (auto & v : tmp) v = nd(rng);
         ggml_backend_tensor_set(lw.a, tmp.data(), 0, ggml_nbytes(lw.a));
-        std::fill(tmp.begin(), tmp.end(), 0.f);
+        // FFN-up and fused QKV can have more output than input channels.
+        // B therefore need not fit in A's buffer.
+        tmp.assign((size_t) ggml_nelements(lw.b), 0.f);
         ggml_backend_tensor_set(lw.b, tmp.data(), 0, ggml_nbytes(lw.b));
         ggml_set_param(lw.a);
         ggml_set_param(lw.b);
@@ -710,10 +804,14 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                 llama_model_params mp = llama_model_default_params();
                 mp.n_gpu_layers = 0;
                 mp.load_mode = LLAMA_LOAD_MODE_MMAP;
+                // Inference-only packed buffers need not support OUT_PROD in
+                // the backward graph, notably on ARM quantized CPU backends.
+                mp.use_extra_bufts = false;
 
-                llama_model * model = llama_model_load_from_file(model_path.c_str(), mp);
+                TrainingModelFile prepared(model_path, out_path, false, nthreads);
+                llama_model * model = prepared.error.empty() ? llama_model_load_from_file(prepared.path.c_str(), mp) : nullptr;
                 if (!model) {
-                    err = "falha ao carregar o modelo";
+                    err = prepared.error.empty() ? "falha ao carregar o modelo" : prepared.error;
                 } else {
                     const llama_vocab * vocab = llama_model_get_vocab(model);
                     const int ctx_len = n_ctx > 0 ? n_ctx : 512;
@@ -741,8 +839,15 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                             n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
                                                tokens.data(), (int32_t) tokens.size(), true, true);
                         }
-                        if (n <= ctx_len + 1) {
-                            err = "dataset curto demais para o contexto escolhido";
+                        const int actual_ctx = (int) llama_n_ctx(ctx);
+                        const int stride = actual_ctx / 2;
+                        const auto batch = std::min(llama_n_batch(ctx), llama_n_ctx(ctx));
+                        const auto ubatch = std::min(llama_n_ubatch(ctx), batch);
+                        if (actual_ctx % batch != 0 || batch % ubatch != 0) {
+                            err = "contexto e batch incompatíveis para treino LoRA";
+                        } else if (n < actual_ctx + 1 + 2 * stride) {
+                            err = "dataset curto demais para treino e avaliação (mínimo " +
+                                std::to_string(actual_ctx + 1 + 2 * stride) + " tokens)";
                         } else {
                             tokens.resize(n);
                             n_tokens = n;
@@ -762,7 +867,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 float scale = 1.0f;
                                 llama_set_adapters_lora(ctx, &raw, 1, &scale);
 
-                                ggml_opt_dataset_t dataset = common_opt_dataset_init(ctx, tokens, ctx_len / 2);
+                                ggml_opt_dataset_t dataset = common_opt_dataset_init(ctx, tokens, stride);
                                 n_seq = (int) ggml_opt_dataset_ndata(dataset);
 
                                 struct lr_opt lr;
@@ -773,7 +878,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 lr.init();
 
                                 llama_opt_params lop{};
-                                lop.n_ctx_train = ctx_len;
+                                lop.n_ctx_train = actual_ctx;
                                 lop.param_filter = lora_param_filter;
                                 lop.param_filter_ud = nullptr;
                                 lop.get_opt_pars = common_opt_lr_pars;

@@ -267,7 +267,13 @@ O novo painel **Laboratório → Evolução** apresenta habilidades observadas, 
 <!-- /coderabbit-ai-generated:v1 -->
 
 - Apenas **arm64-v8a**; não roda em x86/emulador comum.
-- O LoRA nativo exige modelo base **F32/F16/BF16**; modelos quantizados são ignorados no auto-treino.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:b9205b0c755640aafa98c456c4058b73a2b9d75b7d344b7e04cfef46dcdf37e7 -->
+
+- No treino nativo, bases **BF16** usam uma cópia temporária **F16** para LoRA; no fine-tuning completo, bases **F16/BF16** usam uma cópia **F32** para permitir gradientes. O GGUF original é preservado, mas a conversão exige espaço livre. Modelos quantizados continuam ignorados no auto-treino; LoRA manual foi validado com Q8 na regressão host. Full fine-tuning recusa bases quantizadas.
+
+<!-- /coderabbit-ai-generated:v1 -->
 - O `core` nativo do Llamatik fica de fora para preservar o motor de treino.
 - Pesquisa e LLM dependem de rede; sem LLM, a síntese é extrativa.
 - O APK de CI é assinado com a **debug keystore**; para distribuição, configure uma keystore de release.
