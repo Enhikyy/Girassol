@@ -170,31 +170,48 @@ object JobEngine {
     ) {
         if (isRunning) return
         init(context)
-        val budget = MemoryGuard.check(context, input.length(), "quantize")
+        require(input.isFile && input.length() > 0L) { "GGUF de entrada inexistente ou vazio" }
+        val firstBudget = MemoryGuard.check(context, input.length(), "quantize")
+        if (!firstBudget.ok) MemoryGuard.trim()
+        val budget = if (firstBudget.ok) firstBudget else MemoryGuard.check(context, input.length(), "quantize")
         if (!begin(context, "quantize", "Quantizando ${input.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
-        if (!budget.ok) MemoryGuard.trim()
+        if (!budget.ok) {
+            finish(false, "Quantização não iniciada: ${budget.message}", null)
+            return
+        }
 
-        current = scope.launch {
-            val boost = MemoryBooster.boost(context)
-            append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
-            val cb = object : NativeCallback {
-                override fun onLog(line: String) = append(line)
-                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+        current = scope.launch(Dispatchers.IO) {
+            try {
+                val boost = MemoryBooster.boost(context)
+                append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
+                val afterBoost = MemoryGuard.check(context, input.length(), "quantize")
+                append("[ram] reavaliação após otimização: ${afterBoost.message}")
+                if (!afterBoost.ok) {
+                    finish(false, "Quantização adiada para proteger a memória: ${afterBoost.message}", null)
+                    return@launch
+                }
+                val cb = object : NativeCallback {
+                    override fun onLog(line: String) = append(line)
+                    override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+                }
+                _state.update { it.copy(progress = 0.08f) }
+                val result = LlamaBridge.quantize(
+                    input = input.absolutePath,
+                    output = output.absolutePath,
+                    ftype = ftype,
+                    imatrix = imatrix?.absolutePath,
+                    threads = threads.coerceIn(1, 4),
+                    callback = cb,
+                )
+                val summary = if (result.ok) {
+                    "Concluído · ${dev.labforge.app.ui.components.humanBytes(result.bytes)} → ${output.name}"
+                } else result.error ?: "falha na quantização"
+                finish(result.ok, summary, output.takeIf { result.ok })
+            } catch (error: Throwable) {
+                append("[erro] quantização interrompida: ${error.message ?: error.javaClass.simpleName}")
+                finish(false, "Falha na quantização: ${error.message ?: error.javaClass.simpleName}", null)
             }
-            _state.update { it.copy(progress = 0.08f) }
-            val r = LlamaBridge.quantize(
-                input = input.absolutePath,
-                output = output.absolutePath,
-                ftype = ftype,
-                imatrix = imatrix?.absolutePath,
-                threads = threads,
-                callback = cb,
-            )
-            val summary = if (r.ok) {
-                "Concluído · ${dev.labforge.app.ui.components.humanBytes(r.bytes)} → ${output.name}"
-            } else r.error ?: "falha na quantização"
-            finish(r.ok, summary, output.takeIf { r.ok })
         }
     }
 
