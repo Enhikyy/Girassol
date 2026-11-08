@@ -40,7 +40,7 @@ class FilamentModelSurfaceView(context: Context) : SurfaceView(context) {
             val active = viewer
             if (isAttachedToWindow && active != null) {
                 runCatching { active.render(frameTimeNanos) }
-                    .onFailure { onLoadError?.invoke("Falha no renderizador 3D: \${it.message}") }
+                    .onFailure { onLoadError?.invoke("Falha no renderizador 3D: ${it.message}") }
                 Choreographer.getInstance().postFrameCallback(this)
             }
         }
@@ -103,7 +103,7 @@ class FilamentModelSurfaceView(context: Context) : SurfaceView(context) {
                             channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size())
                         }
                     }
-                    else -> error("Formato 3D não suportado pelo Filament: .\${canonical.extension}")
+                    else -> error("Formato 3D não suportado pelo Filament: .${canonical.extension}")
                 }
                 if (model.asset == null) error("Filament não conseguiu interpretar o arquivo ou encontrar seus recursos.")
                 model.transformToUnitCube()
