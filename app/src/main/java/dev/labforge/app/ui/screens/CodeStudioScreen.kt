@@ -25,11 +25,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.labforge.app.core.Handoff
 import dev.labforge.app.core.geometry.Mesh
 import dev.labforge.app.core.geometry.MeshIO
 import dev.labforge.app.core.geometry.MeshPrimitives
 import dev.labforge.app.core.studio.AndroidProjectScaffold
 import dev.labforge.app.core.studio.WorkspaceFiles
+import dev.labforge.app.core.model.ModelStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,12 +43,24 @@ import java.util.zip.ZipOutputStream
 import kotlin.math.*
 
 @Composable
-fun CodeStudioScreen() {
+fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
     val context= LocalContext.current
     val scope= rememberCoroutineScope()
-    val root= remember { File(context.filesDir,"studio-projects").apply{mkdirs()} }
-    val project= remember { File(root,"GirassolWorkspace").apply{mkdirs()} }
-    var source by remember { mutableStateOf("// Girassol Native Studio\\n// Edite seu código localmente.\\n") }
+    val modelStore=remember { ModelStore(context) }
+    val legacyProject=remember { File(context.filesDir,"studio-projects/GirassolWorkspace") }
+    val project=remember {
+        File(modelStore.workspace(),"StudioProject").apply {
+            mkdirs()
+            if(listFiles().isNullOrEmpty() && legacyProject.isDirectory) {
+                runCatching { legacyProject.copyRecursively(this,overwrite=false) }
+            }
+        }
+    }
+    var source by remember {
+        mutableStateOf(
+            listOf("// Girassol Native Studio","// Edite seu código localmente.").joinToString(System.lineSeparator()) + System.lineSeparator()
+        )
+    }
     var fileName by remember { mutableStateOf("Main.kt") }
     var status by remember { mutableStateOf("Workspace local pronto") }
     var mode by remember { mutableIntStateOf(0) }
@@ -57,18 +71,19 @@ fun CodeStudioScreen() {
     var showFileMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(project) {
-        val loaded=withContext(Dispatchers.IO) {
-            workspaceFiles = WorkspaceFiles.listFiles(project)
+        val snapshot=withContext(Dispatchers.IO) {
+            val files=WorkspaceFiles.listFiles(project)
             val f=WorkspaceFiles.resolve(project,fileName)
-            if(f.isFile) f.readText() else null
+            files to if(f.isFile) f.readText() else null
         }
-        if(loaded!=null) source=loaded
+        workspaceFiles=snapshot.first
+        if(snapshot.second!=null) source=snapshot.second!!
     }
     val importCode= rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch {
             runCatching {
                 val imported=withContext(Dispatchers.IO) {
-                    val candidate=Uri.decode(uri.lastPathSegment ?: "Imported.kt").substringAfterLast('/').substringAfterLast('\\\\')
+                    val candidate=Uri.decode(uri.lastPathSegment ?: "Imported.kt").substringAfterLast('/').substringAfterLast(92.toChar())
                     val name=runCatching { WorkspaceFiles.resolve(project,candidate).name }.getOrElse { "Imported-${System.nanoTime()}.txt" }
                     val output=ByteArrayOutputStream()
                     context.contentResolver.openInputStream(uri)?.use { WorkspaceFiles.copyBounded(it,output,WorkspaceFiles.MAX_FILE_BYTES) }
@@ -230,10 +245,24 @@ fun CodeStudioScreen() {
             OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.weight(1f).fillMaxWidth(),label={Text("Editor de código")},textStyle=MaterialTheme.typography.bodySmall.copy(fontFamily=FontFamily.Monospace),minLines=12)
             Button(onClick={
                 scope.launch { runCatching {
-                    withContext(Dispatchers.IO){val target=WorkspaceFiles.resolve(project,fileName); target.parentFile?.mkdirs(); target.writeText(source); workspaceFiles=WorkspaceFiles.listFiles(project)}
-                    status="Salvo em armazenamento privado do app"
+                    workspaceFiles=withContext(Dispatchers.IO){
+                        val target=WorkspaceFiles.resolve(project,fileName)
+                        target.parentFile?.mkdirs()
+                        target.writeText(source)
+                        WorkspaceFiles.listFiles(project)
+                    }
+                    status="Salvo no workspace compartilhado com o Codex"
                 }.onFailure{status="Falha ao salvar: ${it.message}"} }
             },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(8.dp));Text("Salvar no projeto")}
+            OutlinedButton(onClick={
+                Handoff.toCodex = """
+                    Revise e aprimore o projeto no diretório StudioProject do workspace compartilhado.
+                    Arquivo selecionado no Native Studio: $fileName
+                    Preserve os recursos existentes; faça alterações incrementais, explique o diff e execute os testes/build disponíveis.
+                    Não invente resultados de testes. Priorize estabilidade, consumo de memória e funcionamento offline no Android.
+                """.trimIndent()
+                onOpenCodex()
+            },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.AutoAwesome,null);Spacer(Modifier.width(8.dp));Text("Revisar/testar com Codex")}
             OutlinedButton(onClick={
                 val sdk=System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
                 status=if(sdk!=null && File(sdk).exists()) "SDK detectado em $sdk; falta validar Gradle/AGP e toolchain local." else "Build APK indisponível: este app ainda não inclui Android SDK, build-tools, JDK e Gradle offline. Editor/exportação funcionam; não vou simular uma compilação."
