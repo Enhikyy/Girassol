@@ -69,11 +69,13 @@ object MemoryGuard {
     fun loraPlan(context: Context, modelBytes: Long, requestedCtx: Int, requestedRank: Int, requestedThreads: Int, requestedTargets: String): LoraPlan {
         val total = totalGb(context)
         val smallDevice = total < 6.0
-        val safeCtx = requestedCtx.coerceIn(128, if (smallDevice) 256 else 512)
-        val safeRank = requestedRank.coerceIn(4, if (smallDevice) 8 else 16)
-        val safeThreads = requestedThreads.coerceIn(1, if (smallDevice) 2 else 4)
+        // 4-GB phones use the smallest useful LoRA profile. The native layer
+        // applies an additional architecture-aware 200 MiB workspace preflight.
+        val safeCtx = requestedCtx.coerceIn(if (smallDevice) 64 else 128, if (smallDevice) 128 else 512)
+        val safeRank = requestedRank.coerceIn(2, if (smallDevice) 4 else 16)
+        val safeThreads = requestedThreads.coerceIn(1, if (smallDevice) 1 else 4)
         val safeTargets = if (smallDevice) "attn" else requestedTargets
-        val budget = check(context, modelBytes, "lora", safeCtx, safeRank)
+        val budget = evaluate(total, availableGb(context), modelBytes, "lora", safeCtx, safeRank)
         val adjusted = safeCtx != requestedCtx || safeRank != requestedRank || safeThreads != requestedThreads || safeTargets != requestedTargets
         return LoraPlan(budget, safeCtx, safeRank, safeThreads, safeTargets, adjusted)
     }
