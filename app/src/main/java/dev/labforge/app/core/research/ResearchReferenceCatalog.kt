@@ -115,6 +115,42 @@ object ResearchReferenceCatalog {
             "Apache-2.0", setOf("eidos", "memory", "memoria", "agent", "agente", "environment"),
             "Apenas leitura; os módulos centrais consultados estão incompletos/placeholder.", false,
         ),
+        ResearchReference(
+            "nanoKimi",
+            "https://github.com/dishant2009/nanoKimi",
+            "Implementação educacional de Kimi-K2, MoE, Muon e atenção latente.",
+            "Licença não declarada", setOf("kimi", "moe", "muon", "latent attention", "attention", "treinamento"),
+            "Somente referência de arquitetura; não importar nem redistribuir sem licença confirmada.", false,
+        ),
+        ResearchReference(
+            "Kimi MoE reference",
+            "https://github.com/mandeep0405/kimi",
+            "Exemplo de MoE e MuonClip inspirado na família Kimi.",
+            "Licença não declarada", setOf("kimi", "moe", "muon", "muonclip", "optimizer"),
+            "Somente leitura técnica enquanto a licença não for declarada.", false,
+        ),
+        ResearchReference(
+            "AgenticART",
+            "https://github.com/GitSolved/AgenticART",
+            "Referência de aprendizado agentivo citada pelo usuário; o repositório não pôde ser verificado na auditoria.",
+            "Indisponível na API pública (404)", setOf("agenticart", "agent", "agente", "learning", "aprendizado", "failure"),
+            "Link preservado para acompanhamento; nenhum código ou README é baixado.", false,
+        ),
+        ResearchReference(
+            "BYRD AI",
+            "https://huggingface.co/omoplatapus/byrd-ai",
+            "Referência de iniciativa e curiosidade agentiva indicada pelo usuário.",
+            "Licença/model card não verificados", setOf("byrd", "initiative", "curiosity", "iniciativa", "curiosidade", "agent"),
+            "Link preservado apenas como referência; não baixar pesos nem código sem verificar licença e formato.", false,
+        ),
+        ResearchReference(
+            "SRC-Merging paper",
+            "https://neurips.cc/",
+            "Referência de fusão por subespaço indicada pelo usuário; falta o título/URL do paper específico.",
+            "Referência bibliográfica incompleta", setOf("src merging", "merging", "model merge", "fusao", "anti forgetting", "esquecimento"),
+            "Não integra pesos nem implementação; aguarda identificação da publicação exata.", false,
+        ),
+
     )
 
     fun matching(theme: String): List<ResearchReference> {
