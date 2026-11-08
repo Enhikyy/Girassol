@@ -765,7 +765,6 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
     const std::string targets    = jstr(env, j_targets);
 
     capture_start(env, cb);
-    g_call_env = env;
     g_train_abort = false;
 
     std::string err;
@@ -912,7 +911,6 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
         }
     }
 
-    g_call_env = nullptr;
     capture_stop();
 
     std::string result = "{\"ok\":" + std::string(ok ? "true" : "false") +
@@ -1122,11 +1120,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
     capture_stop();
     const bool ok = err.empty() && completion_tokens > 0;
     if (!ok && err.empty()) err = "o modelo não gerou tokens de resposta";
-    const std::string json = "{\\"ok\\":" + std::string(ok ? "true" : "false") +
-        ",\\"prompt_tokens\\":" + std::to_string(prompt_tokens) +
-        ",\\"completion_tokens\\":" + std::to_string(completion_tokens) +
-        ",\\"elapsed_ms\\":" + std::to_string(elapsed) +
-        ",\\"error\\":\\"" + json_escape(err) + "\\"}";
+    const std::string json = "{\"ok\":" + std::string(ok ? "true" : "false") +
+        ",\"prompt_tokens\":" + std::to_string(prompt_tokens) +
+        ",\"completion_tokens\":" + std::to_string(completion_tokens) +
+        ",\"elapsed_ms\":" + std::to_string(elapsed) +
+        ",\"error\":\"" + json_escape(err) + "\"}";
     return env->NewStringUTF(json.c_str());
 }
 
