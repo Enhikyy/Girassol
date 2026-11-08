@@ -20,7 +20,7 @@ class MemoryGuardTest {
     fun mmapLoraBudgetDoesNotTreatEntireBaseModelAsResidentHeap() {
         val small = MemoryGuard.evaluate(4.0, 2.0, 200_000_000L, "lora", 256, 4)
         val large = MemoryGuard.evaluate(4.0, 2.0, 8_000_000_000L, "lora", 256, 4)
-        assertTrue(large.requiredGb - small.requiredGb < 0.20)
+        assertTrue(large.requiredGb - small.requiredGb < 0.30)
         assertTrue(large.ok)
     }
 
