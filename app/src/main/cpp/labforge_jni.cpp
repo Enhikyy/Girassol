@@ -586,7 +586,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
     bool ok = false;
     double final_loss = 0.0;
     int n_tokens = 0, n_seq = 0;
+    llama_model * active_model = nullptr;
+    llama_context * active_ctx = nullptr;
+    bool backend_initialized = false;
 
+    try {
     if (model_path.empty() || out_path.empty() || data_path.empty()) {
         err = "parâmetros vazios";
     } else {
@@ -603,6 +607,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
             } else {
                 printf("[train] corpus=%llu bytes, janela=%zu bytes\\n", (unsigned long long) source_bytes, text.size());
                 llama_backend_init();
+                backend_initialized = true;
 
                 llama_model_params mp = llama_model_default_params();
                 mp.n_gpu_layers = 0;
@@ -613,6 +618,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                 if (!model) {
                     err = "falha ao carregar o modelo (use um GGUF F32/F16)";
                 } else {
+                    active_model = model;
                     const llama_vocab * vocab = llama_model_get_vocab(model);
 
                     llama_context_params cp = llama_context_default_params();
@@ -630,6 +636,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                     if (!ctx) {
                         err = "falha ao criar o contexto de treino";
                     } else {
+                        active_ctx = ctx;
                         std::vector<llama_token> tokens(text.size() + 8);
                         int n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
                                                tokens.data(), (int32_t) tokens.size(), true, true);
@@ -713,13 +720,27 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                             }
                         }
                         llama_free(ctx);
+                        active_ctx = nullptr;
                     }
                     llama_model_free(model);
+                    active_model = nullptr;
                 }
                 llama_backend_free();
+                backend_initialized = false;
             }
         }
     }
+    } catch (const std::bad_alloc &) {
+        err = "memória nativa insuficiente durante fine-tuning completo; reduza contexto/batch ou use LoRA";
+    } catch (const std::exception & ex) {
+        err = std::string("exceção nativa durante fine-tuning: ") + ex.what();
+    } catch (...) {
+        err = "erro nativo desconhecido durante fine-tuning completo";
+    }
+
+    if (active_ctx) { llama_free(active_ctx); active_ctx = nullptr; }
+    if (active_model) { llama_model_free(active_model); active_model = nullptr; }
+    if (backend_initialized) { llama_backend_free(); backend_initialized = false; }
 
     capture_stop();
 
