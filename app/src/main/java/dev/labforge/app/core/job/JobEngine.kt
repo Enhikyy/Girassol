@@ -45,7 +45,7 @@ data class JobState(
 object JobEngine {
 
     private val errorHandler = CoroutineExceptionHandler { _, error ->
-        append("[erro] ${error.message}")
+        append("[erro] ${error.stackTraceToString()}")
         _state.update {
             it.copy(
                 running = false, done = true, success = false,
