@@ -1,5 +1,15 @@
 # Girassol 1.8.0 — stack de pesquisa e continuidade de autoaprendizado
 
+# Correção de estabilidade LoRA — 2026-11-08
+
+- Corrige corrupção de heap nativo na inicialização dos adaptadores: matrizes LoRA A/B retangulares agora têm buffers de inicialização independentes e dimensões validadas antes das cópias JNI/ggml.
+- Envolve a operação JNI LoRA em captura de exceções C++ e libera contexto, modelo e backend parcialmente inicializados antes de retornar um erro estruturado ao Kotlin.
+- Adiciona preflight arquitetural de 200 MiB para o working set auxiliar do LoRA (adaptadores, gradientes/Adam, ativações, contexto e staging de dataset), excluindo os pesos-base mapeados por mmap.
+- Perfil A22/4 GB: rank 2, contexto 128 (com redução nativa até 64), uma thread e atenção sem FFN como padrão; dataset de treino passa a usar janela rotativa de 128 KiB.
+- Logs mostram o orçamento nativo calculado, parâmetros adaptados, bytes do modelo/dataset e amostras de RAM durante o job.
+- O limite de 200 MiB é um orçamento estimado para buffers adicionais do treinamento, não uma garantia de RSS total nem um limite para o tamanho do GGUF mmap.
+
+
 - Integra catálogo GitHub-first por tópico: labml, LLaMA Factory, MuonClip, Kimi Linear/KDA, Flash Linear Attention, UI-Voyager, lau-agent-dream e ZenBrain como referências técnicas, com filtragem por licença.
 - Preserva referências sem licença, indisponíveis, ou com licença restritiva apenas como metadados; não baixa nem incorpora seus READMEs/código.
 - Integra pesquisa de repositórios e READMEs licenciados na pesquisa, síntese e dataset.
