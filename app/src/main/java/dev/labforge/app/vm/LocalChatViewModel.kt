@@ -144,10 +144,13 @@ MEMÓRIA DE APRENDIZADO:
                 val totalRam = runCatching { MemoryGuard.totalGb(getApplication()) }.getOrDefault(4.0)
                 val availableRam = runCatching { MemoryGuard.availableGb(getApplication()) }.getOrDefault(1.0)
                 val modelBytes = model.length()
+                // GGUF weights are file-backed through mmap; do not treat the full file size
+                // as a Java/native heap allocation. Keep the working context conservative on 4-GB phones.
                 val budget = when {
-                    availableRam < 0.70 || modelBytes > 2_600_000_000L -> 512
-                    availableRam < 1.15 || modelBytes > 1_600_000_000L -> 768
-                    totalRam <= 4.5 -> 1024
+                    totalRam <= 4.5 -> 512
+                    availableRam < 0.70 -> 512
+                    availableRam < 1.15 || modelBytes > 2_600_000_000L -> 768
+                    modelBytes > 1_600_000_000L -> 1024
                     else -> 1536
                 }
                 contextSize = budget
@@ -161,7 +164,7 @@ MEMÓRIA DE APRENDIZADO:
                     .map { LocalChatTurn(it.role, it.text) }
                 val transcriptBudget = ((budget - maxTokens - 96).coerceAtLeast(128) * 2.2).toInt()
                 val transcript = LocalChatPromptBuilder.transcript(turns, 12, transcriptBudget)
-                val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+                val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, if (totalRam <= 4.5) 2 else 4)
 
                 status = "inferência CPU · contexto " + budget + " · até " + maxTokens + " tokens"
                 AppLog.info(
@@ -172,7 +175,7 @@ MEMÓRIA DE APRENDIZADO:
                         " · resposta máx=" + maxTokens,
                 )
 
-                val result = withContext(Dispatchers.IO) {
+                var result = withContext(Dispatchers.IO) {
                     LlamaBridge.generateLocal(
                         model = model.absolutePath,
                         systemPrompt = systemPrompt,
@@ -193,6 +196,31 @@ MEMÓRIA DE APRENDIZADO:
                             override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
                         },
                     )
+                }
+                val nativeError = result.error.orEmpty().lowercase()
+                if (!result.ok && listOf("memory", "memória", "alloc", "mmap", "context").any { nativeError.contains(it) }) {
+                    AppLog.warn("CHAT", "fallback de baixa memória ativado · ctx=256 · threads=1 · max_tokens=64")
+                    synchronized(streamLock) { streamBuffer.setLength(0) }
+                    updateMessage(responseId) { it.copy(text = "") }
+                    val compactTranscript = LocalChatPromptBuilder.transcript(turns, maxTurns = 4, maxChars = 480)
+                    result = withContext(Dispatchers.IO) {
+                        LlamaBridge.generateLocal(
+                            model = model.absolutePath,
+                            systemPrompt = systemPrompt.take(900),
+                            userPrompt = compactTranscript,
+                            nCtx = 256,
+                            threads = 1,
+                            maxTokens = 64,
+                            temperature = 0.5f,
+                            callback = object : NativeChatCallback {
+                                override fun onToken(piece: String) {
+                                    synchronized(streamLock) { streamBuffer.append(piece) }
+                                }
+                                override fun onLog(line: String) { AppLog.info("NATIVE-CHAT-FALLBACK", line) }
+                                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+                            },
+                        )
+                    }
                 }
                 flushStream()
                 promptTokens = result.promptTokens
