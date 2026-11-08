@@ -606,6 +606,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeTokenStats(
         JNIEnv * env, jobject /*thiz*/, jstring j_model, jstring j_text, jint n_ctx) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string model_path = jstr(env, j_model);
     const std::string text = jstr(env, j_text);
