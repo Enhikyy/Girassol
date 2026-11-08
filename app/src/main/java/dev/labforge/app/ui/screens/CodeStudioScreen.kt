@@ -143,7 +143,7 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
                         "gltf" -> 4L*1024L*1024L
                         else -> 32L*1024L*1024L
                     }
-                    val f=File(context.cacheDir,"girassol-model-\${System.nanoTime()}.$ext")
+                    val f=File(context.cacheDir,"girassol-model-${System.nanoTime()}.$ext")
                     try {
                         context.contentResolver.openInputStream(uri)?.use { input ->
                             f.outputStream().buffered().use { output -> WorkspaceFiles.copyBounded(input,output,limit) }
@@ -160,9 +160,9 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
                 } else {
                     mesh=withContext(Dispatchers.Default){MeshIO.read(imported).normalized()}
                     gltfFile=null
-                    status="Malha carregada: \${mesh?.vertices?.size} vértices · \${mesh?.triangles?.size} triângulos"
+                    status="Malha carregada: ${mesh?.vertices?.size} vértices · ${mesh?.triangles?.size} triângulos"
                 }
-            }.onFailure{status="Falha ao abrir 3D: \${it.message}"}
+            }.onFailure{status="Falha ao abrir 3D: ${it.message}"}
             busy=false
         }
     }
@@ -171,7 +171,7 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
             runCatching {
                 val model=withContext(Dispatchers.IO) {
                     val root=File(context.cacheDir,"girassol-gltf-packages").apply { mkdirs() }
-                    val archive=File(context.cacheDir,"gltf-package-\${System.nanoTime()}.zip")
+                    val archive=File(context.cacheDir,"gltf-package-${System.nanoTime()}.zip")
                     try {
                         context.contentResolver.openInputStream(uri)?.use { input ->
                             archive.outputStream().buffered().use { output ->
@@ -186,8 +186,8 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
                 }
                 gltfFile=model
                 mesh=null
-                status="Pacote glTF carregado: \${model.name}. Recursos externos serão resolvidos dentro da pasta extraída."
-            }.onFailure { status="Falha ao importar pacote glTF: \${it.message}" }
+                status="Pacote glTF carregado: ${model.name}. Recursos externos serão resolvidos dentro da pasta extraída."
+            }.onFailure { status="Falha ao importar pacote glTF: ${it.message}" }
             busy=false
         }
     }
