@@ -41,11 +41,23 @@ class WorkspaceFilesTest {
         } finally { root.deleteRecursively() }
     }
 
+
+    @Test fun fileIndexSkipsBuildAndGitInternals() {
+        val root = kotlin.io.path.createTempDirectory(prefix = "girassol-file-index-").toFile()
+        try {
+            File(root, "src/Main.kt").apply { parentFile?.mkdirs(); writeText("main") }
+            File(root, ".git/config").apply { parentFile?.mkdirs(); writeText("secret") }
+            File(root, "build/intermediates/classes.bin").apply { parentFile?.mkdirs(); writeText("build") }
+            val files=WorkspaceFiles.listFiles(root)
+            assertEquals(listOf("src/Main.kt"),files)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun boundedCopyStopsBeforeWritingPastLimit() {
         val output = ByteArrayOutputStream()
         val result = runCatching { WorkspaceFiles.copyBounded(ByteArrayInputStream(ByteArray(128)), output, 64) }
         assertTrue(result.isFailure)
-        assertTrue(output.size() <= 128)
+        assertEquals(0,output.size())
     }
 
     private fun zipOf(vararg entries: Pair<String, String>): ByteArray {
