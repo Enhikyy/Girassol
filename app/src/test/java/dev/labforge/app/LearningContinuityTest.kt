@@ -57,7 +57,7 @@ class LearningContinuityTest {
         assertEquals(listOf(skills[0].id), skills[1].prerequisites)
         assertEquals(listOf(skills[1].id), skills[2].prerequisites)
         assertEquals(listOf(skills[0].id), engine.due(now = 0L).map { it.id })
-        repeat(5) { engine.review(skills[0].id, 5, now = 0L) }
+        repeat(6) { engine.review(skills[0].id, 5, now = 0L) }
         assertTrue(engine.snapshot().skills.first().mastery >= 0.6f)
         assertTrue(engine.due(now = 0L).any { it.id == skills[1].id })
     }
