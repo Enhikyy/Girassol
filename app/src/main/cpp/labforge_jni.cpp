@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -97,6 +98,23 @@ static void emit_log(const std::string & line) {
     jstring js = env->NewStringUTF(line.c_str());
     if (js) {
         env->CallVoidMethod(g_cb_obj, g_cb_log, js);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(js);
+    }
+    if (attached) g_vm->DetachCurrentThread();
+}
+
+static void emit_token(const std::string & piece) {
+    if (!g_cb_obj || !g_cb_token || piece.empty() || !g_vm) return;
+    JNIEnv * env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
+    jstring js = env->NewStringUTF(piece.c_str());
+    if (js) {
+        env->CallVoidMethod(g_cb_obj, g_cb_token, js);
         if (env->ExceptionCheck()) env->ExceptionClear();
         env->DeleteLocalRef(js);
     }
@@ -1016,9 +1034,9 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                 }
                 if (formatted.empty()) {
                     // Generic ChatML fallback for GGUF models that omit a supported template.
-                    formatted = "<|im_start|>system\\n" + system_text +
-                        "\\n<|im_start|>user\\n" + user_text +
-                        "\\n<|im_start|>assistant\\n";
+                    formatted = "<|im_start|>system\n" + system_text +
+                        "\n<|im_start|>user\n" + user_text +
+                        "\n<|im_start|>assistant\n";
                 }
 
                 std::vector<llama_token> tokens(formatted.size() + 16);
@@ -1104,11 +1122,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
     capture_stop();
     const bool ok = err.empty() && completion_tokens > 0;
     if (!ok && err.empty()) err = "o modelo não gerou tokens de resposta";
-    const std::string json = "{\\\"ok\\\":" + std::string(ok ? "true" : "false") +
-        ",\\\"prompt_tokens\\\":" + std::to_string(prompt_tokens) +
-        ",\\\"completion_tokens\\\":" + std::to_string(completion_tokens) +
-        ",\\\"elapsed_ms\\\":" + std::to_string(elapsed) +
-        ",\\\"error\\\":\\\"" + json_escape(err) + "\\\"}";
+    const std::string json = "{\\"ok\\":" + std::string(ok ? "true" : "false") +
+        ",\\"prompt_tokens\\":" + std::to_string(prompt_tokens) +
+        ",\\"completion_tokens\\":" + std::to_string(completion_tokens) +
+        ",\\"elapsed_ms\\":" + std::to_string(elapsed) +
+        ",\\"error\\":\\"" + json_escape(err) + "\\"}";
     return env->NewStringUTF(json.c_str());
 }
 
