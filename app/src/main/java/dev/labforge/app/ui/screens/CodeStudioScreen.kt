@@ -204,8 +204,8 @@ fun CodeStudioScreen() {
         } else {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 Button(onClick={importMesh.launch(arrayOf("model/obj","model/stl","application/octet-stream"))},enabled=!busy){Icon(Icons.Rounded.FileOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir OBJ/STL")}
-                OutlinedButton(onClick={mesh=MeshPrimitives.cube(); status="Cubo criado: 8 vértices · 12 triângulos"}){Icon(Icons.Rounded.Cube,null);Spacer(Modifier.width(5.dp));Text("Cubo")}
-                OutlinedButton(onClick={mesh=MeshPrimitives.uvSphere(); status="Esfera UV criada localmente"}){Icon(Icons.Rounded.Sphere,null);Spacer(Modifier.width(5.dp));Text("Esfera")}
+                OutlinedButton(onClick={mesh=MeshPrimitives.cube(); status="Cubo criado: 8 vértices · 12 triângulos"}){Icon(Icons.Rounded.AddBox,null);Spacer(Modifier.width(5.dp));Text("Cubo")}
+                OutlinedButton(onClick={mesh=MeshPrimitives.uvSphere(); status="Esfera UV criada localmente"}){Icon(Icons.Rounded.Circle,null);Spacer(Modifier.width(5.dp));Text("Esfera")}
                 OutlinedButton(onClick={exportMesh.launch("mesh.obj")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("OBJ")}
                 OutlinedButton(onClick={exportStl.launch("mesh.stl")},enabled=mesh!=null){Icon(Icons.Rounded.Download,null);Spacer(Modifier.width(5.dp));Text("STL")}
             }
