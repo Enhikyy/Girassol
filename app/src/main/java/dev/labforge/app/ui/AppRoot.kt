@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.IntOffset
 import dev.labforge.app.ui.components.Segmented
 import dev.labforge.app.ui.screens.AgentScreen
 import dev.labforge.app.ui.screens.CodexScreen
+import dev.labforge.app.ui.screens.CodeStudioScreen
 import dev.labforge.app.ui.screens.HomeScreen
 import dev.labforge.app.ui.screens.LabScreen
 import dev.labforge.app.ui.screens.LocalChatScreen
@@ -87,6 +88,7 @@ object Routes {
     const val MODEL = "model"
     const val LAB = "lab"
     const val CODEX = "codex"
+    const val STUDIO = "studio"
     const val AGENT = "agent"
     const val LLAMATIK = "llamatik"
     const val SETTINGS = "settings"
@@ -99,6 +101,7 @@ private val tabs = listOf(
     Tab(Routes.CHAT, "Chat", Icons.Rounded.Chat),
     Tab(Routes.MODELS, "Modelos", Icons.Rounded.Widgets),
     Tab(Routes.LAB, "Lab", Icons.Rounded.Science),
+    Tab(Routes.STUDIO, "Studio", Icons.Rounded.Code),
     Tab(Routes.AGENT, "Agentes", Icons.Rounded.SmartToy),
     Tab(Routes.SETTINGS, "Ajustes", Icons.Rounded.Settings),
 )
@@ -181,6 +184,7 @@ fun AppRoot() {
                         }
                         Routes.LAB -> LabScreen(vm, agentVm, initialTab = labTab)
                         Routes.CODEX -> CodexScreen(codexVm) { go(Routes.AGENT) }
+                        Routes.STUDIO -> CodeStudioScreen()
                         Routes.AGENT -> AgentScreen(agentVm, vm) { go(Routes.CODEX) }
                         Routes.LLAMATIK -> LlamatikScreen { go(llamatikBack) }
                         Routes.SETTINGS -> SettingsScreen(vm) { go(Routes.LLAMATIK) }
