@@ -383,10 +383,10 @@ fun AutodidactPane(
 
         // ---------------------------------------------------- skill tree + spaced review
         val skillSnapshot = study.learningSnapshot
-        val dueSkills = skillSnapshot.skills.filter { it.dueAt == 0L || it.dueAt <= System.currentTimeMillis() }
+        val dueSkillIds = study.dueSkillIds()
         if (skillSnapshot.skills.isNotEmpty()) {
             Spacer(Modifier.height(18.dp))
-            SectionHeader("Árvore de habilidades", "${skillSnapshot.skills.size} habilidades · ${dueSkills.size} revisões pendentes")
+            SectionHeader("Árvore de habilidades", "${skillSnapshot.skills.size} habilidades · ${dueSkillIds.size} revisões pendentes")
             Spacer(Modifier.height(8.dp))
             GlassCard {
                 val mastered = skillSnapshot.skills.count { it.mastery >= 0.75f }
@@ -406,7 +406,7 @@ fun AutodidactPane(
                         Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Lab.SurfaceHigh)) {
                             Box(Modifier.fillMaxWidth(skill.mastery.coerceIn(0f, 1f)).height(5.dp).clip(CircleShape).background(Lab.Cyan))
                         }
-                        if (skill in dueSkills) {
+                        if (skill.id in dueSkillIds) {
                             Spacer(Modifier.height(5.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf("Errei" to 1, "Lembrei" to 4, "Fácil" to 5).forEach { (label, quality) ->
