@@ -1,6 +1,8 @@
 package dev.labforge.app.vm
 
 import android.app.Application
+import android.app.ActivityManager
+import android.content.Context
 import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -10,8 +12,11 @@ import androidx.lifecycle.viewModelScope
 import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.Perf
 import dev.labforge.app.core.agent.AgentEvent
+import dev.labforge.app.core.agent.AgentTurn
 import dev.labforge.app.core.agent.LessonStore
+import dev.labforge.app.core.agent.AgentLlm
 import dev.labforge.app.core.agent.LlmClient
+import dev.labforge.app.core.agent.NativeLlmClient
 import dev.labforge.app.core.agent.ReActAgent
 import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.native.LlamaBridge
@@ -25,6 +30,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class AgentMessage(
     val id: Long,
@@ -60,6 +68,15 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var busyTerminal by mutableStateOf(false)
         private set
+    var activityLog by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    private val logClock = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    private fun log(level: String, message: String) {
+        activityLog = (activityLog + "[${logClock.format(Date())}][${level.uppercase(Locale.ROOT)}] $message")
+            .takeLast(600)
+    }
+    fun clearActivityLog() { activityLog = emptyList() }
 
     // native token accounting
     var localPromptTokens by mutableStateOf(0)
@@ -99,6 +116,14 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send(task: String) {
         if (running || task.isBlank()) return
+        val conversationHistory = messages.mapNotNull { message ->
+            when (message.role) {
+                AgentMessage.Role.USER -> AgentTurn("user", message.text)
+                AgentMessage.Role.FINAL -> AgentTurn("assistant", message.text)
+                else -> null
+            }
+        }.takeLast(12)
+        log("INFO", "Nova solicitação: ${task.take(500)}")
         running = true
         status = "pensando…"
         startedAt = System.currentTimeMillis()
@@ -135,16 +160,43 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         job = viewModelScope.launch {
-            val cfg = settingsRepo.settings.first()
-            val agent = ReActAgent(
-                workspace = store.workspace(),
-                lessons = lessons,
-                llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
-                maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
-                settings = cfg,
-                onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
-            )
-            agent.run(task)
+            runCatching {
+                val cfg = settingsRepo.settings.first()
+                val localModel = AppSelection.modelPath
+                    ?.let(::File)
+                    ?.takeIf { it.isFile && it.extension.equals("gguf", true) }
+                val backend: AgentLlm
+                if (localModel != null) {
+                    val manager = getApplication<Application>().getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                    val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+                    val modelBytes = localModel.length()
+                    val contextSize = when {
+                        memory.availMem < 700L * 1024 * 1024 || modelBytes > 2_600_000_000L -> 512
+                        memory.availMem < 1_150L * 1024 * 1024 || modelBytes > 1_600_000_000L -> 768
+                        else -> 1536
+                    }
+                    val outputTokens = when (contextSize) { 512 -> 128; 768 -> 192; else -> 384 }
+                    val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+                    backend = NativeLlmClient(localModel.absolutePath, contextSize, threads, outputTokens, cfg.temperature.toFloat())
+                    log("INFO", "Backend nativo llama.cpp: ${localModel.name}, ctx=$contextSize, threads=$threads, RAM livre=${memory.availMem / (1024 * 1024)} MiB")
+                } else {
+                    backend = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
+                    log("INFO", "Backend remoto OpenAI-compatible: ${LlmClient.describeNormalized(cfg.endpoint)} · modelo=${cfg.model}")
+                }
+                val agent = ReActAgent(
+                    workspace = store.workspace(),
+                    lessons = lessons,
+                    llm = backend,
+                    maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
+                    settings = cfg,
+                    history = conversationHistory,
+                    onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
+                )
+                agent.run(task)
+            }.onFailure { error ->
+                log("ERROR", "Falha no agente: ${error.stackTraceToString().take(7000)}")
+                add(AgentMessage(++seq, AgentMessage.Role.ERROR, error.message ?: error.javaClass.simpleName))
+            }
             flushStream()
             running = false
             status = "pronto"
@@ -152,6 +204,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             if (completionTokens > 0 && elapsedMs > 0) {
                 tokensPerSecond = completionTokens / (elapsedMs / 1000.0)
             }
+            log("INFO", "Turno encerrado em ${elapsedMs} ms; tokens prompt=$promptTokens, completion=$completionTokens; throughput=%.2f tok/s".format(tokensPerSecond))
             lessonList = withContext(Dispatchers.IO) { lessons.all() }
         }
     }
@@ -161,6 +214,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             is AgentEvent.Step -> {
                 flushStream()
                 status = if (event.max <= 0) "passo ${event.index} · autônomo" else "passo ${event.index}/${event.max}"
+                log("DEBUG", "Passo do agente ${event.index}/${if (event.max <= 0) "∞" else event.max}")
             }
             is AgentEvent.Token -> {
                 if (event.reasoning) {
@@ -175,6 +229,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             is AgentEvent.Usage -> {
                 promptTokens += event.prompt
                 completionTokens += event.completion
+                log("METRIC", "Uso de tokens: prompt=${event.prompt}, resposta=${event.completion}")
             }
             is AgentEvent.Thought -> {
                 val streamedId = thinkId
@@ -187,6 +242,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is AgentEvent.ToolStart -> {
+                log("TOOL", "Iniciando ${event.name} args=${event.args.take(2500)}")
                 flushStream()
                 // content written before a tool call is reasoning about the action
                 if (draftId != null) {
@@ -204,6 +260,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                 status = "ferramenta: ${event.name}"
             }
             is AgentEvent.ToolEnd -> {
+                log(if (event.ok) "INFO" else "ERROR", "Ferramenta ${event.name}: ok=${event.ok}; saída=${event.output.take(2500)}")
                 val idx = messages.indexOfLast { it.role == AgentMessage.Role.TOOL && it.pending }
                 if (idx >= 0) {
                     messages = messages.toMutableList().also {
@@ -214,6 +271,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is AgentEvent.Final -> {
+                log("INFO", "Resposta final: ${event.text.take(2000)}")
                 val streamedId = draftId
                 flushStream()
                 if (streamedId != null) {
@@ -224,6 +282,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is AgentEvent.Failure -> {
+                log("ERROR", event.message)
                 flushStream()
                 thinkId?.let { id -> update(id) { it.copy(pending = false) } }
                 draftId?.let { id -> update(id) { it.copy(pending = false) } }
@@ -270,6 +329,8 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private fun add(m: AgentMessage) { messages = messages + m }
 
     fun stop() {
+        log("WARN", "Interrupção solicitada pelo utilizador")
+        LlamaBridge.requestChatStop()
         job?.cancel()
         running = false
         status = "interrompido"
@@ -298,6 +359,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         busyTerminal = true
         viewModelScope.launch {
             val r = shell.run(command, 120)
+            log(if (r.ok) "INFO" else "ERROR", "Terminal: $command · exit=${r.exitCode} · ${r.durationMs} ms · ${r.output.take(1400)}")
             terminalOut = buildString {
                 append(terminalOut.takeLast(20_000))
                 append("\n$ ").append(command).append('\n').append(r.output)
@@ -310,6 +372,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     fun gitAction(action: String) {
         viewModelScope.launch {
             gitOut = "…"
+            log("TOOL", "Git action: $action")
             gitOut = when (action) {
                 "status" -> git.status()
                 "commit" -> git.commit("checkpoint manual · ${System.currentTimeMillis()}")
@@ -318,6 +381,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                 "init" -> git.init()
                 else -> "ação desconhecida"
             }
+            log(if (gitOut.contains("error", true) || gitOut.contains("fatal", true)) "ERROR" else "INFO", "Git $action: ${gitOut.take(1800)}")
         }
     }
 
