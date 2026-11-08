@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Enhikyy/girassol/actions/workflows/android.yml"><img alt="Android APK" src="https://github.com/Enhikyy/girassol/actions/workflows/android.yml/badge.svg"></a>
-  <img alt="versão" src="https://img.shields.io/badge/versão-1.7.0-F2C14E">
+  <img alt="versão" src="https://img.shields.io/badge/versão-1.8.0-F2C14E">
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-84D98A">
   <img alt="ABI" src="https://img.shields.io/badge/ABI-arm64--v8a-A9D96B">
 </p>
@@ -64,9 +64,9 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **Quantização** | Executa o quantizador nativo do llama.cpp no dispositivo, com presets K-quants e I-quants. |
 | **Fine-tuning** | Treino completo (AdamW) apenas quando o orçamento de RAM do aparelho é suficiente; jobs incompatíveis são bloqueados antes do JNI. |
 | **LoRA nativo** | Base congelada + adapters A/B via llama.cpp; perfil adaptativo de contexto/rank e checkpoint por época. |
-| **Autoestudo** | GitHub-first: pesquisa repositórios, ranqueia projetos e ingere READMEs, combinando fontes acadêmicas/web, RAG BM25, currículo, dataset e preset. |
+| **Autoestudo** | GitHub-first com catálogo curado e licenciado; ingere READMEs úteis, combina APIs acadêmicas/web, RAG BM25, currículo, datasets e presets. |
 | **Auto-tuning** | rank, alpha, epochs, lr, contexto, alvos e ETA calculados a partir do corpus e da RAM. |
-| **Piloto automático** | Mantém ciclos autônomos de pesquisa, ingestão, síntese, dataset, autoajuste e treinamento LoRA opcional; persiste métricas e mostra gráficos de evolução. |
+| **Piloto automático** | Mantém ciclos autônomos de pesquisa, ingestão, síntese, dataset, autoajuste, consolidação offline e LoRA automático (ativado por padrão, com margem de RAM); persiste métricas e gráficos de evolução. |
 | **Codex** | Agente de código com plano, edição de arquivos, shell, Git e revisão. |
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
 | **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
@@ -75,7 +75,7 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 
 ### Sem chave de API
 
-A pesquisa usa **Wikipedia (pt/en), OpenAlex, arXiv, Stack Overflow, DuckDuckGo e Semantic Scholar** sem chave. Se nenhum LLM estiver configurado, o autoestudo cai para **síntese extrativa ancorada nas fontes** — ele não inventa conteúdo.
+A pesquisa usa **Wikipedia (pt/en), OpenAlex, arXiv, Stack Overflow, DuckDuckGo, Semantic Scholar, Crossref, PubMed e Hugging Face Datasets** sem chave. Se nenhum LLM estiver configurado, o autoestudo cai para **síntese extrativa ancorada nas fontes** — ele não inventa conteúdo.
 
 ---
 
@@ -127,7 +127,8 @@ app/src/main/java/dev/labforge/app/
 │   ├── imatrix/         GGUF + .dat legado
 │   ├── native/          ponte JNI (LlamaBridge)
 │   ├── train/           dataset, auto-tuner, presets
-│   ├── research/        APIs gratuitas, BM25, engine
+│   ├── research/        APIs gratuitas, catálogo GitHub licenciado, BM25, engine
+│   ├── learning/        continuidade local, habilidades, revisões e consolidação
 │   ├── agent/           ReAct, LLM client, ferramentas
 │   ├── codex/           agente de código
 │   ├── job/             fila e progresso
@@ -177,7 +178,7 @@ Cobertura atual: **25 testes**, incluindo parser GGUF, imatrix, pesquisa real na
 - instala JDK 21 + SDK 37;
 - roda os testes;
 - gera o APK de debug;
-- publica o artifact `Girassol-APK`;
+- publica o artifact `girassol-debug-apk`;
 - em tags `v*`, anexa o APK a uma GitHub Release.
 
 Para gerar manualmente: **Actions → Android APK → Run workflow**.
@@ -207,6 +208,7 @@ O APK é validado por teste: `com.llamatik.core.platform.LlamaBridge` **não** e
 
 ## Design
 
+- Referências Figma e tradução visual nativa documentadas em [`docs/DESIGN_REFERENCES.md`](docs/DESIGN_REFERENCES.md).
 - Tema escuro “sunflower lab”: fundo `#070805`, superfícies `#13160F`, dourado `#F2C14E`, verde `#84D98A`.
 - Tipografia sans (Inter/Roboto), títulos com tracking negativo.
 - Componentes: aurora animada, glass cards, progress ring, donut, barras animadas, girassol spinner.
@@ -218,9 +220,9 @@ O arquivo do Figma é gerado pelo plugin em [`design/plugin`](design/plugin). Ve
 ## Limitações conhecidas
 
 - Apenas **arm64-v8a**; não roda em x86/emulador comum.
-- O LoRA nativo exige modelo base **F32/F16/BF16**; modelos quantizados são ignorados no auto-treino.
+- O LoRA nativo aceita GGUF compatível com os tensores suportados; o orçamento de RAM pode recusar ou reduzir automaticamente contexto, rank, alvos e threads. Fine-tuning completo exige mais memória e pode ser bloqueado preventivamente.
 - O `core` nativo do Llamatik fica de fora para preservar o motor de treino.
-- Pesquisa e LLM dependem de rede; sem LLM, a síntese é extrativa.
+- Pesquisa e LLM dependem de rede; sem LLM, a síntese é extrativa e a memória/consolidação continuam funcionando localmente.
 - O APK de CI é assinado com a **debug keystore**; para distribuição, configure uma keystore de release.
 
 ---
