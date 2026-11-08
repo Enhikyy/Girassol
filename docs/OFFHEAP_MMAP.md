@@ -42,3 +42,24 @@ O treino LoRA usa uma base congelada mapeada, mas gradientes/otimizador e ativa�
 - `VmLck=0`: o processo não bloqueou as páginas do modelo com mlock.
 - Java Heap baixo + Native/RSS crescente: comportamento esperado de pesos mapeados; não significa ausência de consumo de RAM.
 - Um modelo que exceda muito a RAM disponível pode continuar falhando. A alternativa prática é um GGUF menor/mais quantizado (Q4/Q3), contexto menor ou LoRA com rank reduzido.
+
+
+## Correção do encerramento durante LoRA (1.8.0 patch)
+
+A revisão do inicializador `build_lora()` encontrou uma leitura fora dos limites: um único `std::vector<float>` era dimensionado pelo número de elementos da matriz A e reutilizado para escrever a matriz B. As matrizes A/B são frequentemente retangulares e podem ter quantidades de elementos diferentes. Quando B era maior, `ggml_backend_tensor_set()` lia além da alocação do vector, corrompendo o heap nativo e podendo encerrar o processo sem uma exceção Kotlin. A implementação agora mantém vetores separados para A e B, valida contagens/bytes e verifica as alocações dos tensores.
+
+O JNI do LoRA também captura `std::bad_alloc`, `std::exception` e falhas desconhecidas antes de retornar ao Kotlin. Recursos parcialmente criados (contexto, modelo e backend) são liberados no caminho de erro.
+
+### Orçamento auxiliar de 200 MiB
+
+O motor calcula uma estimativa conservadora por arquitetura para:
+- tensores A/B treináveis;
+- gradientes e os dois momentos do AdamW;
+- buffers de ativação e contexto;
+- staging do corpus e overhead fixo.
+
+O conjunto estimado é limitado a **200 MiB**, excluindo explicitamente os pesos GGUF-base mapeados por mmap. Se necessário, o motor reduz contexto até 64 e rank até 2; se ainda exceder o teto, retorna um erro explicativo em vez de iniciar uma alocação potencialmente fatal. Em aparelhos abaixo de 6 GB, o perfil Kotlin recomenda rank 2, contexto 128, uma thread e somente os tensores de atenção.
+
+O corpus completo permanece no armazenamento, mas cada ciclo LoRA usa uma janela rotativa de 128 KiB. Isso reduz picos transitórios; não substitui a necessidade de RAM física para páginas mmap, buffers de backend e execução do sistema.
+
+**Importante:** 200 MiB é um orçamento estimado para o *working set auxiliar do treinamento*, não um teto garantido para RSS do processo nem uma garantia de que GGUF de qualquer dimensão possa treinar. A carga física das páginas mmap depende do padrão de acesso e do page cache do Android.
