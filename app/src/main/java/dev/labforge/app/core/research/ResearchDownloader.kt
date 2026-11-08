@@ -39,7 +39,7 @@ class ResearchDownloader(
             async(Dispatchers.IO) {
                 semaphore.withPermit {
                     try {
-                        downloadText(document.url)
+                        downloadText(document)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
@@ -68,7 +68,26 @@ class ResearchDownloader(
         Result(enriched, downloaded, bytes)
     }
 
-    private fun downloadText(url: String): DownloadedText? {
+    private fun downloadText(document: ResearchDoc): DownloadedText? {
+        // GitHub-first research should ingest source documentation, not just the repository landing-page HTML.
+        if (document.source.equals("GitHub", ignoreCase = true)) {
+            val uri = runCatching { URI(document.url) }.getOrNull()
+            val segments = uri?.path?.trim('/')?.split('/')?.filter { it.isNotBlank() }.orEmpty()
+            if (uri?.host.equals("github.com", ignoreCase = true) && segments.size >= 2) {
+                val owner = segments[0]
+                val repository = segments[1].removeSuffix(".git")
+                val names = listOf("README.md", "README.MD", "README")
+                val branches = listOf("main", "master")
+                for (branch in branches) for (name in names) {
+                    val readme = downloadTextUrl("https://raw.githubusercontent.com/$owner/$repository/$branch/$name")
+                    if (readme != null && readme.text.length >= MIN_TEXT_CHARS) return readme
+                }
+            }
+        }
+        return downloadTextUrl(document.url)
+    }
+
+    private fun downloadTextUrl(url: String): DownloadedText? {
         val uri = runCatching { URI(url) }.getOrNull() ?: return null
         if (!uri.scheme.equals("https", true) || uri.host.isNullOrBlank()) return null
         val key = sha256(url.toByteArray(Charsets.UTF_8)).take(24)
