@@ -1,6 +1,9 @@
 package dev.labforge.app.vm
 
 import android.app.Application
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -32,6 +35,8 @@ data class LocalChatMessage(
 
 class LocalChatViewModel(app: Application) : AndroidViewModel(app) {
     private val lessons = LessonStore(ModelStore(app).agentDir)
+    private val runtimePrefs = app.getSharedPreferences("mmap_runtime", Application.MODE_PRIVATE)
+    private var safeMode = runtimePrefs.getBoolean("safe_mode", false)
     private val historyFile = File(app.filesDir, "chat/history.json")
     private val historyLock = Any()
     private val streamLock = Any()
@@ -65,7 +70,11 @@ class LocalChatViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         AppLog.initialize(app)
-        AppLog.info("CHAT", "chat local criado · llama.cpp=" + LlamaBridge.version())
+        detectPreviousLowMemoryExit(app)
+        AppLog.info(
+            "CHAT",
+            "chat local criado · llama.cpp=" + LlamaBridge.version() + " · safeMode=" + safeMode,
+        )
         viewModelScope.launch { loadHistory() }
         viewModelScope.launch {
             while (true) {
@@ -73,6 +82,26 @@ class LocalChatViewModel(app: Application) : AndroidViewModel(app) {
                 flushStream()
             }
         }
+    }
+
+    /** Android 11+ exposes the previous process exit reason after LMK termination.
+     * A killed process cannot run a catch block; use the next launch to enable one
+     * conservative inference attempt, then leave safe mode after a successful reply.
+     */
+    private fun detectPreviousLowMemoryExit(app: Application) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        runCatching {
+            val manager = app.getSystemService(ActivityManager::class.java) ?: return
+            val latest = manager.getHistoricalProcessExitReasons(app.packageName, 0, 8)
+                .maxByOrNull { it.timestamp } ?: return
+            val handledAt = runtimePrefs.getLong("last_exit_timestamp", 0L)
+            if (latest.timestamp > handledAt && latest.reason == ApplicationExitInfo.REASON_LOW_MEMORY) {
+                safeMode = true
+                runtimePrefs.edit().putBoolean("safe_mode", true)
+                    .putLong("last_exit_timestamp", latest.timestamp).apply()
+                AppLog.warn("CHAT", "último encerramento foi por baixa memória; perfil seguro ativado no próximo início")
+            }
+        }.onFailure { AppLog.warn("CHAT", "não foi possível consultar o motivo do último encerramento: " + it.message) }
     }
 
     fun send(modelPath: String?, modelName: String, prompt: String) {
@@ -146,7 +175,7 @@ MEMÓRIA DE APRENDIZADO:
                 val modelBytes = model.length()
                 // GGUF weights are file-backed through mmap; do not treat the full file size
                 // as a Java/native heap allocation. Keep the working context conservative on 4-GB phones.
-                val budget = when {
+                val budget = if (safeMode) 256 else when {
                     totalRam <= 4.5 -> 512
                     availableRam < 0.70 -> 512
                     availableRam < 1.15 || modelBytes > 2_600_000_000L -> 768
@@ -154,7 +183,7 @@ MEMÓRIA DE APRENDIZADO:
                     else -> 1536
                 }
                 contextSize = budget
-                val maxTokens = when (budget) {
+                val maxTokens = if (safeMode) 64 else when (budget) {
                     512 -> 128
                     768 -> 192
                     else -> 384
@@ -164,7 +193,7 @@ MEMÓRIA DE APRENDIZADO:
                     .map { LocalChatTurn(it.role, it.text) }
                 val transcriptBudget = ((budget - maxTokens - 96).coerceAtLeast(128) * 2.2).toInt()
                 val transcript = LocalChatPromptBuilder.transcript(turns, 12, transcriptBudget)
-                val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, if (totalRam <= 4.5) 2 else 4)
+                val threads = if (safeMode) 1 else Runtime.getRuntime().availableProcessors().coerceIn(1, if (totalRam <= 4.5) 2 else 4)
 
                 status = "inferência CPU · contexto " + budget + " · até " + maxTokens + " tokens"
                 AppLog.info(
@@ -238,6 +267,11 @@ MEMÓRIA DE APRENDIZADO:
                 }
                 updateMessage(responseId) { it.copy(text = completedText) }
                 status = if (result.ok) {
+                    if (safeMode) {
+                        safeMode = false
+                        runtimePrefs.edit().putBoolean("safe_mode", false).apply()
+                        AppLog.info("CHAT", "resposta concluída no perfil seguro; modo normal reabilitado")
+                    }
                     "concluído · " + result.completionTokens + " tokens · " + "%.2f".format(tokensPerSecond) + " tok/s"
                 } else {
                     "geração não concluída · " + (result.error ?: "erro nativo")
