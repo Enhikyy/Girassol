@@ -18,11 +18,11 @@ import java.io.File
 
 class AndroidControlTool(ws: File) : AgentTool(ws) {
     override val name = "android_control"
-    override val description = "Controla a interface por Acessibilidade, sem root: hierarchy, tap, swipe, text, key, screenshot, launch, metrics."
+    override val description = "Controla a interface por Acessibilidade, sem root: hierarchy, tap, swipe, click_text, text, key, screenshot, launch, metrics."
     override fun parameters() = schema(JSONObject().apply {
-        put("action", prop("string", "hierarchy, tap, swipe, text, key, screenshot, launch ou metrics"))
+        put("action", prop("string", "hierarchy, tap, swipe, click_text, text, key, screenshot, launch ou metrics"))
         listOf("x", "y", "x2", "y2", "duration", "keycode").forEach { put(it, prop("integer", it)) }
-        put("text", prop("string", "Texto Unicode para o campo focado"))
+        put("text", prop("string", "Texto Unicode para o campo focado ou rótulo exato em click_text"))
         put("view_id", prop("string", "ID do campo de texto (opcional)"))
         put("package", prop("string", "Pacote Android para iniciar"))
     }, listOf("action"))
@@ -54,6 +54,10 @@ class AndroidControlTool(ws: File) : AgentTool(ws) {
                     if (swipe) args.getInt("y2").toFloat() else y,
                     if (swipe) args.optLong("duration", 300) else 50) } ?: false
                 ToolResult(ok, if (ok) "Gesto concluído" else "Gesto recusado ou cancelado pelo Android")
+            }
+            "click_text" -> {
+                val ok = service.clickText(args.getString("text"))
+                ToolResult(ok, if (ok) "Clique realizado" else "Rótulo ausente, ambíguo ou sem ancestral clicável")
             }
             "text" -> {
                 val ok = service.setText(args.getString("text"), args.optString("view_id"))

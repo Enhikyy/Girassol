@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "generator": "CodeRabbit",
+  "checkedAt": "2026-11-08",
+  "method": "HTTPS direto de fontes primárias; web tool retornou 404",
+  "resources": [
+    {
+      "url": "https://github.com/Enhikyy/Girassol",
+      "readUrl": "https://raw.githubusercontent.com/Enhikyy/Girassol/HEAD/README.md",
+      "status": 200,
+      "sha256": "5567e9b23438714556d70901549d586272ea1bb87b36314ffa2ea91c5588474e"
+    },
+    {
+      "url": "https://github.com/24kchengYe/human-skill-tree",
+      "readUrl": "https://raw.githubusercontent.com/24kchengYe/human-skill-tree/HEAD/README.md",
+      "status": 200,
+      "sha256": "1984e06440eeff9efb3145f69fa0aa672667299cd5ef67a16f36b61a30031c99"
+    },
+    {
+      "url": "https://github.com/labmlai/annotated_deep_learning_paper_implementations",
+      "readUrl": "https://raw.githubusercontent.com/labmlai/annotated_deep_learning_paper_implementations/master/readme.md",
+      "status": 200,
+      "sha256": "a14e5a8fd274d668d8a3139c1ad04ee045e3253bc909f23e439bd834ace6a652"
+    },
+    {
+      "url": "https://github.com/hiyouga/LlamaFactory",
+      "readUrl": "https://raw.githubusercontent.com/hiyouga/LlamaFactory/HEAD/README.md",
+      "status": 200,
+      "sha256": "afa9f07accadf3521cd7f2521626f433843bb91b4b1ecfaf75979f902342b433"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1385497115608726899/prompverse-ai-ai-landing-page-modern-landing-page-minimal-landing-page?q_id=d8d52822-811e-465d-b651-0740cfc3e259",
+      "readUrl": "https://www.figma.com/community/file/1385497115608726899/prompverse-ai-ai-landing-page-modern-landing-page-minimal-landing-page?q_id=d8d52822-811e-465d-b651-0740cfc3e259",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1257662273421934431/ai-icons-ai-art-generation-icon-set?q_id=d8d52822-811e-465d-b651-0740cfc3e259",
+      "readUrl": "https://www.figma.com/community/file/1257662273421934431/ai-icons-ai-art-generation-icon-set?q_id=d8d52822-811e-465d-b651-0740cfc3e259",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1393822153168458311/3-free-ai-chatbot-app-ui-kit?q_id=d76f9308-3e0f-4a1f-a9a4-1d862a7d176b",
+      "readUrl": "https://www.figma.com/community/file/1393822153168458311/3-free-ai-chatbot-app-ui-kit?q_id=d76f9308-3e0f-4a1f-a9a4-1d862a7d176b",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1668810584094593349/sunflower-animation-figma-motion",
+      "readUrl": "https://www.figma.com/community/file/1668810584094593349/sunflower-animation-figma-motion",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1420754870674483529/datavista-landing-page-template-for-figma-and-framer",
+      "readUrl": "https://www.figma.com/community/file/1420754870674483529/datavista-landing-page-template-for-figma-and-framer",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1380235722331273046/simple-design-system?q_id=8124ae80-cf9a-4e87-aac7-1c067fa0ba9e",
+      "readUrl": "https://www.figma.com/community/file/1380235722331273046/simple-design-system?q_id=8124ae80-cf9a-4e87-aac7-1c067fa0ba9e",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1267584376234254760/heroui-figma-kit-community?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "readUrl": "https://www.figma.com/community/file/1267584376234254760/heroui-figma-kit-community?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1097964499926853798/100-card-design-templates-ui-kit?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "readUrl": "https://www.figma.com/community/file/1097964499926853798/100-card-design-templates-ui-kit?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1199721318228257277/data-visualization-graphs-charts-kit?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "readUrl": "https://www.figma.com/community/file/1199721318228257277/data-visualization-graphs-charts-kit?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1210542873091115123/dashboard-ui-kit-dashboard-free-admin-dashboard?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "readUrl": "https://www.figma.com/community/file/1210542873091115123/dashboard-ui-kit-dashboard-free-admin-dashboard?q_id=8ccad5b5-3d31-453f-8d51-cfd2fd876331",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1701056607203868758/hito-design-system?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1701056607203868758/hito-design-system?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1700780341265663489/deepseek-design-system?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1700780341265663489/deepseek-design-system?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1700608473577262170/lumen-playgrounds?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1700608473577262170/lumen-playgrounds?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1700569243975245744/chatgpt-apps-sdk-ui?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1700569243975245744/chatgpt-apps-sdk-ui?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1700462777315478046/ai-design-hub-ai-apps-design-system-library?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1700462777315478046/ai-design-hub-ai-apps-design-system-library?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1700209434010403595/outsystems-ui-v3-0-0?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1700209434010403595/outsystems-ui-v3-0-0?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1699573412622374346/agentic-pm-kit-agent-ui-patterns-ai-agent-ui-kit?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "readUrl": "https://www.figma.com/community/file/1699573412622374346/agentic-pm-kit-agent-ui-patterns-ai-agent-ui-kit?q_id=9e46bd25-66b1-492c-9104-d19bf2601148",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1486609444687377861/interactive-button-v2?q_id=4cf8f6d7-380a-458e-a24d-10bf9df9768a",
+      "readUrl": "https://www.figma.com/community/file/1486609444687377861/interactive-button-v2?q_id=4cf8f6d7-380a-458e-a24d-10bf9df9768a",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1457998939665943945/ai-voice-assistant-animation?q_id=4cf8f6d7-380a-458e-a24d-10bf9df9768a",
+      "readUrl": "https://www.figma.com/community/file/1457998939665943945/ai-voice-assistant-animation?q_id=4cf8f6d7-380a-458e-a24d-10bf9df9768a",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1443087715384218589/motion-for-simple-ai-assistant?q_id=4cf8f6d7-380a-458e-a24d-10bf9df9768a",
+      "readUrl": "https://www.figma.com/community/file/1443087715384218589/motion-for-simple-ai-assistant?q_id=4cf8f6d7-380a-458e-a24d-10bf9df9768a",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1481910227236849161/grok-ai-chatbot-thinking-block-design-x-twitter-app?q_id=49c47617-a643-4e70-81fa-bbc06726977e",
+      "readUrl": "https://www.figma.com/community/file/1481910227236849161/grok-ai-chatbot-thinking-block-design-x-twitter-app?q_id=49c47617-a643-4e70-81fa-bbc06726977e",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://www.figma.com/community/file/1639357756254944758/agentra-ai-chat-interface-ui-kit-free-version?q_id=c02720ef-7bbc-455a-a00d-bb69212ff228",
+      "readUrl": "https://www.figma.com/community/file/1639357756254944758/agentra-ai-chat-interface-ui-kit-free-version?q_id=c02720ef-7bbc-455a-a00d-bb69212ff228",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "url": "https://github.com/GAD-cell/muon-clip",
+      "readUrl": "https://raw.githubusercontent.com/GAD-cell/muon-clip/HEAD/README.md",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://github.com/hkevin01/kimi-linear",
+      "readUrl": "https://raw.githubusercontent.com/hkevin01/kimi-linear/HEAD/README.md",
+      "status": 200,
+      "sha256": "4589c7712475e7163a7f520e7a2c89515aeb2264769505c4767b66957ed05dad"
+    },
+    {
+      "url": "https://github.com/hwilner/kimi-delta-attention",
+      "readUrl": "https://raw.githubusercontent.com/hwilner/kimi-delta-attention/HEAD/README.md",
+      "status": 200,
+      "sha256": "0013c053d2ba18a2e4f4f571aee1f378616ef8005cff77dc37267a2be1772f77"
+    },
+    {
+      "url": "https://github.com/fla-org/flash-linear-attention",
+      "readUrl": "https://raw.githubusercontent.com/fla-org/flash-linear-attention/HEAD/README.md",
+      "status": 200,
+      "sha256": "ece55fa89c252a0868216e0671df9df6558532f4e81402e96738f8e40d777b73"
+    },
+    {
+      "url": "https://github.com/mandeep0405/kimi",
+      "readUrl": "https://raw.githubusercontent.com/mandeep0405/kimi/HEAD/README.md",
+      "status": 200,
+      "sha256": "36c3fdab17ecd5b87baeeb3575b02b547932eccd7b24226602c79b332cc54af0"
+    },
+    {
+      "url": "https://github.com/dishant2009/nanoKimi",
+      "readUrl": "https://raw.githubusercontent.com/dishant2009/nanoKimi/HEAD/README.md",
+      "status": 200,
+      "sha256": "69c21cc5a19527cbc000298a05eeeaa907355694204e7e6ab491e920fbfc2c70"
+    },
+    {
+      "url": "https://github.com/ui-voyager/UI-Voyager",
+      "readUrl": "https://raw.githubusercontent.com/ui-voyager/UI-Voyager/HEAD/README.md",
+      "status": 200,
+      "sha256": "4f4360dbe9787f0884d968a7cee28e44bc334f5a20f59997bcdb16ea214f56af"
+    },
+    {
+      "url": "https://github.com/SuperInstance/lau-agent-dream",
+      "readUrl": "https://raw.githubusercontent.com/SuperInstance/lau-agent-dream/HEAD/README.md",
+      "status": 200,
+      "sha256": "3200cf16afa846fb223773599086e0c5177f815b53401488c4d219ca20b0cc1a"
+    },
+    {
+      "url": "https://arxiv.org/abs/2604.23878",
+      "readUrl": "https://arxiv.org/abs/2604.23878",
+      "status": 200,
+      "sha256": "3cbb0e25fd8ff1d2f2362610640475dd7a9f949fb20ea01aba43f2aba3cd1e86"
+    },
+    {
+      "url": "https://github.com/GitSolved/AgenticART",
+      "readUrl": "https://raw.githubusercontent.com/GitSolved/AgenticART/HEAD/README.md",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://github.com/itsaquestion/eidos-x",
+      "readUrl": "https://raw.githubusercontent.com/itsaquestion/eidos-x/HEAD/README.md",
+      "status": 200,
+      "sha256": "bae081450f0ca835d496e9aa6c0f936519f71189124ccf5d6062d3ccf4eb649a"
+    },
+    {
+      "url": "https://huggingface.co/omoplatapus/byrd-ai",
+      "readUrl": "https://huggingface.co/omoplatapus/byrd-ai",
+      "error": "HTTP Error 401: Unauthorized"
+    },
+    {
+      "url": "https://pypi.org/project/amv-aichain/",
+      "readUrl": "https://pypi.org/project/amv-aichain/",
+      "status": 200,
+      "sha256": "32ed63159c77e21ee19ca1b9aa3213ccf0218eb59539560b132a8e68ef0e18ea"
+    },
+    {
+      "url": "https://github.com/Ultra-Guru/Android-Guru-Agent",
+      "readUrl": "https://raw.githubusercontent.com/Ultra-Guru/Android-Guru-Agent/HEAD/README.md",
+      "status": 200,
+      "sha256": "90b3bc47e8cb4c6335cbc25cbdc2254c878fc361f48da53fc0c8a590cee6dbc4"
+    },
+    {
+      "url": "https://neurips.cc/",
+      "readUrl": "https://neurips.cc/",
+      "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1081)>"
+    },
+    {
+      "url": "https://github.com/lyymuwu/SVC",
+      "readUrl": "https://raw.githubusercontent.com/lyymuwu/SVC/HEAD/README.md",
+      "status": 200,
+      "sha256": "c38f1385798eafc903bd4dad6bf72bd25ed78e29d80efc38e1aa3afcb8086aa9"
+    },
+    {
+      "url": "https://github.com/mlc-ai/mlc-llm",
+      "readUrl": "https://raw.githubusercontent.com/mlc-ai/mlc-llm/HEAD/README.md",
+      "status": 200,
+      "sha256": "c6208e455ea145dbac62aa26493175db67bde071d481edf57ceaf17638d4db09"
+    },
+    {
+      "url": "https://github.com/ggml-org/llama.cpp",
+      "readUrl": "https://raw.githubusercontent.com/ggml-org/llama.cpp/HEAD/README.md",
+      "status": 200,
+      "sha256": "404287f3e07f32aeaa5b951cfe7e43277a6444b2cf921c9f70894c1f7e89dd80"
+    },
+    {
+      "url": "https://github.com/Aider-AI/aider",
+      "readUrl": "https://raw.githubusercontent.com/Aider-AI/aider/HEAD/README.md",
+      "status": 200,
+      "sha256": "e40e05367ceacf7138a2605484bf7d1cb5a262d2dba03f52a5327c023b3cd0dc"
+    },
+    {
+      "url": "https://github.com/semgrep/semgrep",
+      "readUrl": "https://raw.githubusercontent.com/semgrep/semgrep/HEAD/README.md",
+      "status": 200,
+      "sha256": "4751611e81df6ea2e9ba234f5c20f154239c652f68bee70779dc9f8f35f90f8f"
+    },
+    {
+      "url": "https://github.com/mobile-dev-inc/maestro",
+      "readUrl": "https://raw.githubusercontent.com/mobile-dev-inc/maestro/HEAD/README.md",
+      "status": 200,
+      "sha256": "ee35ddd9b4cf743f2cee3381d3321d25e48988bc44979ad9db7bfb610467a717"
+    },
+    {
+      "url": "https://github.com/optuna/optuna",
+      "readUrl": "https://raw.githubusercontent.com/optuna/optuna/HEAD/README.md",
+      "status": 200,
+      "sha256": "75ad3e0de21c5cade254143d329195cdeee8bdb5942bc7c66eedbb696f71ad24"
+    },
+    {
+      "url": "https://github.com/android/performance-samples",
+      "readUrl": "https://raw.githubusercontent.com/android/performance-samples/HEAD/README.md",
+      "status": 200,
+      "sha256": "5d4c8b2304e06d1557fc1e2a8cfaa9833ed61d5ffe039ff762a68df2a1b675db"
+    },
+    {
+      "url": "https://github.com/android/architecture-components-samples",
+      "readUrl": "https://raw.githubusercontent.com/android/architecture-components-samples/HEAD/README.md",
+      "status": 200,
+      "sha256": "18995a54c3bc6da5e08fdb0dd4607487ffd43106d8fab940085f7585153614be"
+    },
+    {
+      "url": "https://github.com/termux/termux-app",
+      "readUrl": "https://raw.githubusercontent.com/termux/termux-app/HEAD/README.md",
+      "status": 200,
+      "sha256": "3a72268adae0835c31decf186f0059305cd5a45fc2425e64b1520e7ce29897f9"
+    },
+    {
+      "url": "https://github.com/zai-org/Open-AutoGLM",
+      "readUrl": "https://raw.githubusercontent.com/zai-org/Open-AutoGLM/HEAD/README.md",
+      "status": 200,
+      "sha256": "de9c289c418218d40cdf1731775158af771d010266d7ea2aa398f2dc91f22acc"
+    },
+    {
+      "url": "https://github.com/hyperb1iss/droidmind",
+      "readUrl": "https://raw.githubusercontent.com/hyperb1iss/droidmind/HEAD/README.md",
+      "status": 200,
+      "sha256": "9ce5ed6cc2972da313a9f0832addf5290443eb9158de86bfd4ed8ad2900364a0"
+    },
+    {
+      "url": "https://github.com/snowball1452-lgtm/snowdrift",
+      "readUrl": "https://raw.githubusercontent.com/snowball1452-lgtm/snowdrift/HEAD/README.md",
+      "status": 200,
+      "sha256": "43194399deb443cfa17198ec09eaff0a49e77e5f9adbba75880f83d9b1c18eae"
+    }
+  ]
+}

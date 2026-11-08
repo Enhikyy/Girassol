@@ -35,14 +35,15 @@ fun LabScreen(vm: LabViewModel, agentVm: AgentViewModel, initialTab: Int) {
             Text("Laboratório", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
             Text("quantização, fine-tuning e importance matrix", fontSize = 11.sp, color = Lab.Muted)
             Spacer(Modifier.height(14.dp))
-            Segmented(listOf("Quantizar", "Treinar", "imatrix", "Autoestudo"), tab, Modifier.fillMaxWidth()) { tab = it }
+            Segmented(listOf("Quantizar", "Treinar", "imatrix", "Estudo", "Evolução"), tab, Modifier.fillMaxWidth()) { tab = it }
             Spacer(Modifier.height(4.dp))
         }
         when (tab) {
             0 -> QuantizePane(vm)
             1 -> TrainPane(vm)
             2 -> ImatrixPane(vm)
-            else -> AutodidactPane(vm, onTrain = { tab = 1 })
+            3 -> AutodidactPane(vm, onTrain = { tab = 1 })
+            else -> EvolutionPane()
         }
     }
 }

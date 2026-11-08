@@ -108,11 +108,12 @@ object LlamaBridge {
 
     @Synchronized
     fun generate(model: String, messages: String, adapter: String, context: Int,
-                 temperature: Float, callback: GenerationCallback): String {
+                 temperature: Float, callback: GenerationCallback,
+                 threads: Int = Runtime.getRuntime().availableProcessors(), maxTokens: Int = 512): String {
         check(isAvailable) { "Motor nativo indisponível" }
         inferenceLoaded.getOrElse { throw IllegalStateException("Inferência nativa indisponível: ${it.message}", it) }
         return nativeGenerate(model.toByteArray(), messages.toByteArray(), adapter.toByteArray(),
-            context.coerceIn(1024, 32768), 512, Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+            context.coerceIn(1024, 32768), maxTokens.coerceIn(1, 4096), threads.coerceIn(1, Runtime.getRuntime().availableProcessors().coerceAtLeast(1)),
             temperature, callback)?.toString(Charsets.UTF_8) ?: error("Geração interrompida")
     }
 

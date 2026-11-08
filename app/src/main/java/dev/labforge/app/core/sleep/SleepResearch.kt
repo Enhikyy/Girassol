@@ -82,7 +82,10 @@ class SleepResearchWorker(context: Context, params: WorkerParameters) : Coroutin
             runSleepCycle(
                 research = {
                     val primary = engine.research(theme)
-                    val question = memory.questions.firstOrNull()
+                    val practice = withContext(Dispatchers.IO) {
+                        dev.labforge.app.core.evolution.SkillTree.next(dev.labforge.app.core.evolution.EvidenceJournal(store.agentDir).all())?.skill?.title
+                    }
+                    val question = memory.questions.firstOrNull() ?: practice?.let { "$theme: como praticar $it no Android sem root?" }
                     if (question == null) primary else {
                         val followUp = engine.research(question)
                         primary.copy(queries = primary.queries + question,

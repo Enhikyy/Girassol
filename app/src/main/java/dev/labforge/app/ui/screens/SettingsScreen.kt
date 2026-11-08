@@ -169,6 +169,8 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
                 localModelPath = dev.labforge.app.core.AppSelection.modelPath.orEmpty()
             }
             LabField("LoRA: caminho ou lista JSON de path/scale", localAdapterPath) { localAdapterPath = it }
+            KeyValueRow("Threads da inferência", if (vm.settings.localThreads == 0) "automático" else vm.settings.localThreads.toString())
+            Text("Compare e ajuste em Laboratório → Evolução.", fontSize = 11.sp, color = Lab.Muted)
             Stepper("Contexto local", localContext, listOf(1024, 2048, 4096, 8192), Modifier.fillMaxWidth()) { localContext = it }
             ToggleRow("Fallback para API", "Envia a conversa ao endpoint configurado se a inferência local falhar", cloudFallback) { cloudFallback = it }
             Spacer(Modifier.height(10.dp))

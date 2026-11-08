@@ -228,7 +228,15 @@ Na tela de autoestudo, agende o modo sono. O WorkManager consolida lições e cr
 
 <!-- coderabbit-ai-generated-section:v1:91a307bd2cbbb2c10f3bbd44368dac9b8a49886055f643e5677cdf5bf997bff0 -->
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:567562da82c3963a72dfb142b949bb7f3ce263f9beae8dac8441c6618f4c0c7a -->
+
 Chat, Codex, Llamatik e autoestudo podem usar inferência GGUF via JNI. Configure o modelo e os adaptadores em Ajustes. O fallback para API é opcional. O dispositivo opera **sem root**: Acessibilidade oferece automação da interface e a integração oficial RUN_COMMAND do Termux executa comandos, builds e testes. A instalação de APKs abre o instalador Android para confirmação. Consulte [Runtime nativo](docs/NATIVE_RUNTIME.md) para preparação e limites de implementação.
+
+O novo painel **Laboratório → Evolução** apresenta habilidades observadas, recuperação de falhas e benchmark local de threads. O importador aceita arrays JSON Alpaca/ShareGPT. Consulte [Referências e implementação nativa](docs/REFERENCE_INTEGRATIONS.md) para o escopo verificado e as integrações ainda pendentes.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 <!-- /coderabbit-ai-generated:v1 -->
 

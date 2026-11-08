@@ -22,6 +22,7 @@ data class AppSettings(
     val localAdapterPath: String = "",
     val allowCloudFallback: Boolean = false,
     val localContext: Int = 2048,
+    val localThreads: Int = 0,
     val endpoint: String = "https://api.openai.com/v1",
     val apiKey: String = "",
     val model: String = "gpt-4o-mini",
@@ -43,6 +44,7 @@ class SettingsRepository(private val context: Context) {
         val localAdapterPath = stringPreferencesKey("local_adapter_path")
         val allowCloudFallback = booleanPreferencesKey("allow_cloud_fallback")
         val localContext = intPreferencesKey("local_context")
+        val localThreads = intPreferencesKey("local_threads")
         val endpoint = stringPreferencesKey("endpoint")
         val apiKey = stringPreferencesKey("api_key")
         val model = stringPreferencesKey("model")
@@ -60,6 +62,7 @@ class SettingsRepository(private val context: Context) {
         localAdapterPath = p[Keys.localAdapterPath] ?: "",
         allowCloudFallback = p[Keys.allowCloudFallback] ?: false,
         localContext = p[Keys.localContext] ?: 2048,
+        localThreads = p[Keys.localThreads] ?: 0,
         endpoint = p[Keys.endpoint] ?: "https://api.openai.com/v1",
         apiKey = p[Keys.apiKey] ?: "",
         model = p[Keys.model] ?: "gpt-4o-mini",
@@ -84,6 +87,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.localAdapterPath] = next.localAdapterPath
             p[Keys.allowCloudFallback] = next.allowCloudFallback
             p[Keys.localContext] = next.localContext
+            p[Keys.localThreads] = next.localThreads
             p[Keys.endpoint] = next.endpoint
             p[Keys.apiKey] = next.apiKey
             p[Keys.model] = next.model

@@ -74,4 +74,10 @@ Falhas de ferramentas são registradas no caderno com contexto e resultado obser
 
 ## Escopo das referências
 
-O runtime implementa funções em Kotlin/C++, usando llama.cpp. Não incorpora integralmente MLC/Vulkan, LlamaFactory, aider, Semgrep, Maestro, Optuna, MindSpore, MobileFineTuner, SnowDrift, MuonClip, KDA/MoE ou as arquiteturas de pesquisa listadas. Também não importa os arquivos Figma. Essas integrações continuam pendentes e não são demonstradas por um build do APK.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:e54c70bade04bf3512e7d5535d7587a1fd42bffcf50b9bddcd39330e2a974474 -->
+
+O mapeamento atualizado de recursos nativos, fontes consultadas e pendências está em [Referências e implementação nativa](REFERENCE_INTEGRATIONS.md). As integrações não verificadas no aparelho e os frameworks ainda não portados são identificados explicitamente.
+
+<!-- /coderabbit-ai-generated:v1 -->

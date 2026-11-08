@@ -350,4 +350,4 @@ fun defaultTools(
     ResearchWebTool(workspace, dev.labforge.app.core.research.ResearchKeys(settings.braveApiKey, settings.githubToken)),
     ResearchSearchTool(workspace),
     LlamatikToolBridge("public_api_posts", workspace),
-).plus(deviceTools(workspace, settings.termuxProject)).plus(gitHubTools(workspace, settings.githubToken)).onEach { it.deviceAccess = true }
+).plus(listOf(SkillTreeTool(workspace, dev.labforge.app.core.evolution.EvidenceJournal(lessons.directory)), InferenceBenchmarkTool(workspace, settings))).plus(deviceTools(workspace, settings.termuxProject)).plus(gitHubTools(workspace, settings.githubToken)).onEach { it.deviceAccess = true }

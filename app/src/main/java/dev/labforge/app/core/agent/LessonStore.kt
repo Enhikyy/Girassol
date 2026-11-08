@@ -6,9 +6,9 @@ import java.io.File
 import java.util.UUID
 
 /** Persistent "caderno de estudos" — lessons the agent wrote after solving something. */
-class LessonStore(dir: File) {
+class LessonStore(val directory: File) {
 
-    private val file = File(dir, "lessons.json").apply { parentFile?.mkdirs() }
+    private val file = File(directory, "lessons.json").apply { parentFile?.mkdirs() }
     private val lock = locks.getOrPut(file.canonicalPath) { Any() }
     companion object {
         private val locks = java.util.concurrent.ConcurrentHashMap<String, Any>()

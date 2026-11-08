@@ -25,79 +25,83 @@ object DatasetBuilder {
     private const val MAX_OUTPUT_CHARS = 64_000_000
 
     /** Converts JSONL / JSON / plain text into a single training text file. */
-    fun build(inputs: List<File>, format: ChatFormat, output: File): Pair<File, DatasetStats> {
+    fun build(inputs: List<File>, format: ChatFormat, output: File, maxOutputChars: Int = MAX_OUTPUT_CHARS): Pair<File, DatasetStats> {
+        require(maxOutputChars in 1..MAX_OUTPUT_CHARS)
         val sb = StringBuilder()
         var docs = 0
         var chars = 0L
         var skipped = 0
         var detected = "texto"
-        var budget = MAX_OUTPUT_CHARS
+        var budget = maxOutputChars
 
+        fun appendObject(obj: JSONObject) {
+            val rendered = when {
+                obj.has("messages") -> { detected = "messages"; renderMessages(obj.getJSONArray("messages"), format) }
+                obj.has("conversations") -> { detected = "conversations"; renderConversations(obj.getJSONArray("conversations"), format) }
+                obj.has("instruction") -> {
+                    detected = "instruction"
+                    renderInstruction(obj.optString("instruction"), obj.optString("input"),
+                        obj.optString("output").ifBlank { obj.optString("response") }, format)
+                }
+                obj.has("prompt") -> { detected = "prompt/completion"; renderInstruction(obj.optString("prompt"), "", obj.optString("completion"), format) }
+                obj.has("question") -> { detected = "q&a"; renderInstruction(obj.optString("question"), "", obj.optString("answer"), format) }
+                else -> { skipped++; return }
+            }
+            if (rendered.isNotBlank() && budget > 0) {
+                // Keep an entire example or omit it; never train on a truncated answer.
+                val complete = if (rendered.endsWith("\n")) rendered else "$rendered\n"
+                if (complete.length > budget) { skipped++; return }
+                sb.append(complete)
+                budget -= complete.length
+                chars += complete.length
+                docs++
+            }
+        }
         for (input in inputs) {
             if (budget <= 0) break
-            val isJsonl = input.extension.equals("jsonl", true) ||
-                input.extension.equals("json", true)
-            if (!isJsonl) {
-                val text = input.readText().take(budget)
+            val ext = input.extension.lowercase()
+            if (ext !in setOf("json", "jsonl")) {
+                val text = input.reader().use { reader ->
+                    val out = StringBuilder()
+                    val buffer = CharArray(8192)
+                    while (out.length < budget) {
+                        val n = reader.read(buffer, 0, minOf(buffer.size, budget - out.length))
+                        if (n < 0) break
+                        out.append(buffer, 0, n)
+                    }
+                    out.toString()
+                }
                 budget -= text.length
                 sb.append(text)
-                if (!text.endsWith("\n")) sb.append('\n')
+                if (!text.endsWith("\n") && budget > 0) { sb.append('\n'); budget-- }
                 chars += text.length
-                docs += 1
+                docs++
                 continue
             }
-            var lineNo = 0
-            input.forEachLine { raw ->
-                lineNo++
-                val line = raw.trim()
-                if (line.isEmpty()) return@forEachLine
-                try {
-                    val obj = JSONObject(line)
-                    val rendered = when {
-                        obj.has("messages") -> {
-                            detected = "messages"
-                            renderMessages(obj.getJSONArray("messages"), format)
-                        }
-                        obj.has("conversations") -> {
-                            detected = "conversations"
-                            renderConversations(obj.getJSONArray("conversations"), format)
-                        }
-                        obj.has("instruction") -> {
-                            detected = "instruction"
-                            renderInstruction(
-                                obj.optString("instruction"),
-                                obj.optString("input"),
-                                obj.optString("output").ifBlank { obj.optString("response") },
-                                format,
-                            )
-                        }
-                        obj.has("prompt") -> {
-                            detected = "prompt/completion"
-                            renderInstruction(obj.optString("prompt"), "", obj.optString("completion"), format)
-                        }
-                        obj.has("question") -> {
-                            detected = "q&a"
-                            renderInstruction(obj.optString("question"), "", obj.optString("answer"), format)
-                        }
-                        else -> {
-                            skipped++
-                            return@forEachLine
-                        }
+            // LlamaFactory/Alpaca/ShareGPT commonly export pretty-printed JSON arrays.
+            val whole = if (ext == "json") {
+                require(input.length() <= MAX_OUTPUT_CHARS) { "JSON maior que 64 MB; importe em JSONL" }
+                runCatching {
+                    val parser = org.json.JSONTokener(input.readText())
+                    val value = parser.nextValue()
+                    require(parser.nextClean() == '\u0000')
+                    value
+                }.getOrNull()
+            } else null
+            when (whole) {
+                is JSONArray -> for (i in 0 until whole.length()) {
+                    try { appendObject(whole.getJSONObject(i)) } catch (_: org.json.JSONException) { skipped++ }
+                }
+                is JSONObject -> try { appendObject(whole) } catch (_: org.json.JSONException) { skipped++ }
+                else -> input.forEachLine { raw ->
+                    if (raw.isNotBlank() && budget > 0) {
+                        try { appendObject(JSONObject(raw)) } catch (_: org.json.JSONException) { skipped++ }
                     }
-                    if (rendered.isNotBlank() && budget > 0) {
-                        val slice = rendered.take(budget)
-                        budget -= slice.length
-                        sb.append(slice)
-                        if (!slice.endsWith("\n")) sb.append('\n')
-                        chars += slice.length
-                        docs++
-                    }
-                } catch (t: Throwable) {
-                    skipped++
                 }
             }
         }
 
+        output.parentFile?.mkdirs()
         output.writeText(sb.toString())
         return output to DatasetStats(
             documents = docs,

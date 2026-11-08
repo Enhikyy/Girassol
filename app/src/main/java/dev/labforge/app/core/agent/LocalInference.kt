@@ -46,7 +46,7 @@ internal object LocalInference {
                     }
                     return true
                 }
-            })
+            }, threads = cfg.localThreads.takeIf { it > 0 } ?: Runtime.getRuntime().availableProcessors())
         context.ensureActive()
         val root = JSONObject(result)
         check(!root.has("error")) { root.optString("error") }

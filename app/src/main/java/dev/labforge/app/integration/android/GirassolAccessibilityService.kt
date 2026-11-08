@@ -53,6 +53,9 @@ class GirassolAccessibilityService : AccessibilityService() {
             xml.attribute(null, "bounds", rect.toShortString())
             xml.attribute(null, "clickable", node.isClickable.toString())
             xml.attribute(null, "editable", node.isEditable.toString())
+            xml.attribute(null, "class", node.className?.toString().orEmpty())
+            xml.attribute(null, "enabled", node.isEnabled.toString())
+            xml.attribute(null, "scrollable", node.isScrollable.toString())
             for (i in 0 until node.childCount) node.getChild(i)?.let { child ->
                 try { visit(child, depth + 1) } finally { @Suppress("DEPRECATION") child.recycle() }
             }
@@ -76,6 +79,31 @@ class GirassolAccessibilityService : AccessibilityService() {
                 })
             } finally { @Suppress("DEPRECATION") node.recycle() }
         } finally { @Suppress("DEPRECATION") root.recycle() }
+    }
+
+    fun clickText(label: String): Boolean {
+        require(label.isNotBlank())
+        val root = rootInActiveWindow ?: return false
+        val found = root.findAccessibilityNodeInfosByText(label)
+        try {
+            val matches = found.filter { it.isVisibleToUser && it.isEnabled &&
+                (it.text?.toString().equals(label, ignoreCase = true) || it.contentDescription?.toString().equals(label, ignoreCase = true)) }
+            // Ambiguous labels require coordinates or a more specific target.
+            if (matches.size != 1) return false
+            var current: AccessibilityNodeInfo? = matches.single()
+            val parents = mutableListOf<AccessibilityNodeInfo>()
+            try {
+                repeat(12) {
+                    val node = current ?: return false
+                    if (node.isClickable && node.isEnabled && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+                    current = node.parent?.also { parents += it }
+                }
+                return false
+            } finally { parents.forEach { @Suppress("DEPRECATION") it.recycle() } }
+        } finally {
+            found.forEach { @Suppress("DEPRECATION") it.recycle() }
+            @Suppress("DEPRECATION") root.recycle()
+        }
     }
 
     suspend fun gesture(x: Float, y: Float, x2: Float, y2: Float, duration: Long): Boolean =
