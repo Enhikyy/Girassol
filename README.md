@@ -55,7 +55,9 @@ adb install -r app-debug.apk
 
 ## Continuidade de aprendizado (1.8.0)
 
-O autoestudo mantém uma árvore de habilidades local, com revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline de falhas e padrões recorrentes. O painel permite marcar cada revisão como difícil, lembrada ou fácil. A memória é local, limitada por quantidade e não substitui validação factual das fontes.\n\n## O que é
+O autoestudo mantém uma árvore de habilidades local, com revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline de falhas e padrões recorrentes. O painel permite marcar cada revisão como difícil, lembrada ou fácil. A memória é local, limitada por quantidade e não substitui validação factual das fontes.
+
+## O que é
 
 O Girassol transforma o celular em um laboratório de modelos locais:
 
