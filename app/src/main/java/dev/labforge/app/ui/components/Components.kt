@@ -258,7 +258,6 @@ fun StatTile(label: String, value: String, accent: Color = Lab.Violet, modifier:
 }
 
 @Composable
-@Composable
 fun MiniBars(
     values: List<Float>,
     modifier: Modifier = Modifier,
