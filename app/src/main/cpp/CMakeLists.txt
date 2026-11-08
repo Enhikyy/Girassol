@@ -21,7 +21,14 @@ set(LLAMA_SUBPROCESS     OFF CACHE BOOL "" FORCE)
 set(LLAMA_CURL           OFF CACHE BOOL "" FORCE)
 set(GGML_NATIVE          OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP          OFF CACHE BOOL "" FORCE)
-set(GGML_CPU_KLEIDIAI    OFF CACHE BOOL "" FORCE)
+# Arm KleidiAI provides runtime-dispatched optimized kernels on compatible
+# AArch64 Android CPUs (including Cortex-A76/A55); unsupported ops keep the
+# portable CPU path. Do not enable this on non-ARM ABIs.
+if(ANDROID AND ANDROID_ABI STREQUAL "arm64-v8a")
+    set(GGML_CPU_KLEIDIAI ON CACHE BOOL "" FORCE)
+else()
+    set(GGML_CPU_KLEIDIAI OFF CACHE BOOL "" FORCE)
+endif()
 set(GGML_BACKEND_DL      OFF CACHE BOOL "" FORCE)
 set(GGML_LLAMAFILE       OFF CACHE BOOL "" FORCE)
 
