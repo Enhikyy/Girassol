@@ -433,6 +433,18 @@ fun TrainPane(vm: LabViewModel) {
             }
         }
 
+        if (vm.ramAvailableHistory.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            GlassCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("RAM livre durante o treino", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text, modifier = Modifier.weight(1f))
+                    Text("%.2f GB".format(vm.ramAvailableHistory.last()), fontSize = 12.sp, color = Lab.Amber)
+                }
+                Spacer(Modifier.height(7.dp))
+                LineChart(vm.ramAvailableHistory, Modifier.fillMaxWidth().height(72.dp), color = Lab.Amber)
+                Text("Amostras a cada 3,5 s · parada cooperativa abaixo da reserva do sistema", fontSize = 11.sp, color = Lab.Muted)
+            }
+        }
         if (vm.jobKind == "lora" || vm.jobKind == "full" || vm.jobTitle.startsWith("LoRA") || vm.jobTitle.startsWith("Fine-tuning")) {
             Spacer(Modifier.height(16.dp))
             JobPanel(vm)
