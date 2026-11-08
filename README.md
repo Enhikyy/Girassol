@@ -11,8 +11,6 @@
   <img alt="versão" src="https://img.shields.io/badge/versão-1.7.0-F2C14E">
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-84D98A">
   <img alt="ABI" src="https://img.shields.io/badge/ABI-arm64--v8a-A9D96B">
-  <img alt="tamanho" src="https://img.shields.io/badge/APK-36%20MB-FFD166">
-  <img alt="testes" src="https://img.shields.io/badge/testes-40%20casos-84D98A">
 </p>
 
 <p align="center">
@@ -41,6 +39,17 @@ adb install -r app-debug.apk
 > Requer Android 8.0+ (API 26) e **arm64-v8a**. O workflow não impõe um teto artificial ao tamanho final do APK.
 
 > **CI:** o workflow está em [`ci/android.yml`](ci/android.yml). O workflow executa build e testes; falhas nos testes bloqueiam a entrega.
+
+---
+
+## Estabilidade móvel e OLED (1.7.0)
+
+- O perfil de treinamento adapta rank, contexto, alvos e threads à RAM realmente livre. Em aparelhos de 4 GB, privilegia LoRA de baixa memória; fine-tuning completo não é iniciado quando a margem de segurança não existe.
+- O dataset é mantido completo no armazenamento; o motor nativo processa janelas rotativas limitadas de cada vez para reduzir picos de memória.
+- O LoRA grava um checkpoint após cada época e observa pressão crítica de RAM para solicitar encerramento cooperativo.
+- JNI usa um ambiente próprio por thread ao encaminhar logs nativos.
+- Pure Black OLED aplica fundo preto e pausa os brilhos animados de fundo; gráficos de loss, métricas e fontes têm animação curta.
+- A busca de projetos do GitHub lidera a pesquisa autônoma e baixa README de repositórios como fonte para síntese e dataset.
 
 ---
 
