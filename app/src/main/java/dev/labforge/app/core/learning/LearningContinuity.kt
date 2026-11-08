@@ -63,7 +63,14 @@ class LearningContinuity(private val file: File) {
                     reps == 2 -> 3
                     else -> (max(1, skill.intervalDays) * 2).coerceAtMost(180)
                 }
-                val mastery = (skill.mastery + if (q >= 3) 0.12f else -0.08f).coerceIn(0f, 1f)
+                // Mastery is cumulative and quality-sensitive across repeated reviews.
+                val masteryDelta = when (q) {
+                    5 -> 0.20f
+                    4 -> 0.16f
+                    3 -> 0.12f
+                    else -> -0.12f
+                }
+                val mastery = (skill.mastery + masteryDelta).coerceIn(0f, 1f)
                 skill.copy(mastery = mastery, repetitions = reps, intervalDays = interval,
                     dueAt = now + interval * DAY_MS, lastReviewedAt = now)
             }
