@@ -154,19 +154,35 @@ object ResearchReferenceCatalog {
     )
 
     fun matching(theme: String): List<ResearchReference> {
-        val query = theme.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 3 }.toSet()
+        val normalized = theme.lowercase()
+        val query = normalized.split(Regex("[^\\p{L}\\p{N}]+"))
+            .filter { it.length >= 2 }.toSet()
         if (query.isEmpty()) return emptyList()
-        return references.mapNotNull { ref ->
-            val score = ref.topics.sumOf { topic ->
-                val terms = topic.lowercase().split(' ').toSet()
-                when {
-                    topic.lowercase() in theme.lowercase() -> 2.0
-                    terms.any { it in query } -> 1.0
-                    else -> 0.0
-                }
-            }
-            if (score > 0) ref to score else null
-        }.sortedByDescending { it.second }.map { it.first }.take(6)
+
+        val scored = references.mapNotNull { ref ->
+            val name = ref.name.lowercase()
+            val description = ref.description.lowercase()
+            val topicTokens = ref.topics.flatMap { it.lowercase().split(' ') }.toSet()
+            val nameTokens = name.split(Regex("[^\\p{L}\\p{N}]+")).toSet()
+            val score = (query intersect nameTokens).size * 4.0 +
+                (query intersect topicTokens).size * 2.0 +
+                query.count { it.length >= 4 && description.contains(it) } * 0.5 +
+                if (name in normalized || normalized.contains(name)) 5.0 else 0.0
+            if (score > 0.0) ref to score else null
+        }.sortedWith(compareByDescending<Pair<ResearchReference, Double>> { it.second }
+            .thenByDescending { it.first.ingestReadme })
+
+        if (scored.isEmpty()) return emptyList()
+        // Retain the best compatible README and the best reference-only entry when both
+        // match, preventing metadata-only entries from crowding out usable documentation.
+        val mustKeep = listOfNotNull(
+            scored.firstOrNull { it.first.ingestReadme },
+            scored.firstOrNull { !it.first.ingestReadme },
+        )
+        return (mustKeep + scored.filterNot { candidate -> mustKeep.any { it.first.name == candidate.first.name } })
+            .distinctBy { it.first.name }
+            .take(6)
+            .map { it.first }
     }
 
     /** Only permissively licensed, documentation-oriented repos are added to ingestion. */
