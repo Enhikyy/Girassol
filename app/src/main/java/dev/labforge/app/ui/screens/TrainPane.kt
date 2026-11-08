@@ -296,7 +296,7 @@ fun TrainPane(vm: LabViewModel) {
             } else {
                 Stepper("Epochs", epochs, listOf(1, 2, 3, 5), Modifier.fillMaxWidth()) { epochs = it }
                 Spacer(Modifier.height(10.dp))
-                Stepper("Contexto", ctx, listOf(256, 512, 1024, 2048), Modifier.fillMaxWidth()) { ctx = it }
+                Stepper("Contexto", ctx, listOf(64, 128, 256, 512, 1024, 2048), Modifier.fillMaxWidth()) { ctx = it }
                 Spacer(Modifier.height(10.dp))
                 Stepper("Batch", batch, listOf(32, 64, 128, 256), Modifier.fillMaxWidth()) { batch = it }
                 Spacer(Modifier.height(10.dp))
