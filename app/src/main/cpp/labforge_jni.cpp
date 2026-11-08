@@ -33,6 +33,8 @@
 #include <random>
 #include <set>
 #include <mutex>
+#include <new>
+#include <exception>
 
 #define LOG_TAG "LabForgeNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
@@ -182,6 +184,27 @@ static std::string json_escape(const std::string & in) {
         }
     }
     return out;
+}
+
+// Verify that the selected GGUF is actually present in this process' file-backed mappings.
+// LLAMA_LOAD_MODE_MMAP intentionally does not request mlock: Linux/Android owns page-cache
+// residency and may reclaim clean pages under memory pressure.
+static bool model_file_is_mapped(const std::string & model_path, size_t * matching_regions = nullptr) {
+    std::ifstream maps("/proc/self/maps");
+    std::string line;
+    size_t matches = 0;
+    while (std::getline(maps, line)) {
+        if (line.find(model_path) != std::string::npos) ++matches;
+    }
+    if (matching_regions) *matching_regions = matches;
+    return matches > 0;
+}
+
+static void log_mmap_status(const std::string & model_path, const char * purpose) {
+    size_t regions = 0;
+    const bool mapped = model_file_is_mapped(model_path, &regions);
+    printf("[mmap] purpose=%s enabled=true mlock=false verified=%s regions=%zu path=%s\\n",
+           purpose, mapped ? "yes" : "no", regions, model_path.c_str());
 }
 
 static void emit_log(const std::string & line) {
@@ -898,12 +921,23 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
 
                 llama_model_params mp = llama_model_default_params();
                 mp.n_gpu_layers = 0;
+                // The pinned llama.cpp API expresses this as a load mode:
+                // MMAP = file mapping without mlock (MLOCK/MAP_MLOCK are deliberately not selected).
                 mp.load_mode = LLAMA_LOAD_MODE_MMAP;
+                mp.use_extra_bufts = false;
 
-                llama_model * model = llama_model_load_from_file(model_path.c_str(), mp);
+                llama_model * model = nullptr;
+                try {
+                    model = llama_model_load_from_file(model_path.c_str(), mp);
+                } catch (const std::bad_alloc &) {
+                    err = "memória nativa insuficiente ao mapear GGUF (mmap); tente um modelo Q4 menor";
+                } catch (const std::exception & ex) {
+                    err = std::string("exceção ao abrir GGUF: ") + ex.what();
+                }
                 if (!model) {
-                    err = "falha ao carregar o modelo";
+                    if (err.empty()) err = "falha ao carregar o modelo via mmap";
                 } else {
+                    log_mmap_status(model_path, "lora-base-frozen");
                     const llama_vocab * vocab = llama_model_get_vocab(model);
                     const int ctx_len = n_ctx > 0 ? n_ctx : 512;
 
@@ -1096,12 +1130,22 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
 
         llama_model_params mp = llama_model_default_params();
         mp.n_gpu_layers = 0;
+        // LLAMA_LOAD_MODE_MMAP is the pinned API's explicit mmap=true/mlock=false mode.
+        // Do not use MLOCK or MMAP_MLOCK: Android must be free to reclaim page-cache pages.
         mp.load_mode = LLAMA_LOAD_MODE_MMAP;
         mp.use_extra_bufts = false;
-        llama_model * model = llama_model_load_from_file(model_path.c_str(), mp);
+        llama_model * model = nullptr;
+        try {
+            model = llama_model_load_from_file(model_path.c_str(), mp);
+        } catch (const std::bad_alloc &) {
+            err = "memória nativa insuficiente durante mmap do GGUF; tente Q4 ou um modelo menor";
+        } catch (const std::exception & ex) {
+            err = std::string("exceção ao abrir GGUF: ") + ex.what();
+        }
         if (!model) {
-            err = "falha ao abrir GGUF para inferência; confira arquivo e arquitetura suportada";
+            if (err.empty()) err = "falha ao abrir GGUF via mmap; confira arquivo e arquitetura suportada";
         } else {
+            log_mmap_status(model_path, "inference");
             const llama_vocab * vocab = llama_model_get_vocab(model);
             int ctx_len = std::max(256, (int) n_ctx);
             const int train_ctx = llama_model_n_ctx_train(model);
@@ -1109,8 +1153,9 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
 
             llama_context_params cp = llama_context_default_params();
             cp.n_ctx = (uint32_t) ctx_len;
-            cp.n_batch = (uint32_t) ctx_len;
-            cp.n_ubatch = (uint32_t) std::min(ctx_len, 256);
+            // Small micro-batches bound transient compute memory on 4-GB devices.
+            cp.n_batch = 2;
+            cp.n_ubatch = 2;
             cp.n_threads = std::max(1, (int) nthreads);
             cp.n_threads_batch = cp.n_threads;
             cp.type_k = GGML_TYPE_F16;
@@ -1164,10 +1209,24 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                     prompt_tokens = n;
                     printf("[infer] prompt=%d tokens, ctx=%d, template=%s\\n",
                            prompt_tokens, ctx_len, tmpl ? "GGUF" : "ChatML fallback");
-                    llama_batch batch = llama_batch_get_one(tokens.data(), n);
-                    int decode = llama_decode(ctx, batch);
+                    llama_batch batch = llama_batch_init(2, 0, 1);
+                    int decode = 0;
+                    // Feed prompt tokens in batches of at most two while preserving absolute positions.
+                    for (int offset = 0; offset < n && decode == 0; offset += 2) {
+                        const int count = std::min(2, n - offset);
+                        batch.n_tokens = count;
+                        for (int j = 0; j < count; ++j) {
+                            const int token_index = offset + j;
+                            batch.token[j] = tokens[(size_t) token_index];
+                            batch.pos[j] = token_index;
+                            batch.n_seq_id[j] = 1;
+                            batch.seq_id[j][0] = 0;
+                            batch.logits[j] = token_index == n - 1;
+                        }
+                        decode = llama_decode(ctx, batch);
+                    }
                     if (decode != 0) {
-                        err = "falha ao processar o prompt no motor nativo (decode=" + std::to_string(decode) + ")";
+                        err = "falha ao processar prompt em micro-batches (decode=" + std::to_string(decode) + ")";
                     } else {
                         llama_sampler * sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
                         if (!sampler) {
@@ -1203,8 +1262,13 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                                     completion_tokens++;
                                 }
                                 if (i + 1 < generation_limit && !g_chat_abort.load()) {
-                                    llama_batch next = llama_batch_get_one(const_cast<llama_token *>(&token), 1);
-                                    const int next_decode = llama_decode(ctx, next);
+                                    batch.n_tokens = 1;
+                                    batch.token[0] = token;
+                                    batch.pos[0] = n + i;
+                                    batch.n_seq_id[0] = 1;
+                                    batch.seq_id[0][0] = 0;
+                                    batch.logits[0] = 1;
+                                    const int next_decode = llama_decode(ctx, batch);
                                     if (next_decode != 0) {
                                         err = "falha ao avançar geração nativa (decode=" + std::to_string(next_decode) + ")";
                                         break;
@@ -1216,6 +1280,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
                             llama_sampler_free(sampler);
                         }
                     }
+                    llama_batch_free(batch);
                 }
                 llama_free(ctx);
             }
