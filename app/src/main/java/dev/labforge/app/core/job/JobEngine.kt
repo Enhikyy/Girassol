@@ -59,6 +59,9 @@ object JobEngine {
     private var lastFlushed = -1
     private var current: Job? = null
 
+    /** Guards the check-then-set in [begin] so two callers cannot both start a job. */
+    private val startLock = Any()
+
     init {
         scope.launch {
             while (isActive) {
@@ -89,15 +92,20 @@ object JobEngine {
 
     val isRunning: Boolean get() = _state.value.running
 
-    private fun begin(context: Context, kind: String, title: String, detail: String, output: File?) {
-        if (_state.value.running) return
-        synchronized(logBuffer) { logBuffer.setLength(0) }
-        lastFlushed = -1
-        _state.value = JobState(
-            running = true, kind = kind, title = title, progress = 0.02f,
-            startedAt = System.currentTimeMillis(), output = output?.absolutePath,
-        )
+    private fun begin(context: Context, kind: String, title: String, detail: String, output: File?): Boolean {
+        // Atomic claim: `if (running) return` alone is a TOCTOU race when the UI and
+        // the autodidact flow both fire a job in the same frame.
+        synchronized(startLock) {
+            if (_state.value.running) return false
+            synchronized(logBuffer) { logBuffer.setLength(0) }
+            lastFlushed = -1
+            _state.value = JobState(
+                running = true, kind = kind, title = title, progress = 0.02f,
+                startedAt = System.currentTimeMillis(), output = output?.absolutePath,
+            )
+        }
         GirassolService.start(context, title, detail)
+        return true
     }
 
     private fun finish(success: Boolean, summary: String, output: File?) {
@@ -108,6 +116,7 @@ object JobEngine {
                 output = output?.absolutePath ?: it.output,
             )
         }
+        current = null
         val ctx = appContext
         if (ctx != null) GirassolService.stop(ctx)
     }
@@ -131,7 +140,7 @@ object JobEngine {
         if (isRunning) return
         init(context)
         val budget = MemoryGuard.check(context, input.length(), "quantize")
-        begin(context, "quantize", "Quantizando ${input.name}", budget.message, output)
+        if (!begin(context, "quantize", "Quantizando ${input.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
         if (!budget.ok) MemoryGuard.trim()
 
@@ -176,7 +185,7 @@ object JobEngine {
         if (isRunning) return
         init(context)
         val budget = MemoryGuard.check(context, model.length(), "lora")
-        begin(context, "lora", "LoRA · ${model.name}", budget.message, output)
+        if (!begin(context, "lora", "LoRA · ${model.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
 
         current = scope.launch {
@@ -230,7 +239,7 @@ object JobEngine {
         if (isRunning) return
         init(context)
         val budget = MemoryGuard.check(context, model.length(), "full")
-        begin(context, "full", "Fine-tuning · ${model.name}", budget.message, output)
+        if (!begin(context, "full", "Fine-tuning · ${model.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
 
         current = scope.launch {

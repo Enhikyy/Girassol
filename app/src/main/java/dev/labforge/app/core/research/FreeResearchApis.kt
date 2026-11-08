@@ -24,6 +24,9 @@ object FreeResearchApis {
 
     private const val UA = "Girassol/1.2 (Android research assistant; +https://github.com/ggml-org/llama.cpp)"
 
+    /** Hard cap on a single response body: a hostile/broken endpoint must not OOM the app. */
+    private const val MAX_BODY_BYTES = 4_000_000
+
     private suspend fun get(url: String): String = withContext(Dispatchers.IO) {
         val req = Request.Builder()
             .url(url)
@@ -33,7 +36,12 @@ object FreeResearchApis {
             .build()
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) error("HTTP ${resp.code} em ${req.url.host}")
-            resp.body?.string() ?: error("resposta vazia")
+            val body = resp.body ?: error("resposta vazia")
+            val declared = body.contentLength()
+            if (declared > MAX_BODY_BYTES) error("resposta grande demais (${declared} bytes)")
+            val text = body.string()
+            if (text.length > MAX_BODY_BYTES) error("resposta grande demais")
+            text
         }
     }
 
