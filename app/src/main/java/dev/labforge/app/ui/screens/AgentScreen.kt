@@ -96,7 +96,7 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
                 Column(Modifier.weight(1f)) {
                     Text("Chat", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                     Text(
-                        if (agentVm.running) agentVm.status else "estudante de TI · git · terminal · caderno",
+                        if (agentVm.running) agentVm.status else "Pesquise e crie com o agente",
                         fontSize = 11.sp,
                         color = if (agentVm.running) Lab.Green else Lab.Muted,
                     )

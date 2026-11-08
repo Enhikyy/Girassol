@@ -92,7 +92,6 @@ class StudioVisualTest {
     @Test @Config(sdk = [33], qualifiers = "w1000dp-h850dp")
     fun wideWorkspaceShowsFourActionsAndLargeFontStacksCards() {
         var scale by mutableStateOf(1f)
-        compose.mainClock.autoAdvance = false
         compose.setContent { LabForgeTheme { Surface(color = Lab.Bg, contentColor = Lab.Text) {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
@@ -101,14 +100,34 @@ class StudioVisualTest {
                 }
             }
         } } }
-        compose.mainClock.advanceTimeBy(100)
         val chat = compose.onNodeWithText("Conversar").fetchSemanticsNode().boundsInRoot
         val build = compose.onNodeWithText("Compilar APK").fetchSemanticsNode().boundsInRoot
         assertEquals(chat.top, build.top, 1f)
         capture("inicio-amplo")
         compose.runOnIdle { scale = 1.6f }
-        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Compilar APK").performScrollTo()
         val stacked = compose.onNodeWithText("Compilar APK").getUnclippedBoundsInRoot()
-        assertTrue(stacked.top > compose.onNodeWithText("Conversar").getUnclippedBoundsInRoot().top)
+        assertTrue("Large font should stack the cards", stacked.top > compose.onNodeWithText("Conversar").getUnclippedBoundsInRoot().top)
     }
+    @Test @Config(sdk = [33], qualifiers = "w320dp-h800dp")
+    fun narrowHeroKeepsActionsAvailableWithLargeText() {
+        var chat = false
+        var study = false
+        compose.setContent { LabForgeTheme { Surface(color = Lab.Bg, contentColor = Lab.Text) {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.6f)) {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                    StudioHero({ chat = true }, { study = true }); Spacer(Modifier.height(24.dp)); WorkspaceGrid { }
+                }
+            }
+        } } }
+        compose.onNodeWithText("Começar conversa").performScrollTo().performClick()
+        compose.onNodeWithText("Explorar um tema").performScrollTo().performClick()
+        assertTrue(chat); assertTrue(study)
+        val first = compose.onNodeWithText("Conversar").getUnclippedBoundsInRoot()
+        val last = compose.onNodeWithText("Compilar APK").getUnclippedBoundsInRoot()
+        assertTrue(last.top > first.bottom)
+        capture("inicio-estreito")
+    }
+
 }

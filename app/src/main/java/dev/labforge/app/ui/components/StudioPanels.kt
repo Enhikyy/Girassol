@@ -1,7 +1,7 @@
 package dev.labforge.app.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -17,40 +17,70 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.labforge.app.R
 import dev.labforge.app.ui.theme.Lab
 
 /** Native layouts informed by downloaded Jetchat/Reply references; see design-references/. */
+private val studioForest = Color(0xFF172B24)
+private val studioSeed = Color(0xFF5A3D25)
+private val studioPetal = Color(0xFFF2C14E)
+private val studioPaper = Color(0xFFFBF6E7)
+private val studioSage = Color(0xFFB4B89F)
+
+/** A static botanical mark makes the hero recognizable without implying ongoing work. */
+@Composable
+private fun SunflowerStudy(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val center = Offset(size.width * 0.76f, size.height * 0.82f)
+        val radius = minOf(size.height * 0.52f, size.width * 0.20f)
+        // The petal and seed geometry intentionally extends beyond the frame.
+        for (i in 0 until 18) {
+            rotate(i * 20f, center) {
+                drawOval(studioPetal, topLeft = Offset(center.x - radius * 0.12f, center.y - radius * 1.55f),
+                    size = Size(radius * 0.24f, radius * 0.95f))
+            }
+        }
+        drawCircle(studioSeed, radius * 0.68f, center)
+        drawCircle(studioPetal.copy(alpha = 0.65f), radius * 0.68f, center, style = Stroke(width = 1.2.dp.toPx()))
+        for (i in 0 until 75) {
+            val angle = i * 2.399963f
+            val distance = radius * 0.59f * kotlin.math.sqrt(i / 75f)
+            val seed = Offset(center.x + kotlin.math.cos(angle) * distance, center.y + kotlin.math.sin(angle) * distance)
+            drawCircle(if (i % 3 == 0) studioPetal else studioSage, radius * 0.022f, seed, alpha = 0.8f)
+        }
+        drawLine(studioSage.copy(alpha = 0.45f), Offset(0f, size.height - 1.dp.toPx()),
+            Offset(size.width * 0.52f, size.height - 1.dp.toPx()), strokeWidth = 1.dp.toPx())
+    }
+}
+
 @Composable
 fun StudioHero(onChat: () -> Unit, onStudy: () -> Unit) {
-    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
-        .background(Brush.linearGradient(listOf(Color(0xFF393016), Color(0xFF18291E), Color(0xFF101B17))))
-        .border(1.dp, Lab.Violet.copy(alpha = 0.24f), RoundedCornerShape(30.dp))) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(painterResource(R.drawable.ic_studio_spark), null, tint = Lab.Violet, modifier = Modifier.size(20.dp))
-                    Text("SEU ESTÚDIO DE IA", color = Lab.Violet, fontSize = 11.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
-                }
-                SunflowerSpinner(40.dp, 10)
-            }
-            Text("Uma ideia.\nNovas possibilidades.", color = Lab.Text, fontSize = 32.sp, lineHeight = 37.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.8).sp)
-            Text("Converse, pesquise e transforme conhecimento em projetos. Seu próximo passo começa aqui.", color = Lab.Muted, fontSize = 14.sp, lineHeight = 21.sp)
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(studioForest)) {
+        SunflowerStudy(Modifier.fillMaxWidth().height(112.dp).clipToBounds())
+        Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Converse com\nseus modelos.", color = studioPaper, fontFamily = FontFamily.Serif,
+                fontSize = 32.sp, lineHeight = 37.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
+            Text("Pesquise um tema, crie projetos e trabalhe com IA no seu dispositivo.",
+                color = studioSage, fontSize = 14.sp, lineHeight = 21.sp)
             @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Button(onChat, colors = ButtonDefaults.buttonColors(containerColor = Lab.Violet, contentColor = Lab.OnPrimary), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp)) {
-                    Text("Começar conversa"); Spacer(Modifier.width(8.dp)); Icon(Icons.Rounded.ArrowForward, null, Modifier.size(18.dp))
-                }
-                OutlinedButton(onStudy, colors = ButtonDefaults.outlinedButtonColors(contentColor = Lab.Text), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)) { Text("Explorar um tema") }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onChat, colors = ButtonDefaults.buttonColors(containerColor = studioPetal, contentColor = Lab.OnPrimary),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp)) { Text("Começar conversa") }
+                OutlinedButton(onStudy, colors = ButtonDefaults.outlinedButtonColors(contentColor = studioPaper),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp)) { Text("Explorar um tema") }
             }
         }
     }
@@ -66,22 +96,19 @@ private val actions = listOf(
 
 @Composable
 fun WorkspaceGrid(onAction: (Int) -> Unit) {
-    Text("O que vamos criar?", color = Lab.Text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+    Text("O que você quer fazer?", color = Lab.Text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(12.dp))
     val scale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns = when { maxWidth >= 840.dp && scale < 1.4f -> 4; maxWidth >= 340.dp && scale < 1.4f -> 2; else -> 1 }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             actions.chunked(columns).forEachIndexed { rowIndex, row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                     row.forEachIndexed { colIndex, action ->
-                        Card(onClick = { onAction(rowIndex * columns + colIndex) }, modifier = Modifier.weight(1f).fillMaxHeight(),
-                            shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Lab.SurfaceHigh.copy(alpha = 0.7f), contentColor = Lab.Text)) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Box(Modifier.clip(RoundedCornerShape(12.dp)).background(action.tint.copy(alpha = 0.12f)).padding(10.dp)) { Icon(action.icon, null, tint = action.tint, modifier = Modifier.size(22.dp)) }
-                                    Icon(Icons.Rounded.NorthEast, null, tint = Lab.Muted, modifier = Modifier.size(16.dp))
-                                }
+                        Surface(onClick = { onAction(rowIndex * columns + colIndex) }, modifier = Modifier.weight(1f).fillMaxHeight(),
+                            shape = RoundedCornerShape(14.dp), color = Lab.SurfaceHigh, contentColor = Lab.Text) {
+                            Column(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Icon(action.icon, null, tint = action.tint, modifier = Modifier.size(22.dp))
                                 Text(action.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                                 Text(action.subtitle, color = Lab.Muted, fontSize = 12.sp, lineHeight = 17.sp)
                             }
@@ -101,16 +128,23 @@ private val starterPrompts = listOf(
 
 @Composable
 fun ConversationWelcome(onPrompt: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(painterResource(R.drawable.ic_studio_spark), null, tint = Lab.Violet, modifier = Modifier.size(36.dp))
-        Text("Como posso ajudar\nvocê a criar?", fontSize = 28.sp, lineHeight = 33.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
-        Text("Comece com uma ideia ou escolha um ponto de partida.", color = Lab.Muted, fontSize = 13.sp, lineHeight = 19.sp)
-        starterPrompts.forEachIndexed { i, (title, prompt) ->
-            OutlinedCard(onClick = { onPrompt(prompt) }, colors = CardDefaults.outlinedCardColors(containerColor = Lab.Surface, contentColor = Lab.Text), shape = RoundedCornerShape(18.dp)) {
-                Row(Modifier.fillMaxWidth().padding(16.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(listOf(Icons.Rounded.Lightbulb, Icons.Rounded.Dataset, Icons.Rounded.Code)[i], null, tint = Lab.Violet, modifier = Modifier.size(22.dp))
-                    Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-                    Icon(Icons.Rounded.ArrowOutward, null, tint = Lab.Muted, modifier = Modifier.size(18.dp))
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Por onde\ncomeçamos?", fontFamily = FontFamily.Serif, fontSize = 30.sp, lineHeight = 35.sp,
+            fontWeight = FontWeight.Medium, color = Lab.Text)
+        Text("Escreva uma tarefa ou escolha uma sugestão para começar.", color = Lab.Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        Surface(shape = RoundedCornerShape(16.dp), color = Lab.Surface, contentColor = Lab.Text) {
+            Column {
+                starterPrompts.forEachIndexed { i, (title, prompt) ->
+                    Surface(onClick = { onPrompt(prompt) }, color = Color.Transparent, contentColor = Lab.Text) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Icon(listOf(Icons.Rounded.Lightbulb, Icons.Rounded.Dataset, Icons.Rounded.Code)[i], null,
+                                tint = if (i == 1) Lab.Cyan else Lab.Violet, modifier = Modifier.size(21.dp))
+                            Text(title, modifier = Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Icon(Icons.Rounded.Add, null, tint = Lab.Muted, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    if (i < starterPrompts.lastIndex) HorizontalDivider(Modifier.padding(start = 50.dp), color = Lab.Outline.copy(alpha = 0.65f))
                 }
             }
         }
