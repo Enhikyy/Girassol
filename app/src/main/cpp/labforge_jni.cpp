@@ -986,7 +986,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
     bool ok = false;
     double final_loss = 0.0;
     int n_tokens = 0, n_seq = 0, n_tensors = 0;
+    llama_model * active_model = nullptr;
+    llama_context * active_ctx = nullptr;
+    bool backend_initialized = false;
 
+    try {
     if (model_path.empty() || out_path.empty() || data_path.empty()) {
         err = "parâmetros vazios";
     } else {
@@ -1003,6 +1007,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
             } else {
                 printf("[train] corpus=%llu bytes, janela=%zu bytes\\n", (unsigned long long) source_bytes, text.size());
                 llama_backend_init();
+                backend_initialized = true;
 
                 llama_model_params mp = llama_model_default_params();
                 mp.n_gpu_layers = 0;
@@ -1022,6 +1027,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                 if (!model) {
                     if (err.empty()) err = "falha ao carregar o modelo via mmap";
                 } else {
+                    active_model = model;
                     log_mmap_status(model_path, "lora-base-frozen");
                     const llama_vocab * vocab = llama_model_get_vocab(model);
                     int ctx_len = std::max(64, std::min(512, n_ctx > 0 ? (int) n_ctx : 128));
@@ -1065,6 +1071,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                     if (!ctx) {
                         if (err.empty()) err = "falha ao criar contexto";
                     } else {
+                        active_ctx = ctx;
                         std::vector<llama_token> tokens(text.size() + 8);
                         int n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
                                                tokens.data(), (int32_t) tokens.size(), true, true);
@@ -1153,14 +1160,29 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                             }
                         }
                         llama_free(ctx);
+                        active_ctx = nullptr;
                     }
                     } // end of 200 MiB native working-set gate
                     llama_model_free(model);
+                    active_model = nullptr;
                 }
                 llama_backend_free();
+                backend_initialized = false;
             }
         }
     }
+    } catch (const std::bad_alloc &) {
+        err = "memória nativa insuficiente durante o treino LoRA; diminua rank/contexto ou use um modelo menor";
+    } catch (const std::exception & ex) {
+        err = std::string("exceção nativa durante treino LoRA: ") + ex.what();
+    } catch (...) {
+        err = "erro nativo desconhecido durante treino LoRA";
+    }
+
+    // Exceptions must never cross the JNI boundary; release partially-created resources.
+    if (active_ctx) { llama_free(active_ctx); active_ctx = nullptr; }
+    if (active_model) { llama_model_free(active_model); active_model = nullptr; }
+    if (backend_initialized) { llama_backend_free(); backend_initialized = false; }
 
     capture_stop();
 
