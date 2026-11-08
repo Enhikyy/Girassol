@@ -636,6 +636,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
     fun trainingDataset(): File? = project?.txt ?: project?.jsonl
 
+    fun dueSkillIds(): Set<String> = learning.due().map { it.id }.toSet()
+
     fun reviewSkill(skillId: String, quality: Int) {
         viewModelScope.launch {
             learningSnapshot = withContext(Dispatchers.IO) { learning.review(skillId, quality) }
