@@ -34,6 +34,16 @@ class MemoryGuardTest {
     }
 
     @Test
+    fun rankTwoContext128LoRAFitsWithARealisticFourGbReserve() {
+        val budget = MemoryGuard.evaluate(
+            totalGb = 4.0, availableGb = 1.2, modelBytes = 1_500_000_000L,
+            mode = "lora", nCtx = 128, rank = 2,
+        )
+        assertTrue(budget.ok)
+        assertTrue(budget.requiredGb <= 1.2)
+    }
+
+    @Test
     fun fullFineTuneIsRejectedOnFourGbDeviceEvenWhenFreeRamLooksHigh() {
         val budget = MemoryGuard.evaluate(
             totalGb = 4.0, availableGb = 3.5, modelBytes = 80_000_000L,
