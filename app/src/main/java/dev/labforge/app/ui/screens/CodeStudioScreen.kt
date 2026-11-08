@@ -175,8 +175,8 @@ private fun MeshPreview(mesh:Mesh,rotation:Float,modifier:Modifier=Modifier) {
         mesh.triangles.forEach { t ->
             val a=projected[t.a];val b=projected[t.b];val c=projected[t.c]
             drawLine(lineColor.copy(alpha=.72f),a,b,strokeWidth=1.25f,cap=StrokeCap.Round)
-            drawLine(color.copy(alpha=.72f),b,c,strokeWidth=1.25f,cap=StrokeCap.Round)
-            drawLine(color.copy(alpha=.72f),c,a,strokeWidth=1.25f,cap=StrokeCap.Round)
+            drawLine(lineColor.copy(alpha=.72f),b,c,strokeWidth=1.25f,cap=StrokeCap.Round)
+            drawLine(lineColor.copy(alpha=.72f),c,a,strokeWidth=1.25f,cap=StrokeCap.Round)
         }
     }
 }
