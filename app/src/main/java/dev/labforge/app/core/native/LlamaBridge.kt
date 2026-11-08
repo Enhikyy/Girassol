@@ -8,6 +8,21 @@ interface NativeCallback {
     fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double)
 }
 
+/** Streaming callback for local llama.cpp inference. */
+interface NativeChatCallback {
+    fun onToken(piece: String)
+    fun onLog(line: String)
+    fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
+}
+
+data class NativeChatResult(
+    val ok: Boolean,
+    val promptTokens: Int,
+    val completionTokens: Int,
+    val elapsedMs: Long,
+    val error: String?,
+)
+
 /**
  * JNI bridge to the bundled llama.cpp engine.
  *
@@ -92,6 +107,44 @@ object LlamaBridge {
         if (isAvailable) runCatching { nativeRequestTrainingStop() }
     }
 
+    /** Interrupts an in-flight local generation without killing the app process. */
+    fun requestChatStop() {
+        if (isAvailable) runCatching { nativeRequestChatStop() }
+    }
+
+    /** Runs a full local inference pass against the selected GGUF model. */
+    fun generateLocal(
+        model: String,
+        systemPrompt: String,
+        userPrompt: String,
+        nCtx: Int,
+        threads: Int,
+        maxTokens: Int,
+        temperature: Float,
+        callback: NativeChatCallback?,
+    ): NativeChatResult {
+        if (!isAvailable) return NativeChatResult(false, 0, 0, 0, loadError ?: "motor nativo indisponível")
+        if (model.isBlank() || systemPrompt.isBlank() || userPrompt.isBlank()) {
+            return NativeChatResult(false, 0, 0, 0, "modelo ou prompt vazio")
+        }
+        val json = runCatching {
+            nativeGenerateLocal(
+                model, systemPrompt, userPrompt, nCtx.coerceIn(256, 4096),
+                threads.coerceIn(1, 8), maxTokens.coerceIn(1, 2048),
+                temperature.coerceIn(0f, 2f), callback,
+            )
+        }.getOrElse {
+            return NativeChatResult(false, 0, 0, 0, it.message ?: it.javaClass.simpleName)
+        }
+        return runCatching {
+            val o = org.json.JSONObject(json)
+            NativeChatResult(
+                o.optBoolean("ok"), o.optInt("prompt_tokens"), o.optInt("completion_tokens"),
+                o.optLong("elapsed_ms"), o.optString("error").ifBlank { null },
+            )
+        }.getOrElse { NativeChatResult(false, 0, 0, 0, "resposta nativa inválida: $json") }
+    }
+
     /** Token count using the GGUF's own vocabulary (native, no network). */
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
@@ -152,4 +205,10 @@ object LlamaBridge {
 
     private external fun nativeTokenStats(model: String, text: String, nCtx: Int): LongArray
     private external fun nativeRequestTrainingStop()
+    private external fun nativeRequestChatStop()
+    private external fun nativeGenerateLocal(
+        model: String, systemPrompt: String, userPrompt: String,
+        nCtx: Int, threads: Int, maxTokens: Int, temperature: Float,
+        callback: NativeChatCallback?,
+    ): String
 }
