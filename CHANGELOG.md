@@ -1,3 +1,16 @@
+# Girassol 1.7.0 — estabilidade de treinamento e autoaprendizado
+
+- Corrige o uso de `JNIEnv` entre threads nativas, que podia encerrar o processo durante o fluxo de logs do treinamento.
+- Evita carregar o dataset inteiro na RAM nativa: o corpus fica completo no armazenamento e cada ciclo de treino lê uma janela rotativa limitada.
+- LoRA adaptativo para aparelhos com pouca RAM: contexto, rank, alvos e threads reduzidos; bloqueio preventivo de jobs cujo orçamento ultrapasse a memória disponível.
+- Monitora pressão de RAM durante o treino, solicita parada cooperativa ao fim da época e preserva checkpoint LoRA por época.
+- Pesquisa autônoma com GitHub em primeiro lugar, priorização por estrelas/atividade e ingestão do README de projetos para fundamentar síntese e dataset.
+- Alternância Pure Black OLED persistente; animações de fundo suspensas nesse modo para reduzir trabalho gráfico, com gráficos de barras e linhas animados.
+- Preserva o piloto automático, o autoaprendizado iterativo e os recursos já existentes. Não há limite artificial de tamanho do APK definido pelo projeto.
+
+## Observação de hardware
+Em aparelhos com 4 GB, o perfil seguro prioriza LoRA pequeno e ciclos curtos; fine-tuning completo fica bloqueado quando a memória total/disponível não atende ao orçamento. Isso evita confundir “APK sem limite de tamanho” com memória RAM ilimitada.
+
 # Girassol 1.6.1 — Refinamento de interface
 
 - Melhorias de legibilidade e escala tipográfica nas telas principais.
