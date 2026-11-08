@@ -156,7 +156,7 @@ fun ConversationComposer(input: String, running: Boolean, onInput: (String) -> U
     Surface(Modifier.fillMaxWidth(), color = Lab.Bg, contentColor = Lab.Text, shadowElevation = 8.dp) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             OutlinedTextField(input, onInput, Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
-                placeholder = { Text("Descreva a tarefa…") }, maxLines = 5,
+                label = { Text("Sua mensagem") }, placeholder = { Text("Descreva a tarefa…") }, maxLines = 5,
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Lab.Violet, unfocusedBorderColor = Lab.Outline, focusedTextColor = Lab.Text, unfocusedTextColor = Lab.Text,
                     focusedContainerColor = Lab.Surface, unfocusedContainerColor = Lab.Surface, cursorColor = Lab.Violet),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send), keyboardActions = KeyboardActions(onSend = { if (input.isNotBlank() && !running) onSend() }),

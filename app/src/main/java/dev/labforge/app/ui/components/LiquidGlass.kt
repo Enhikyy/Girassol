@@ -179,7 +179,7 @@ fun LiquidTabs(
     val lag by animateFloatAsState(target, spring(dampingRatio = 0.86f, stiffness = 140f), label = "lag")
     Row(
         modifier.drawBehind {
-            if (count <= 0) return@drawBehind
+            if (selected !in 0 until count) return@drawBehind
             val w = size.width / count
             val ins = inset.toPx()
             val l = min(lead, lag) * w + ins

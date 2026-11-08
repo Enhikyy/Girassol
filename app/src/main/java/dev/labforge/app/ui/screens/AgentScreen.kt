@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +74,7 @@ import dev.labforge.app.vm.LabViewModel
 @Composable
 fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Unit = {}) {
     var tab by rememberSaveable { mutableStateOf(0) }
+    var draft by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) {
         Handoff.toChat?.let {
             agentVm.injectFromCodex(it)
@@ -114,7 +116,7 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
             Spacer(Modifier.height(4.dp))
         }
         when (tab) {
-            0 -> ChatPane(agentVm, vm, onOpenCodex)
+            0 -> ChatPane(agentVm, vm, draft, { draft = it }, onOpenCodex)
             1 -> TerminalPane(agentVm)
             else -> NotebookPane(agentVm)
         }
@@ -122,9 +124,8 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
 }
 
 @Composable
-private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Unit) {
+private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, input: String, onInput: (String) -> Unit, onOpenCodex: () -> Unit) {
     val listState = rememberLazyListState()
-    var input by remember { mutableStateOf("") }
 
     LaunchedEffect(agentVm.messages.size) {
         if (agentVm.messages.isNotEmpty()) {
@@ -152,14 +153,14 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (agentVm.messages.isEmpty()) {
-                item { ConversationWelcome { input = it } }
+                item { ConversationWelcome(onInput) }
             }
             items(agentVm.messages, key = { it.id }) { m -> MessageBubble(m, onOpenCodex) }
             item { Spacer(Modifier.height(6.dp)) }
         }
 
-        ConversationComposer(input, agentVm.running, { input = it }, {
-            if (input.isNotBlank() && !agentVm.running) { agentVm.send(input.trim()); input = "" }
+        ConversationComposer(input, agentVm.running, onInput, {
+            if (input.isNotBlank() && !agentVm.running) { agentVm.send(input.trim()); onInput("") }
         }, agentVm::stop)
     }
 }
@@ -344,14 +345,10 @@ private fun NotebookPane(agentVm: AgentViewModel) {
                                 color = Lab.Text,
                                 modifier = Modifier.weight(1f),
                             )
-                            Icon(
-                                Icons.Rounded.Delete,
-                                null,
-                                tint = Lab.Muted,
-                                modifier = Modifier
-                                    .size(15.dp)
-                                    .clickable { agentVm.deleteLesson(l.id) },
-                            )
+                            IconButton(onClick = { agentVm.deleteLesson(l.id) }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Excluir lição: ${l.title}",
+                                    tint = Lab.Muted, modifier = Modifier.size(20.dp))
+                            }
                         }
                         if (l.tags.isNotEmpty()) {
                             Spacer(Modifier.height(5.dp))
