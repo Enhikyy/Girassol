@@ -48,14 +48,7 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
     val scope= rememberCoroutineScope()
     val modelStore=remember { ModelStore(context) }
     val legacyProject=remember { File(context.filesDir,"studio-projects/GirassolWorkspace") }
-    val project=remember {
-        File(modelStore.workspace(),"StudioProject").apply {
-            mkdirs()
-            if(listFiles().isNullOrEmpty() && legacyProject.isDirectory) {
-                runCatching { legacyProject.copyRecursively(this,overwrite=false) }
-            }
-        }
-    }
+    val project=remember { File(modelStore.workspace(),"StudioProject").apply { mkdirs() } }
     var source by remember {
         mutableStateOf(
             listOf("// Girassol Native Studio","// Edite seu código localmente.").joinToString(System.lineSeparator()) + System.lineSeparator()
@@ -72,6 +65,9 @@ fun CodeStudioScreen(onOpenCodex: () -> Unit = {}) {
 
     LaunchedEffect(project) {
         val snapshot=withContext(Dispatchers.IO) {
+            if(project.listFiles().isNullOrEmpty() && legacyProject.isDirectory) {
+                runCatching { legacyProject.copyRecursively(project,overwrite=false) }
+            }
             val files=WorkspaceFiles.listFiles(project)
             val f=WorkspaceFiles.resolve(project,fileName)
             files to if(f.isFile) f.readText() else null
