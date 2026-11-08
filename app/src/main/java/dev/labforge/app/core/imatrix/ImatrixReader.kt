@@ -116,7 +116,10 @@ object ImatrixReader {
     }
 
     private fun readFirstInt(raf: RandomAccessFile, model: Gguf.Model, t: Gguf.Tensor): Long {
-        raf.seek(model.headerBytes + t.offset)
+        val pos = model.headerBytes + t.offset
+        // A truncated/corrupt imatrix must not throw EOFException out of the reader.
+        if (pos < 0 || pos + 4 > raf.length()) return 0L
+        raf.seek(pos)
         return when {
             t.type.id == 26 -> { // I32
                 val b = ByteArray(4)
@@ -137,9 +140,14 @@ object ImatrixReader {
     /** Reads at most 262144 floats per tensor and returns (mean|v|, max|v|, p95). */
     private fun sampleStats(raf: RandomAccessFile, model: Gguf.Model, t: Gguf.Tensor): Triple<Double, Double, Double> {
         val total = t.elements.coerceAtLeast(1)
-        val take = total.coerceAtMost(262_144).toInt()
+        val start = model.headerBytes + t.offset
+        // Clamp to what the file actually holds: the last tensor can be shorter than
+        // its declared element count, and readFully() would throw EOFException.
+        val available = (raf.length() - start).coerceAtLeast(0)
+        val take = minOf(total, 262_144L, available / 4).toInt()
+        if (take <= 0) return Triple(0.0, 0.0, 0.0)
         val bytes = ByteArray(take * 4)
-        raf.seek(model.headerBytes + t.offset)
+        raf.seek(start)
         raf.readFully(bytes)
         val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
         var sum = 0.0

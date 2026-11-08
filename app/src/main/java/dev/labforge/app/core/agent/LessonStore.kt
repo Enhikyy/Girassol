@@ -55,7 +55,7 @@ class LessonStore(dir: File) {
     fun search(query: String, limit: Int = 3): List<Lesson> {
         val terms = query.lowercase().split(Regex("[^a-z0-9_]+")).filter { it.length > 2 }
         if (terms.isEmpty()) return all().take(limit)
-        return all().map { l ->
+        val scored = all().map { l ->
             var score = 0.0
             val title = l.title.lowercase()
             val body = l.body.lowercase()
@@ -70,6 +70,13 @@ class LessonStore(dir: File) {
             .sortedByDescending { it.second }
             .take(limit)
             .map { it.first }
+
+        // Reinforce what actually gets reused, so the notebook ranks by usefulness.
+        if (scored.isNotEmpty()) {
+            val hits = scored.map { it.id }.toSet()
+            persist(all().map { if (it.id in hits) it.copy(uses = it.uses + 1) else it })
+        }
+        return scored
     }
 
     @Synchronized

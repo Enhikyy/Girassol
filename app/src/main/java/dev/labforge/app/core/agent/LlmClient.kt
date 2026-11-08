@@ -33,11 +33,8 @@ class LlmClient(
 ) {
     private val url: String = normalize(endpoint)
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(300, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .build()
+    // Shared pool: a new OkHttpClient per screen/agent leaks threads and sockets.
+    private val http: OkHttpClient get() = shared
 
     suspend fun chat(
         messages: JSONArray,
@@ -191,6 +188,14 @@ class LlmClient(
     }
 
     companion object {
+        /** One connection pool for every client instance in the process. */
+        private val shared: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(300, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
+
         fun normalize(raw: String): String {
             var base = raw.trim()
             if (base.isEmpty()) base = "https://api.openai.com/v1"

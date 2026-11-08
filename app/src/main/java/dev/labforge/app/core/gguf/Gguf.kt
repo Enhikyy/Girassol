@@ -94,9 +94,14 @@ object Gguf {
             val tensorCount = reader.u64()
             val kvCount = reader.u64()
 
+            // Reject absurd counts instead of silently truncating the loop: a capped
+            // repeat() would leave the reader misaligned and corrupt every tensor.
+            require(tensorCount in 0..1_000_000) { "tensor_count inválido ($tensorCount)" }
+            require(kvCount in 0..1_000_000) { "kv_count inválido ($kvCount)" }
+
             val metadata = ArrayList<Metadata>(kvCount.coerceAtMost(512).toInt())
             var alignment = 32
-            repeat(kvCount.coerceAtMost(100_000).toInt()) {
+            repeat(kvCount.toInt()) {
                 val key = reader.string()
                 val vtype = reader.u32()
                 val value = readValue(reader, vtype.toInt(), 0)
@@ -105,7 +110,7 @@ object Gguf {
             }
 
             val tensors = ArrayList<Tensor>(tensorCount.coerceAtMost(100_000).toInt())
-            repeat(tensorCount.coerceAtMost(100_000).toInt()) {
+            repeat(tensorCount.toInt()) {
                 val name = reader.string()
                 val nDims = reader.u32()
                 require(nDims in 0L..8L) { "Dimensões inválidas ($nDims) em $name" }

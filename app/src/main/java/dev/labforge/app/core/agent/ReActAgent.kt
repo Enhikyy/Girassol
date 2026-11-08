@@ -34,6 +34,9 @@ class ReActAgent(
 ) {
     private val tools = defaultTools(workspace, lessons)
 
+    private var lastSignature: String? = null
+    private var repeats = 0
+
     suspend fun run(task: String): String {
         val relevant = lessons.search(task, 4)
         val notebook = if (relevant.isEmpty()) "(caderno vazio)" else relevant.joinToString("\n\n") {
@@ -105,12 +108,33 @@ class ReActAgent(
                     runCatching { tool.execute(args) }
                         .getOrElse { ToolResult(false, it.message ?: "erro na ferramenta") }
                 }
-                onEvent(AgentEvent.ToolEnd(call.name, result.ok, result.output))
+                onEvent(AgentEvent.ToolEnd(call.name, result.ok, result.output.take(7000)))
                 messages.put(JSONObject().apply {
                     put("role", "tool")
                     put("tool_call_id", call.id)
                     put("content", result.output.take(7000))
                 })
+            }
+
+            // Loop guard: an autonomous agent can otherwise call the same tool with the
+            // same arguments forever, burning tokens without making progress.
+            val signature = reply.toolCalls.joinToString("|") { it.name + it.arguments }
+            if (signature == lastSignature) {
+                repeats++
+                if (repeats >= 2) {
+                    messages.put(JSONObject().apply {
+                        put("role", "user")
+                        put(
+                            "content",
+                            "Você repetiu a mesma chamada de ferramenta ${repeats + 1} vezes com o mesmo " +
+                                "resultado. Mude de estratégia ou responda com o que já sabe.",
+                        )
+                    })
+                    repeats = 0
+                }
+            } else {
+                lastSignature = signature
+                repeats = 0
             }
         }
 
