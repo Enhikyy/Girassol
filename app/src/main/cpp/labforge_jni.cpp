@@ -831,6 +831,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 ggml_opt_result_t r_train = ggml_opt_result_init();
                                 ggml_opt_result_t r_eval  = ggml_opt_result_init();
 
+                                const std::string checkpoint_path = out_path + ".checkpoint.gguf";
                                 for (lr.epoch = 0; lr.epoch < lr.epochs && !g_train_abort.load(); ++lr.epoch) {
                                     printf("[lora] epoch %u/%u\n", lr.epoch + 1, lr.epochs);
                                     g_train_epoch = (int) lr.epoch + 1;
@@ -843,24 +844,20 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                     printf("[lora] epoch %u loss=%.6f\n", lr.epoch + 1, loss);
                                     ggml_opt_result_reset(r_train);
                                     ggml_opt_result_reset(r_eval);
+                                    if (!save_lora(adapter, model, lt.alpha, checkpoint_path, err)) break;
+                                    printf("[lora] checkpoint da época %u salvo\\n", lr.epoch + 1);
                                 }
 
                                 ggml_opt_result_free(r_train);
                                 ggml_opt_result_free(r_eval);
                                 ggml_opt_dataset_free(dataset);
 
-                                const std::string checkpoint_path = out_path + ".checkpoint.gguf";
                                 if (g_train_abort.load()) {
-                                    err = "treino interrompido antes de concluir a primeira época";
-                                } else if (save_lora(adapter, model, lt.alpha, checkpoint_path, err)) {
-                                    printf("[lora] checkpoint salvo após época %u: %s\n", lr.epoch, checkpoint_path.c_str());
-                                    if (g_train_abort.load()) {
-                                        err = "treino interrompido; último checkpoint preservado em " + checkpoint_path;
-                                    } else {
-                                        printf("[lora] exportando adaptador final %s\n", out_path.c_str());
-                                        ok = save_lora(adapter, model, lt.alpha, out_path, err);
-                                        if (ok) std::remove(checkpoint_path.c_str());
-                                    }
+                                    err = "treino interrompido; último checkpoint preservado em " + checkpoint_path;
+                                } else if (err.empty()) {
+                                    printf("[lora] exportando adaptador final %s\n", out_path.c_str());
+                                    ok = save_lora(adapter, model, lt.alpha, out_path, err);
+                                    if (ok) std::remove(checkpoint_path.c_str());
                                 }
                             }
                         }
