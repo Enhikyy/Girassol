@@ -35,6 +35,7 @@
 #include <mutex>
 #include <new>
 #include <exception>
+#include <limits>
 
 #define LOG_TAG "LabForgeNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
@@ -318,7 +319,8 @@ static void capture_stop() {
 }
 
 // Keep the corpus on disk and sample a bounded window for each autonomous cycle.
-static constexpr size_t MAX_TRAIN_WINDOW_BYTES = 512 * 1024;
+static constexpr size_t MAX_TRAIN_WINDOW_BYTES = 128 * 1024;
+static constexpr uint64_t MAX_LORA_WORKING_BYTES = 200ULL * 1024ULL * 1024ULL;
 static bool read_training_window(std::ifstream & file, std::string & text, uint64_t & source_bytes) {
     file.seekg(0, std::ios::end);
     const std::streamoff size = file.tellg();
@@ -791,6 +793,72 @@ static bool lora_param_filter(const ggml_tensor * t, void *) {
     return strstr(t->name, ".lora_a") != nullptr || strstr(t->name, ".lora_b") != nullptr;
 }
 
+// Estimate the resident LoRA working set, excluding the read-only mmap base model.
+// The cap includes adapter weights, gradient/Adam state, activation/context buffers,
+// and bounded corpus staging. It is a conservative preflight, not an RSS guarantee.
+static uint64_t estimate_lora_working_bytes(
+        llama_model * model, int ctx_len, int rank, bool include_ffn) {
+    if (!model) return std::numeric_limits<uint64_t>::max();
+
+    std::set<ggml_tensor *> seen;
+    uint64_t adapter_bytes = 0;
+    uint64_t hidden_width = 1;
+    bool overflow = false;
+    auto add = [&](ggml_tensor * w) {
+        if (!w || ggml_n_dims(w) != 2 || !w->name[0] || !seen.insert(w).second) return;
+        const uint64_t n0 = (uint64_t) w->ne[0];
+        const uint64_t n1 = (uint64_t) w->ne[1];
+        const uint64_t r = (uint64_t) std::min<int>(rank, std::min<int>((int) n0, (int) n1));
+        if (r == 0 || n0 + n1 > std::numeric_limits<uint64_t>::max() / r / sizeof(float)) {
+            overflow = true;
+            return;
+        }
+        const uint64_t bytes = (n0 + n1) * r * sizeof(float);
+        if (adapter_bytes > std::numeric_limits<uint64_t>::max() - bytes) {
+            overflow = true;
+            return;
+        }
+        adapter_bytes += bytes;
+        hidden_width = std::max(hidden_width, std::min(n0, n1));
+    };
+
+    for (auto & layer : model->layers) {
+        add(layer.wq); add(layer.wk); add(layer.wv); add(layer.wo);
+        add(layer.wqkv);
+        add(layer.wq_a); add(layer.wq_b);
+        add(layer.wkv_a_mqa); add(layer.wkv_b); add(layer.wkv);
+        add(layer.wk_b); add(layer.wv_b); add(layer.wqkv_b);
+        add(layer.wo_a); add(layer.wo_b);
+        if (include_ffn) {
+            add(layer.ffn_gate); add(layer.ffn_down); add(layer.ffn_up);
+        }
+    }
+
+    if (overflow || seen.empty()) return std::numeric_limits<uint64_t>::max();
+    const uint64_t layers = std::max<uint64_t>(1, (uint64_t) model->layers.size());
+    const uint64_t ctx = (uint64_t) std::max(64, ctx_len);
+    if (adapter_bytes > std::numeric_limits<uint64_t>::max() / 4ULL) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+
+    // Trainable values + gradients + Adam first/second moments.
+    const uint64_t optimizer = adapter_bytes * 4ULL;
+    // Conservative layerwise activation and attention working buffers.
+    const uint64_t per_layer = ctx * hidden_width * sizeof(float);
+    if (per_layer > std::numeric_limits<uint64_t>::max() / layers / 6ULL) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    const uint64_t activations_and_kv = layers * per_layer * 6ULL;
+    const uint64_t dataset_staging = (uint64_t) MAX_TRAIN_WINDOW_BYTES * 12ULL;
+    const uint64_t fixed_overhead = 24ULL * 1024ULL * 1024ULL;
+
+    if (optimizer > std::numeric_limits<uint64_t>::max() - activations_and_kv ||
+        optimizer + activations_and_kv > std::numeric_limits<uint64_t>::max() - dataset_staging - fixed_overhead) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    return optimizer + activations_and_kv + dataset_staging + fixed_overhead;
+}
+
 static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraTargets & t, std::string & err) {
     auto adapter = std::make_shared<llama_adapter_lora>(model);
     adapter->alpha = t.alpha;
@@ -832,6 +900,11 @@ static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraT
         const int r = std::min<int>(t.rank, std::min<int>((int) w->ne[0], (int) w->ne[1]));
         ggml_tensor * a = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, w->ne[0], r);
         ggml_tensor * b = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, r, w->ne[1]);
+        if (!a || !b) {
+            err = "falha ao criar tensor A/B do LoRA";
+            ggml_free(gctx);
+            return nullptr;
+        }
         ggml_set_name(a, (name + ".lora_a").c_str());
         ggml_set_name(b, (name + ".lora_b").c_str());
         adapter->ab_map[name] = llama_adapter_lora_weight(a, b);
@@ -845,14 +918,26 @@ static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraT
     // A ~ N(0, 0.02), B = 0  =>  delta starts at zero
     std::mt19937 rng(1337);
     std::normal_distribution<float> nd(0.f, 0.02f);
-    std::vector<float> tmp;
     for (auto & [name, w] : t.items) {
+        (void) w;
         auto & lw = adapter->ab_map[name];
-        tmp.resize((size_t) ggml_nelements(lw.a));
-        for (auto & v : tmp) v = nd(rng);
-        ggml_backend_tensor_set(lw.a, tmp.data(), 0, ggml_nbytes(lw.a));
-        std::fill(tmp.begin(), tmp.end(), 0.f);
-        ggml_backend_tensor_set(lw.b, tmp.data(), 0, ggml_nbytes(lw.b));
+        const size_t a_count = (size_t) ggml_nelements(lw.a);
+        const size_t b_count = (size_t) ggml_nelements(lw.b);
+        const size_t a_bytes = ggml_nbytes(lw.a);
+        const size_t b_bytes = ggml_nbytes(lw.b);
+        // A and B are rectangular in many architectures. Reusing a vector sized
+        // for A to initialize B could read past its allocation and corrupt the
+        // native heap, causing an uncatchable process crash.
+        if (a_count == 0 || b_count == 0 ||
+            a_bytes > a_count * sizeof(float) || b_bytes > b_count * sizeof(float)) {
+            err = "dimensões inválidas nos tensores A/B do LoRA";
+            return nullptr;
+        }
+        std::vector<float> a_values(a_count);
+        std::vector<float> b_values(b_count, 0.0f);
+        for (auto & value : a_values) value = nd(rng);
+        ggml_backend_tensor_set(lw.a, a_values.data(), 0, a_bytes);
+        ggml_backend_tensor_set(lw.b, b_values.data(), 0, b_bytes);
         ggml_set_param(lw.a);
         ggml_set_param(lw.b);
     }
@@ -939,13 +1024,30 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                 } else {
                     log_mmap_status(model_path, "lora-base-frozen");
                     const llama_vocab * vocab = llama_model_get_vocab(model);
-                    const int ctx_len = n_ctx > 0 ? n_ctx : 512;
+                    int ctx_len = std::max(64, std::min(512, n_ctx > 0 ? (int) n_ctx : 128));
+                    int effective_rank = std::max(2, std::min(16, rank > 0 ? (int) rank : 4));
+                    const bool include_ffn = targets.find("ffn") != std::string::npos || targets == "all";
+                    uint64_t estimated_working = estimate_lora_working_bytes(model, ctx_len, effective_rank, include_ffn);
 
+                    while (estimated_working > MAX_LORA_WORKING_BYTES &&
+                           (ctx_len > 64 || effective_rank > 2)) {
+                        if (ctx_len > 64) ctx_len = std::max(64, ctx_len / 2);
+                        else effective_rank = std::max(2, effective_rank / 2);
+                        estimated_working = estimate_lora_working_bytes(model, ctx_len, effective_rank, include_ffn);
+                    }
+
+                    printf("[lora-budget] estimated=%llu MiB limit=200 MiB ctx=%d rank=%d\\n",
+                           (unsigned long long) (estimated_working / (1024ULL * 1024ULL)),
+                           ctx_len, effective_rank);
+
+                    if (estimated_working > MAX_LORA_WORKING_BYTES) {
+                        err = "buffers LoRA estimados acima de 200 MiB mesmo em ctx=64/rank=2; reduza o modelo ou desative FFN";
+                    } else {
                     llama_context_params cp = llama_context_default_params();
                     cp.n_ctx = ctx_len;
                     cp.n_batch = ctx_len;
-                    cp.n_ubatch = ctx_len;   // gradients through attention need ubatch == ctx
-                    cp.n_threads = nthreads > 0 ? nthreads : (int) std::thread::hardware_concurrency();
+                    cp.n_ubatch = ctx_len;   // backward graph in the pinned llama.cpp needs ubatch == ctx
+                    cp.n_threads = std::max(1, std::min(2, nthreads > 0 ? (int) nthreads : 1));
                     cp.n_threads_batch = cp.n_threads;
                     cp.type_k = GGML_TYPE_F32;
                     cp.type_v = GGML_TYPE_F32;
@@ -978,9 +1080,9 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                             n_tokens = n;
 
                             LoraTargets lt;
-                            lt.rank = rank > 0 ? rank : 16;
+                            lt.rank = effective_rank;
                             lt.alpha = alpha > 0 ? alpha : (float) lt.rank;
-                            lt.include_ffn = targets.find("ffn") != std::string::npos || targets == "all";
+                            lt.include_ffn = include_ffn;
 
                             auto adapter = build_lora(model, lt, err);
                             if (adapter) {
@@ -1052,6 +1154,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                         }
                         llama_free(ctx);
                     }
+                    } // end of 200 MiB native working-set gate
                     llama_model_free(model);
                 }
                 llama_backend_free();
