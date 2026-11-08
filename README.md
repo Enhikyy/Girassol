@@ -55,7 +55,13 @@ adb install -r app-debug.apk
 
 ## Continuidade de aprendizado (1.8.0)
 
-O autoestudo mantém uma árvore de habilidades local, com revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline de falhas e padrões recorrentes. O painel permite marcar cada revisão como difícil, lembrada ou fácil. A memória é local, limitada por quantidade e não substitui validação factual das fontes.
+O autoestudo mantém uma árvore de habilidades local, com pré-requisitos, revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline idempotente de falhas e padrões recorrentes. O resultado do treino LoRA é registrado como evidência positiva ou como falha a revisar. A memória é local, limitada por quantidade e não substitui validação factual das fontes.
+
+## Stack de pesquisa por referência
+
+O catálogo GitHub-first associa tópicos aos READMEs permissivamente licenciados de labml, LLaMA Factory, MuonClip, Kimi Linear/KDA, Flash Linear Attention, lau-agent-dream, ZenBrain e UI-Voyager. A pesquisa ingere documentação e extrai ideias; ela não instala os runtimes Python, CUDA, Triton ou vLLM desses projetos no telefone.
+
+Fontes sem licença confirmada, com licença restritiva, conteúdo incompleto ou link indisponível são mantidas apenas como metadados. A matriz de compatibilidade e as decisões de integração estão em [docs/RESEARCH_COMPATIBILITY.md](docs/RESEARCH_COMPATIBILITY.md).
 
 ## O que é
 
@@ -107,7 +113,7 @@ A pesquisa usa **Wikipedia (pt/en), OpenAlex, arXiv, Stack Overflow, DuckDuckGo,
 ```mermaid
 flowchart TD
     UI[Jetpack Compose] --> VM[ViewModels]
-    VM --> RESEARCH[ResearchEngine<br/>7 fontes + Brave + BM25]
+    VM --> RESEARCH[ResearchEngine<br/>APIs públicas + GitHub-first + BM25]
     VM --> DATASET[DatasetBuilder]
     VM --> TUNER[AutoTuner]
     VM --> JOB[JobEngine]
@@ -217,7 +223,7 @@ O APK é validado por teste: `com.llamatik.core.platform.LlamaBridge` **não** e
 - Tipografia sans (Inter/Roboto), títulos com tracking negativo.
 - Componentes: aurora animada, glass cards, progress ring, donut, barras animadas, girassol spinner.
 
-Referências Figma e a tradução visual nativa estão documentadas em [`docs/DESIGN_REFERENCES.md`](docs/DESIGN_REFERENCES.md).
+Matriz de fontes e licenças: [`docs/RESEARCH_COMPATIBILITY.md`](docs/RESEARCH_COMPATIBILITY.md).
 
 ---
 
