@@ -422,11 +422,14 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
         if (!f) {
             err = "não foi possível abrir o dataset";
         } else {
-            std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            std::string text;
+            uint64_t source_bytes = 0;
+            const bool has_window = read_training_window(f, text, source_bytes);
             f.close();
-            if (text.size() < 64) {
-                err = "dataset muito pequeno";
+            if (!has_window || text.size() < 64) {
+                err = has_window ? "dataset muito pequeno" : "não foi possível ler uma janela do dataset";
             } else {
+                printf("[train] corpus=%llu bytes, janela=%zu bytes\\n", (unsigned long long) source_bytes, text.size());
                 llama_backend_init();
 
                 llama_model_params mp = llama_model_default_params();
@@ -730,11 +733,14 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
         if (!f) {
             err = "não foi possível abrir o dataset";
         } else {
-            std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            std::string text;
+            uint64_t source_bytes = 0;
+            const bool has_window = read_training_window(f, text, source_bytes);
             f.close();
-            if (text.size() < 64) {
-                err = "dataset muito pequeno";
+            if (!has_window || text.size() < 64) {
+                err = has_window ? "dataset muito pequeno" : "não foi possível ler uma janela do dataset";
             } else {
+                printf("[train] corpus=%llu bytes, janela=%zu bytes\\n", (unsigned long long) source_bytes, text.size());
                 llama_backend_init();
 
                 llama_model_params mp = llama_model_default_params();
