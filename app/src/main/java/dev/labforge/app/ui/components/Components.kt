@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -71,11 +72,12 @@ fun AuroraBackground(content: @Composable () -> Unit) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFF0A0C07), Lab.Bg, Color(0xFF080A05)),
+                    if (Lab.pureBlack) listOf(Color.Black, Color.Black, Color.Black) else listOf(Color(0xFF0A0C07), Lab.Bg, Color(0xFF080A05)),
                 ),
             ),
     ) {
         Canvas(Modifier.fillMaxSize()) {
+            if (Lab.pureBlack) return@Canvas
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(Lab.Violet.copy(alpha = 0.17f), Color.Transparent),
@@ -115,7 +117,7 @@ fun GlassCard(
             .clip(shape)
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xE61A1D12), Color(0xD90F110B)),
+                    listOf(if (Lab.pureBlack) Lab.Surface else Color(0xE61A1D12), if (Lab.pureBlack) Lab.Bg else Color(0xD90F110B)),
                     start = Offset.Zero,
                     end = Offset(900f, 700f),
                 ),
@@ -256,6 +258,7 @@ fun StatTile(label: String, value: String, accent: Color = Lab.Violet, modifier:
 }
 
 @Composable
+@Composable
 fun MiniBars(
     values: List<Float>,
     modifier: Modifier = Modifier,
@@ -263,13 +266,18 @@ fun MiniBars(
     highlightMax: Boolean = true,
 ) {
     val data = remember(values) { values }
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(data) {
+        reveal.snapTo(0f)
+        reveal.animateTo(1f, tween(520))
+    }
     Canvas(modifier) {
         if (data.isEmpty()) return@Canvas
         val maxV = data.maxOrNull()?.takeIf { it > 0f } ?: 1f
         val gap = 2.dp.toPx()
         val w = (size.width - gap * (data.size - 1)) / data.size
         data.forEachIndexed { i, v ->
-            val h = (v / maxV).coerceIn(0.02f, 1f) * size.height
+            val h = (v / maxV).coerceIn(0.02f, 1f) * size.height * reveal.value
             val isMax = highlightMax && v == maxV
             drawRoundRect(
                 color = if (isMax) Lab.Cyan else color.copy(alpha = 0.55f + 0.45f * (v / maxV)),
@@ -288,43 +296,35 @@ fun LineChart(
     color: Color = Lab.Cyan,
     showDots: Boolean = true,
 ) {
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(points) {
+        reveal.snapTo(0f)
+        reveal.animateTo(1f, tween(650))
+    }
     Canvas(modifier) {
         if (points.size < 2) {
-            drawLine(
-                color = color.copy(alpha = 0.18f),
-                start = Offset(0f, size.height * 0.6f),
-                end = Offset(size.width, size.height * 0.6f),
-                strokeWidth = 1.dp.toPx(),
-            )
+            drawLine(color.copy(alpha = 0.18f), Offset(0f, size.height * 0.6f), Offset(size.width, size.height * 0.6f), 1.dp.toPx())
             return@Canvas
         }
         val minV = points.min()
         val maxV = points.max()
         val span = (maxV - minV).takeIf { it > 1e-6f } ?: 1f
+        val visibleCount = (points.size * reveal.value).toInt().coerceIn(2, points.size)
         fun x(i: Int) = i.toFloat() / (points.size - 1) * size.width
         fun y(v: Float) = size.height - ((v - minV) / span) * (size.height * 0.82f) - size.height * 0.06f
-
         val line = Path()
-        points.forEachIndexed { i, v -> if (i == 0) line.moveTo(x(i), y(v)) else line.lineTo(x(i), y(v)) }
-
+        points.take(visibleCount).forEachIndexed { i, v -> if (i == 0) line.moveTo(x(i), y(v)) else line.lineTo(x(i), y(v)) }
         val fill = Path().apply {
             addPath(line)
-            lineTo(size.width, size.height)
-            lineTo(0f, size.height)
+            lineTo(x(visibleCount - 1), size.height)
+            lineTo(x(0), size.height)
             close()
         }
-        drawPath(
-            fill,
-            Brush.verticalGradient(listOf(color.copy(alpha = 0.28f), Color.Transparent), endY = size.height),
-        )
+        drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = 0.25f), Color.Transparent), endY = size.height))
         drawPath(line, color, style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round))
-
         if (showDots) {
-            points.forEachIndexed { i, v ->
-                if (i == points.lastIndex || i == 0) {
-                    drawCircle(color, 3.dp.toPx(), Offset(x(i), y(v)))
-                }
-            }
+            drawCircle(color, 3.dp.toPx(), Offset(x(0), y(points.first())))
+            if (visibleCount > 2) drawCircle(color, 3.dp.toPx(), Offset(x(visibleCount - 1), y(points[visibleCount - 1])))
         }
     }
 }
