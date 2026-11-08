@@ -21,6 +21,15 @@ data class LlmReply(
     val completionTokens: Int = 0,
 )
 
+/** Common protocol used by the ReAct loop for local and OpenAI-compatible models. */
+interface AgentLlm {
+    suspend fun chat(
+        messages: JSONArray,
+        tools: JSONArray?,
+        onDelta: ((text: String, reasoning: Boolean) -> Unit)? = null,
+    ): LlmReply
+}
+
 /**
  * OpenAI-compatible client. Works with OpenAI, OpenRouter, Groq, Ollama, LM Studio,
  * llama-server, vLLM etc.
@@ -30,16 +39,16 @@ class LlmClient(
     private val apiKey: String,
     private val model: String,
     private val temperature: Double = 0.2,
-) {
+) : AgentLlm {
     private val url: String = normalize(endpoint)
 
     // Shared pool: a new OkHttpClient per screen/agent leaks threads and sockets.
     private val http: OkHttpClient get() = shared
 
-    suspend fun chat(
+    override suspend fun chat(
         messages: JSONArray,
         tools: JSONArray?,
-        onDelta: ((text: String, reasoning: Boolean) -> Unit)? = null,
+        onDelta: ((text: String, reasoning: Boolean) -> Unit)?,
     ): LlmReply = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply {
             put("model", model)
