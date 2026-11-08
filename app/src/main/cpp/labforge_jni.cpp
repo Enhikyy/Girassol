@@ -31,6 +31,7 @@
 #include <gguf.h>
 #include <random>
 #include <set>
+#include <mutex>
 
 #define LOG_TAG "LabForgeNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
@@ -44,9 +45,11 @@ static JavaVM * g_vm = nullptr;
 static jclass    g_cb_class = nullptr;
 static jmethodID g_cb_log = nullptr;
 static jmethodID g_cb_epoch = nullptr;
+static jmethodID g_cb_token = nullptr;
 
 static jobject   g_cb_obj = nullptr;
-static JNIEnv  * g_call_env = nullptr;
+static std::mutex g_native_mutex;
+static std::atomic<bool> g_chat_abort{false};
 
 // stdout/stderr capture so native logs stream into the Compose console
 static int  g_saved_out = -1;
@@ -120,17 +123,17 @@ static void reader_loop() {
 }
 
 static void capture_start(JNIEnv * env, jobject cb) {
-    g_call_env = nullptr;
     if (cb) {
         g_cb_obj = env->NewGlobalRef(cb);
-        if (!g_cb_class) {
-            jclass local = env->GetObjectClass(cb);
-            g_cb_class = (jclass) env->NewGlobalRef(local);
-            env->DeleteLocalRef(local);
-            g_cb_log   = env->GetMethodID(g_cb_class, "onLog", "(Ljava/lang/String;)V");
-            g_cb_epoch = env->GetMethodID(g_cb_class, "onEpoch", "(IIIDD)V");
-            if (!g_cb_epoch) env->ExceptionClear();
-        }
+        jclass local = env->GetObjectClass(cb);
+        g_cb_class = (jclass) env->NewGlobalRef(local);
+        env->DeleteLocalRef(local);
+        g_cb_log = env->GetMethodID(g_cb_class, "onLog", "(Ljava/lang/String;)V");
+        if (!g_cb_log) env->ExceptionClear();
+        g_cb_epoch = env->GetMethodID(g_cb_class, "onEpoch", "(IIIDD)V");
+        if (!g_cb_epoch) env->ExceptionClear();
+        g_cb_token = env->GetMethodID(g_cb_class, "onToken", "(Ljava/lang/String;)V");
+        if (!g_cb_token) env->ExceptionClear();
     }
     int fds[2];
     if (pipe(fds) != 0) return;
@@ -154,7 +157,16 @@ static void capture_stop() {
     if (g_pipe_wr >= 0) { close(g_pipe_wr); g_pipe_wr = -1; }
     if (g_reader.joinable()) g_reader.join();
     if (g_pipe_rd >= 0) { close(g_pipe_rd); g_pipe_rd = -1; }
-    if (g_cb_obj) { JNIEnv * env = nullptr; if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) env->DeleteGlobalRef(g_cb_obj); g_cb_obj = nullptr; }
+    JNIEnv * env = nullptr;
+    if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) {
+        if (g_cb_obj) env->DeleteGlobalRef(g_cb_obj);
+        if (g_cb_class) env->DeleteGlobalRef(g_cb_class);
+    }
+    g_cb_obj = nullptr;
+    g_cb_class = nullptr;
+    g_cb_log = nullptr;
+    g_cb_epoch = nullptr;
+    g_cb_token = nullptr;
     g_capture_run = false;
 }
 
@@ -292,6 +304,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeQuantize(
         JNIEnv * env, jobject /*thiz*/,
         jstring j_in, jstring j_out, jstring j_ftype, jstring j_imatrix,
         jint nthreads, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string in   = jstr(env, j_in);
     const std::string out  = jstr(env, j_out);
@@ -387,12 +400,19 @@ static std::atomic<bool> g_train_abort{false};
 static void train_epoch_cb(bool train, ggml_opt_context_t, ggml_opt_dataset_t,
                            ggml_opt_result_t result, int64_t ibatch,
                            int64_t ibatch_max, int64_t) {
-    if (!g_cb_obj || !g_cb_epoch || !g_call_env) return;
+    if (!g_cb_obj || !g_cb_epoch || !g_vm) return;
+    JNIEnv * callback_env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **) &callback_env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&callback_env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
     double loss = 0.0, unc = 0.0;
     if (result) ggml_opt_result_loss(result, &loss, &unc);
-    g_call_env->CallVoidMethod(g_cb_obj, g_cb_epoch, (jint) g_train_epoch.load(), (jint) ibatch,
-                               (jint) ibatch_max, (jdouble) loss, (jdouble) g_train_lr.load());
-    if (g_call_env->ExceptionCheck()) g_call_env->ExceptionClear();
+    callback_env->CallVoidMethod(g_cb_obj, g_cb_epoch, (jint) g_train_epoch.load(), (jint) ibatch,
+                                 (jint) ibatch_max, (jdouble) loss, (jdouble) g_train_lr.load());
+    if (callback_env->ExceptionCheck()) callback_env->ExceptionClear();
+    if (attached) g_vm->DetachCurrentThread();
     (void) train;
 }
 
@@ -402,6 +422,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
         jstring j_model, jstring j_out, jstring j_dataset,
         jint epochs, jfloat lr0, jint n_ctx, jint n_batch, jint n_ubatch,
         jint nthreads, jstring j_filter, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string model_path = jstr(env, j_model);
     const std::string out_path   = jstr(env, j_out);
@@ -409,7 +430,6 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
     const std::string filter     = jstr(env, j_filter);
 
     capture_start(env, cb);
-    g_call_env = env;
     g_train_abort = false;
 
     std::string err;
@@ -551,7 +571,6 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
         }
     }
 
-    g_call_env = nullptr;
     capture_stop();
 
     std::string result = "{\"ok\":" + std::string(ok ? "true" : "false") +
@@ -720,6 +739,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
         jstring j_model, jstring j_out, jstring j_dataset,
         jint epochs, jfloat lr0, jint n_ctx, jint nthreads,
         jint rank, jfloat alpha, jstring j_targets, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string model_path = jstr(env, j_model);
     const std::string out_path   = jstr(env, j_out);
@@ -889,6 +909,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
 extern "C" JNIEXPORT jint JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeCountTokens(
         JNIEnv * env, jobject /*thiz*/, jstring j_model, jstring j_text) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
     const std::string model_path = jstr(env, j_model);
     const std::string text = jstr(env, j_text);
     if (model_path.empty() || text.empty()) return 0;
@@ -921,6 +942,179 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeVersion(JNIEnv * env, jobjec
     std::string v = llama_version();
     std::string b = "llama.cpp " + v + " | " + std::to_string(std::thread::hardware_concurrency()) + " threads";
     return env->NewStringUTF(b.c_str());
+}
+
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
+        JNIEnv * env, jobject /*thiz*/,
+        jstring j_model, jstring j_system, jstring j_prompt,
+        jint n_ctx, jint nthreads, jint max_tokens, jfloat temperature, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
+    const std::string model_path = jstr(env, j_model);
+    const std::string system_text = jstr(env, j_system);
+    const std::string user_text = jstr(env, j_prompt);
+
+    capture_start(env, cb);
+    g_chat_abort = false;
+
+    std::string err;
+    int prompt_tokens = 0;
+    int completion_tokens = 0;
+    const auto started = std::chrono::steady_clock::now();
+
+    if (model_path.empty() || system_text.empty() || user_text.empty()) {
+        err = "modelo ou prompt vazio";
+    } else {
+        printf("[infer] modelo=%s, ctx solicitado=%d, threads=%d, max_tokens=%d\\n",
+               model_path.c_str(), (int) n_ctx, (int) nthreads, (int) max_tokens);
+        llama_backend_init();
+
+        llama_model_params mp = llama_model_default_params();
+        mp.n_gpu_layers = 0;
+        mp.load_mode = LLAMA_LOAD_MODE_MMAP;
+        mp.use_extra_bufts = false;
+        llama_model * model = llama_model_load_from_file(model_path.c_str(), mp);
+        if (!model) {
+            err = "falha ao abrir GGUF para inferência; confira arquivo e arquitetura suportada";
+        } else {
+            const llama_vocab * vocab = llama_model_get_vocab(model);
+            int ctx_len = std::max(256, (int) n_ctx);
+            const int train_ctx = llama_model_n_ctx_train(model);
+            if (train_ctx > 0) ctx_len = std::min(ctx_len, train_ctx);
+
+            llama_context_params cp = llama_context_default_params();
+            cp.n_ctx = (uint32_t) ctx_len;
+            cp.n_batch = (uint32_t) ctx_len;
+            cp.n_ubatch = (uint32_t) std::min(ctx_len, 256);
+            cp.n_threads = std::max(1, (int) nthreads);
+            cp.n_threads_batch = cp.n_threads;
+            cp.type_k = GGML_TYPE_F16;
+            cp.type_v = GGML_TYPE_F16;
+            cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+            cp.no_perf = false;
+
+            llama_context * ctx = llama_init_from_model(model, cp);
+            if (!ctx) {
+                err = "não foi possível alocar o contexto de inferência";
+            } else {
+                const llama_chat_message chat[] = {
+                    { "system", system_text.c_str() },
+                    { "user", user_text.c_str() },
+                };
+                const char * tmpl = llama_model_chat_template(model, nullptr);
+                std::string formatted;
+                if (tmpl) {
+                    int32_t needed = llama_chat_apply_template(tmpl, chat, 2, true, nullptr, 0);
+                    if (needed > 0) {
+                        formatted.resize((size_t) needed + 1);
+                        int32_t written = llama_chat_apply_template(
+                            tmpl, chat, 2, true, formatted.data(), (int32_t) formatted.size());
+                        if (written >= 0) formatted.resize((size_t) written);
+                        else formatted.clear();
+                    }
+                }
+                if (formatted.empty()) {
+                    // Generic ChatML fallback for GGUF models that omit a supported template.
+                    formatted = "<|im_start|>system\\n" + system_text +
+                        "\\n<|im_start|>user\\n" + user_text +
+                        "\\n<|im_start|>assistant\\n";
+                }
+
+                std::vector<llama_token> tokens(formatted.size() + 16);
+                int32_t n = llama_tokenize(vocab, formatted.c_str(), (int32_t) formatted.size(),
+                                           tokens.data(), (int32_t) tokens.size(), false, true);
+                if (n < 0) {
+                    tokens.resize((size_t) -n);
+                    n = llama_tokenize(vocab, formatted.c_str(), (int32_t) formatted.size(),
+                                       tokens.data(), (int32_t) tokens.size(), false, true);
+                }
+                const int reserved = std::max(16, (int) max_tokens);
+                if (n <= 0) {
+                    err = "tokenização do prompt falhou";
+                } else if (n + reserved >= ctx_len) {
+                    err = "o histórico excede a janela de contexto; reduza o histórico ou use um contexto maior";
+                } else {
+                    tokens.resize((size_t) n);
+                    prompt_tokens = n;
+                    printf("[infer] prompt=%d tokens, ctx=%d, template=%s\\n",
+                           prompt_tokens, ctx_len, tmpl ? "GGUF" : "ChatML fallback");
+                    llama_batch batch = llama_batch_get_one(tokens.data(), n);
+                    int decode = llama_decode(ctx, batch);
+                    if (decode != 0) {
+                        err = "falha ao processar o prompt no motor nativo (decode=" + std::to_string(decode) + ")";
+                    } else {
+                        llama_sampler * sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+                        if (!sampler) {
+                            err = "não foi possível criar o sampler";
+                        } else {
+                            llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+                            llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.92f, 1));
+                            if (temperature <= 0.001f) {
+                                llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
+                            } else {
+                                llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
+                                llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+                            }
+
+                            for (int i = 0; i < max_tokens && !g_chat_abort.load(); ++i) {
+                                const llama_token token = llama_sampler_sample(sampler, ctx, -1);
+                                if (llama_vocab_is_eog(vocab, token)) break;
+
+                                char piece_buf[512];
+                                int32_t piece_len = llama_token_to_piece(vocab, token, piece_buf,
+                                                                         (int32_t) sizeof(piece_buf), 0, false);
+                                std::string piece;
+                                if (piece_len < 0) {
+                                    std::vector<char> larger((size_t) -piece_len + 1);
+                                    piece_len = llama_token_to_piece(vocab, token, larger.data(),
+                                        (int32_t) larger.size(), 0, false);
+                                    if (piece_len > 0) piece.assign(larger.data(), (size_t) piece_len);
+                                } else if (piece_len > 0) {
+                                    piece.assign(piece_buf, (size_t) piece_len);
+                                }
+                                if (!piece.empty()) {
+                                    emit_token(piece);
+                                    completion_tokens++;
+                                }
+                                if (i + 1 < max_tokens && !g_chat_abort.load()) {
+                                    llama_batch next = llama_batch_get_one(const_cast<llama_token *>(&token), 1);
+                                    const int next_decode = llama_decode(ctx, next);
+                                    if (next_decode != 0) {
+                                        err = "falha ao avançar geração nativa (decode=" + std::to_string(next_decode) + ")";
+                                        break;
+                                    }
+                                }
+                            }
+                            if (g_chat_abort.load()) err = "geração interrompida pelo utilizador";
+                            llama_sampler_free(sampler);
+                        }
+                    }
+                }
+                llama_free(ctx);
+            }
+            llama_model_free(model);
+        }
+        llama_backend_free();
+    }
+
+    fflush(stdout);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    capture_stop();
+    const bool ok = err.empty() && completion_tokens > 0;
+    if (!ok && err.empty()) err = "o modelo não gerou tokens de resposta";
+    const std::string json = "{\\\"ok\\\":" + std::string(ok ? "true" : "false") +
+        ",\\\"prompt_tokens\\\":" + std::to_string(prompt_tokens) +
+        ",\\\"completion_tokens\\\":" + std::to_string(completion_tokens) +
+        ",\\\"elapsed_ms\\\":" + std::to_string(elapsed) +
+        ",\\\"error\\\":\\\"" + json_escape(err) + "\\\"}";
+    return env->NewStringUTF(json.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRequestChatStop(JNIEnv *, jobject) {
+    g_chat_abort = true;
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {
