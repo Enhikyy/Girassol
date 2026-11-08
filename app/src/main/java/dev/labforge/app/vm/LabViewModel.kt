@@ -154,6 +154,8 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var lossHistory by mutableStateOf<List<Float>>(emptyList())
         private set
+    var ramAvailableHistory by mutableStateOf<List<Float>>(emptyList())
+        private set
     var jobStartedAt by mutableStateOf(0L)
         private set
     var jobKind by mutableStateOf("")
@@ -191,6 +193,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
                 jobProgress = st.progress
                 jobSummary = st.summary
                 lossHistory = st.loss
+                ramAvailableHistory = st.ramAvailableGb
                 jobStartedAt = st.startedAt
                 jobKind = st.kind
                 if (st.done && st.finishedAt != lastFinishedAt) {

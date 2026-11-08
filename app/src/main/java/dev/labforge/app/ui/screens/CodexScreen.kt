@@ -107,7 +107,7 @@ fun CodexScreen(vm: CodexViewModel, onOpenChat: () -> Unit) {
                             vm.iteration > 0 -> "pronto · ${vm.iteration} iterações"
                             else -> "agente autônomo de código e testes"
                         },
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = if (vm.running) Lab.Green else Lab.Muted,
                     )
                 }
@@ -213,7 +213,7 @@ fun CodexScreen(vm: CodexViewModel, onOpenChat: () -> Unit) {
                         Spacer(Modifier.width(7.dp))
                         Text(
                             vm.liveText.takeLast(200),
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = Lab.Muted,
                             maxLines = 3,
                             lineHeight = 14.sp,
@@ -226,7 +226,7 @@ fun CodexScreen(vm: CodexViewModel, onOpenChat: () -> Unit) {
                             Icon(Icons.Rounded.Code, null, tint = Lab.Violet.copy(alpha = 0.5f), modifier = Modifier.size(42.dp))
                             Spacer(Modifier.height(10.dp))
                             Text("Descreva o que construir.", fontSize = 13.sp, color = Lab.Text)
-                            Text("Ele planeja, edita, roda testes e corrige até passar.", fontSize = 11.sp, color = Lab.Muted)
+                            Text("Ele planeja, edita, roda testes e corrige até passar.", fontSize = 12.sp, color = Lab.Muted)
                         }
                     }
                 } else {
@@ -258,7 +258,7 @@ fun CodexScreen(vm: CodexViewModel, onOpenChat: () -> Unit) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Rounded.Send, null, tint = Lab.Cyan, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(7.dp))
-                                Text("Enviar resumo para o Chat", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.Medium)
+                                Text("Enviar resumo para o Chat", fontSize = 12.sp, color = Lab.Cyan, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -267,10 +267,10 @@ fun CodexScreen(vm: CodexViewModel, onOpenChat: () -> Unit) {
             1 -> Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("working tree", fontSize = 11.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
+                    Text("working tree", fontSize = 12.sp, color = Lab.Muted, modifier = Modifier.weight(1f))
                     Text(
                         "atualizar",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = Lab.Cyan,
                         modifier = Modifier.clickable { vm.refreshDiff() },
                     )
@@ -283,7 +283,7 @@ fun CodexScreen(vm: CodexViewModel, onOpenChat: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                     Icon(Icons.Rounded.BugReport, null, tint = Lab.Amber, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("última execução de testes", fontSize = 11.sp, color = Lab.Muted)
+                    Text("última execução de testes", fontSize = 12.sp, color = Lab.Muted)
                 }
                 Console(vm.testOutput.ifBlank { "os testes ainda não rodaram" }, Modifier.weight(1f), maxHeight = 4000)
                 Spacer(Modifier.height(12.dp))
@@ -310,7 +310,7 @@ private fun ToggleRowCompact(title: String, checked: Boolean, onChange: (Boolean
                 .border(1.dp, if (checked) Lab.Violet else Lab.Outline, RoundedCornerShape(14.dp)),
         )
         Spacer(Modifier.width(8.dp))
-        Text(title, fontSize = 11.sp, color = if (checked) Lab.Text else Lab.Muted)
+        Text(title, fontSize = 12.sp, color = if (checked) Lab.Text else Lab.Muted)
     }
 }
 
@@ -326,7 +326,7 @@ private fun CodexMessage(m: AgentMessage) {
                     .background(Lab.Violet.copy(alpha = 0.20f))
                     .border(1.dp, Lab.Violet.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                     .padding(10.dp),
-            ) { Text(m.text, fontSize = 11.5.sp, color = Lab.Text, lineHeight = 16.sp) }
+            ) { Text(m.text, fontSize = 12.5.sp, color = Lab.Text, lineHeight = 16.sp) }
         }
         AgentMessage.Role.TOOL -> GlassCard(padding = 10, onClick = { expanded = !expanded }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -339,7 +339,7 @@ private fun CodexMessage(m: AgentMessage) {
                 Spacer(Modifier.width(7.dp))
                 Text(
                     m.toolName.ifBlank { "tool" },
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Text,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f),
@@ -350,7 +350,7 @@ private fun CodexMessage(m: AgentMessage) {
             if (m.toolArgs.isNotBlank() && m.toolArgs != "{}") {
                 Text(
                     m.toolArgs.take(140),
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = Lab.Muted,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 2,
@@ -359,7 +359,7 @@ private fun CodexMessage(m: AgentMessage) {
             }
             Text(
                 m.text.take(if (expanded) 8000 else 260),
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = if (m.ok) Color(0xFFB9C6E8) else Lab.Red.copy(alpha = 0.9f),
                 fontFamily = FontFamily.Monospace,
                 lineHeight = 13.sp,
@@ -371,7 +371,7 @@ private fun CodexMessage(m: AgentMessage) {
             Spacer(Modifier.width(7.dp))
             Text(
                 m.text,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = Lab.Muted,
                 lineHeight = 15.sp,
                 maxLines = if (expanded) 80 else 10,
@@ -382,9 +382,9 @@ private fun CodexMessage(m: AgentMessage) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.CheckCircle, null, tint = Lab.Cyan, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("resultado", fontSize = 11.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
+                Text("resultado", fontSize = 12.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
             }
-            Text(m.text, fontSize = 11.5.sp, color = Lab.Text, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
+            Text(m.text, fontSize = 12.5.sp, color = Lab.Text, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
         }
         AgentMessage.Role.ERROR -> Box(
             Modifier
@@ -396,10 +396,10 @@ private fun CodexMessage(m: AgentMessage) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Error, null, tint = Lab.Red, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(m.text, fontSize = 11.sp, color = Lab.Red)
+                Text(m.text, fontSize = 12.sp, color = Lab.Red)
             }
         }
-        AgentMessage.Role.SYSTEM -> Text(m.text, fontSize = 11.sp, color = Lab.Muted, modifier = Modifier.padding(vertical = 2.dp))
+        AgentMessage.Role.SYSTEM -> Text(m.text, fontSize = 12.sp, color = Lab.Muted, modifier = Modifier.padding(vertical = 2.dp))
     }
 }
 

@@ -18,6 +18,8 @@ import dev.labforge.app.core.research.ResearchDoc
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.core.research.ResearchDownloader
 import dev.labforge.app.core.research.ResearchRepository
+import dev.labforge.app.core.learning.LearningContinuity
+import dev.labforge.app.core.learning.LearningSnapshot
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.settings.researchKeys
 import dev.labforge.app.core.train.AutoTuner
@@ -30,6 +32,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -44,6 +47,7 @@ enum class StudyStage(val label: String, val icon: String) {
     CURRICULUM("Currículo", "≡"),
     DATASET("Dataset", "▤"),
     TUNING("Ajustando", "⚙"),
+    DREAM("Consolidando", "☼"),
     DONE("Concluído", "✓"),
     ERROR("Falhou", "!"),
 }
@@ -133,6 +137,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = ResearchRepository(store.researchDir)
     private val downloader = ResearchDownloader(File(store.researchDir, "downloads"))
     private val metricsFile = File(store.researchDir, "autodidact-cycles.json")
+    private val learning = LearningContinuity(File(store.researchDir, "learning-continuity.json"))
 
     var theme by mutableStateOf("")
     var topicCount by mutableStateOf(6)
@@ -163,7 +168,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var datasetStats by mutableStateOf<DatasetStats?>(null)
         private set
-    var autoTrain by mutableStateOf(false)
+    var autoTrain by mutableStateOf(true)
     var autopilotMode by mutableStateOf(false)
     var autopilotIntervalMinutes by mutableStateOf(30)
     var autopilotRunning by mutableStateOf(false)
@@ -172,15 +177,21 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var cycleHistory by mutableStateOf<List<StudyCycleMetric>>(emptyList())
         private set
+    var learningSnapshot by mutableStateOf(LearningSnapshot())
+        private set
 
     private var job: Job? = null
     private var autopilotJob: Job? = null
+    private var lastTrainingFinishedAt: Long = 0L
 
     init {
+        // Avoid re-recording an old native training result if this ViewModel is recreated.
+        lastTrainingFinishedAt = JobEngine.state.value.finishedAt
         viewModelScope.launch {
             bundle = withContext(Dispatchers.IO) { repo.latest() }
             history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
             cycleHistory = withContext(Dispatchers.IO) { loadCycleMetrics() }
+            learningSnapshot = withContext(Dispatchers.IO) { learning.snapshot() }
             bundle?.let { b ->
                 if (theme.isBlank()) theme = b.theme
                 AppSelection.researchTheme = b.theme
@@ -196,6 +207,24 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 val cfg = settingsRepo.settings.first()
                 cfg.apiKey.isNotBlank() || !cfg.endpoint.contains("openai.com")
             }.getOrDefault(false)
+        }
+
+        viewModelScope.launch {
+            JobEngine.state.collect { jobState ->
+                if (jobState.kind == "lora" && jobState.done && jobState.finishedAt > lastTrainingFinishedAt) {
+                    lastTrainingFinishedAt = jobState.finishedAt
+                    learningSnapshot = withContext(Dispatchers.IO) {
+                        learning.record(
+                            if (jobState.success) "success" else "failure",
+                            theme.ifBlank { jobState.title },
+                            "LoRA: ${jobState.summary}",
+                            if (jobState.success) 0.92f else 0.98f,
+                        )
+                        learning.dream()
+                    }
+                    append(if (jobState.success) "Treino LoRA concluído e registrado na memória." else "Falha LoRA armazenada para revisão no próximo ciclo.")
+                }
+            }
         }
     }
 
@@ -247,16 +276,19 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 stage = StudyStage.SYNTHESIS
                 status = if (llm != null) "sintetizando com o modelo…" else "sintetizando extrativamente (sem LLM)"
                 progress = 0.38f
+                val priorMemory = learningSnapshot.dreams.takeLast(5).joinToString("\n") {
+                    "- ${it.title}: ${it.insight} (confiança ${(it.confidence * 100).toInt()}%)"
+                }
                 val summary = if (llm != null) {
                     try {
-                        synthesize(llm, found)
+                        synthesize(llm, found, priorMemory)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
                         append("LLM falhou (${error.message}); usando resumo extrativo")
                         found.autoSummary
                     }
-                } else found.autoSummary
+                } else found.autoSummary + if (priorMemory.isBlank()) "" else "\n\nLições anteriores a verificar nas fontes atuais:\n" + priorMemory
                 append("Resumo: ${summary.take(280)}")
 
                 // 3. curriculum
@@ -274,6 +306,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 } else extractiveCurriculum(themeValue, found, topicCount)
                 topics = curriculum.take(topicCount).map { StudyTopic(it) }
                 if (topics.isEmpty()) error("não foi possível montar o currículo")
+                learningSnapshot = withContext(Dispatchers.IO) { learning.syncCurriculum(themeValue, topics.map { it.title }) }
                 append("Currículo: ${topics.size} tópicos")
 
                 // 4. dataset
@@ -372,6 +405,14 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 cycleHistory = completedCycles
                 history = withContext(Dispatchers.IO) { repo.list().mapNotNull { repo.load(it) }.take(8) }
 
+                stage = StudyStage.DREAM
+                status = "consolidando experiências, resultados e falhas para o próximo ciclo…"
+                progress = 0.96f
+                learningSnapshot = withContext(Dispatchers.IO) {
+                    learning.record("cycle", themeValue, "Ciclo concluído com " + total + " exemplos e " + found.docs.size + " fontes", 0.85f)
+                    learning.dream()
+                }
+                append("Memória consolidada · ${learningSnapshot.dreams.size} padrões preservados · ${learningSnapshot.skills.size} competências acompanhadas")
                 stage = StudyStage.DONE
                 progress = 1f
                 status = "concluído · ${total} pares · ~$tokens tokens"
@@ -380,15 +421,9 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 if (autoTrain) {
                     val model = AppSelection.modelPath?.let(::File)?.takeIf { it.isFile }
                     val ds = proj.txt
-                    val modelAllowed = model?.let { m ->
-                        val meta = runCatching { store.readModel(m).meta }.getOrNull()
-                        val label = meta?.quantLabel ?: ""
-                        label.contains("F32") || label.contains("F16") || label.contains("BF16") ||
-                            meta?.quantMix?.keys?.all { it.label in setOf("F32", "F16", "BF16") } == true
-                    } ?: false
-                    if (model != null && ds != null && !modelAllowed) {
-                        append("Auto-treino ignorado: o modelo precisa estar em F32/F16 para o LoRA nativo.")
-                    } else if (model != null && ds != null) {
+                    // Native LoRA freezes the mmap base and trains only F32 A/B adapters;
+                    // the runtime validates tensor/architecture compatibility when building the adapter.
+                    if (model != null && ds != null) {
                         val out = File(store.outputsDir, "${model.nameWithoutExtension}-auto-lora-r${rec.rank}.gguf")
                         append("Auto-treino: iniciando LoRA em ${model.name}")
                         JobEngine.startLora(
@@ -413,6 +448,10 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
             } catch (t: Throwable) {
                 stage = StudyStage.ERROR
                 status = "falhou: ${t.message}"
+                learningSnapshot = withContext(Dispatchers.IO) {
+                    learning.record("failure", themeValue, t.message ?: t.javaClass.simpleName, 0.95f)
+                    learning.dream()
+                }
                 append("erro: ${t.message}")
             } finally {
                 running = false
@@ -423,14 +462,14 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------- LLM
 
-    private suspend fun synthesize(llm: LlmClient, b: ResearchBundle): String {
+    private suspend fun synthesize(llm: LlmClient, b: ResearchBundle, priorMemory: String): String {
         val corpus = b.docs.take(8).joinToString("\n\n") {
             "[${it.source}] ${it.title}\n${it.snippet.take(500)}\n${it.url}"
         }
         val reply = llm.chat(
             JSONArray().apply {
                 put(JSONObject().put("role", "system").put("content", "Você é um pesquisador técnico. Sintetize apenas o que está nas fontes, sem inventar. Responda em português."))
-                put(JSONObject().put("role", "user").put("content", "Tema: ${b.theme}\n\nFontes:\n$corpus\n\nFaça uma síntese em 5 tópicos objetivos, citando a fonte entre parênteses."))
+                put(JSONObject().put("role", "user").put("content", "Tema: ${b.theme}\n\nFontes:\n$corpus\n\nMemórias de ciclos anteriores (hipóteses, não fatos; confirme ou descarte com as fontes atuais):\n$priorMemory\n\nFaça uma síntese em 5 tópicos objetivos, citando a fonte entre parênteses e indicando quando uma memória anterior não for confirmada."))
             },
             null,
         )
@@ -617,6 +656,20 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun trainingDataset(): File? = project?.txt ?: project?.jsonl
+
+    fun dueSkillIds(): Set<String> = learning.due().map { it.id }.toSet()
+
+    fun reviewSkill(skillId: String, quality: Int) {
+        viewModelScope.launch {
+            learningSnapshot = withContext(Dispatchers.IO) { learning.review(skillId, quality) }
+        }
+    }
+
+    fun consolidateLearning() {
+        viewModelScope.launch {
+            learningSnapshot = withContext(Dispatchers.IO) { learning.dream() }
+        }
+    }
 
     private fun append(line: String) {
         log = (log + line + "\n").takeLast(14_000)

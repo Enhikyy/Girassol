@@ -1,10 +1,13 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+
+data class AgentTurn(val role: String, val content: String)
 
 sealed interface AgentEvent {
     data class Step(val index: Int, val max: Int) : AgentEvent
@@ -27,10 +30,11 @@ sealed interface AgentEvent {
 class ReActAgent(
     private val workspace: File,
     private val lessons: LessonStore,
-    private val llm: LlmClient,
+    private val llm: AgentLlm,
     private val maxSteps: Int = 15,
     private val systemOverride: String? = null,
     private val settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
+    private val history: List<AgentTurn> = emptyList(),
     private val onEvent: (AgentEvent) -> Unit,
 ) {
     private val tools = defaultTools(workspace, lessons, settings)
@@ -49,6 +53,14 @@ class ReActAgent(
                 put("role", "system")
                 put("content", systemOverride ?: systemPrompt(notebook))
             })
+            history.takeLast(12).forEach { turn ->
+                if (turn.role == "user" || turn.role == "assistant") {
+                    put(JSONObject().apply {
+                        put("role", turn.role)
+                        put("content", turn.content)
+                    })
+                }
+            }
             put(JSONObject().apply {
                 put("role", "user")
                 put("content", task)
@@ -65,8 +77,10 @@ class ReActAgent(
                 llm.chat(messages, toolSpecs) { text, reasoning ->
                     onEvent(AgentEvent.Token(text, reasoning))
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (t: Throwable) {
-                onEvent(AgentEvent.Failure(t.message ?: "falha na chamada do modelo"))
+                onEvent(AgentEvent.Failure(t.stackTraceToString().take(9000)))
                 return ""
             }
 
@@ -151,6 +165,12 @@ git_clone para trazer um repo ao workspace; git_branch, git_commit, git_push, gi
 Nunca faça push em main/master: crie uma branch e abra PR. Se faltar token, diga isso e continue com o que for possível.
 Você trabalha em um sandbox com acesso a arquivos, terminal (sh/toybox) e git.
 
+Se as ferramentas device_* estiverem disponíveis, você também enxerga e opera a interface do Android:
+device_ui (árvore da tela), device_tap, device_type, device_swipe, device_key, device_open,
+device_wait e device_screenshot. Fluxo correto: device_ui → escolher alvo por text/desc/id →
+agir → device_ui de novo para confirmar. Nunca toque em coordenadas sem antes ler a tela,
+e nunca execute ações irreversíveis (enviar mensagem, pagar, apagar) sem o usuário pedir.
+
 Fluxo obrigatório:
 1. Consulte o caderno de estudos (memory_search) quando a tarefa lembrar um problema anterior.
 2. Inspecione o código antes de editar (list_dir, read_file, search_code).
@@ -185,7 +205,8 @@ Método:
 2. Faça um plano curto e verificável.
 3. Faça git_commit antes de mudanças estruturais.
 4. Implemente com apply_patch (prefira patches pequenos) ou write_file.
-5. Rode os testes com run_terminal. Leia a saída inteira.
+5. Rode os testes com run_terminal. Leia a saída inteira. Se a mudança for de UI Android e
+   device_* estiver disponível, valide o fluxo com device_script (open/wait/tap/assert).
 6. Se falhar: diagnostique, corrija, rode de novo. Não pare no primeiro erro.
 7. Se passar: git_commit e memory_save com a lição.
 8. Termine com um resumo objetivo: o que mudou, como testou, o que ficou pendente.

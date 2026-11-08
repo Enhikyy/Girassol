@@ -347,4 +347,5 @@ fun defaultTools(
     ResearchWebTool(workspace, dev.labforge.app.core.research.ResearchKeys(settings.braveApiKey, settings.githubToken)),
     ResearchSearchTool(workspace),
     LlamatikToolBridge("public_api_posts", workspace),
-) + gitHubTools(workspace, settings.githubToken)
+) + gitHubTools(workspace, settings.githubToken) +
+    if (settings.autonomyToolsEnabled) dev.labforge.app.core.device.deviceTools(workspace) else emptyList()

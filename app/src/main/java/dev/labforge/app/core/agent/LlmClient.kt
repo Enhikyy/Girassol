@@ -2,6 +2,7 @@ package dev.labforge.app.core.agent
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import dev.labforge.app.core.log.AppLog
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -21,6 +22,15 @@ data class LlmReply(
     val completionTokens: Int = 0,
 )
 
+/** Common protocol used by the ReAct loop for local and OpenAI-compatible models. */
+interface AgentLlm {
+    suspend fun chat(
+        messages: JSONArray,
+        tools: JSONArray?,
+        onDelta: ((text: String, reasoning: Boolean) -> Unit)? = null,
+    ): LlmReply
+}
+
 /**
  * OpenAI-compatible client. Works with OpenAI, OpenRouter, Groq, Ollama, LM Studio,
  * llama-server, vLLM etc.
@@ -30,16 +40,16 @@ class LlmClient(
     private val apiKey: String,
     private val model: String,
     private val temperature: Double = 0.2,
-) {
+) : AgentLlm {
     private val url: String = normalize(endpoint)
 
     // Shared pool: a new OkHttpClient per screen/agent leaks threads and sockets.
     private val http: OkHttpClient get() = shared
 
-    suspend fun chat(
+    override suspend fun chat(
         messages: JSONArray,
         tools: JSONArray?,
-        onDelta: ((text: String, reasoning: Boolean) -> Unit)? = null,
+        onDelta: ((text: String, reasoning: Boolean) -> Unit)?,
     ): LlmReply = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply {
             put("model", model)
@@ -58,16 +68,32 @@ class LlmClient(
             .header("Content-Type", "application/json")
         if (apiKey.isNotBlank()) builder.header("Authorization", "Bearer $apiKey")
 
-        http.newCall(builder.build()).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                throw IllegalStateException(httpError(resp.code, resp.body?.string().orEmpty()))
+        val startedAt = System.nanoTime()
+        AppLog.info("LLM_HTTP", "request · model=" + model + " · streaming=" + (onDelta != null) +
+            " · messages=" + messages.length() + " · tools=" + (tools?.length() ?: 0))
+        try {
+            http.newCall(builder.build()).execute().use { resp ->
+                val latency = (System.nanoTime() - startedAt) / 1_000_000
+                AppLog.info("LLM_HTTP", "response headers · HTTP=" + resp.code + " · latency=" + latency + "ms")
+                if (!resp.isSuccessful) {
+                    val body = resp.body?.string().orEmpty()
+                    AppLog.error("LLM_HTTP", "HTTP error · code=" + resp.code + " · responseBytes=" + body.length)
+                    throw IllegalStateException(httpError(resp.code, body))
+                }
+                val result = if (onDelta != null) {
+                    val body = resp.body ?: throw IllegalStateException("resposta vazia")
+                    parseStream(body.source(), onDelta)
+                } else {
+                    parseReply(resp.body?.string().orEmpty())
+                }
+                AppLog.info("LLM_HTTP", "response parsed · prompt=" + result.promptTokens +
+                    " · completion=" + result.completionTokens + " · toolCalls=" + result.toolCalls.size +
+                    " · total=" + ((System.nanoTime() - startedAt) / 1_000_000) + "ms")
+                result
             }
-            if (onDelta != null) {
-                val body = resp.body ?: throw IllegalStateException("resposta vazia")
-                parseStream(body.source(), onDelta)
-            } else {
-                parseReply(resp.body?.string().orEmpty())
-            }
+        } catch (t: Throwable) {
+            AppLog.error("LLM_HTTP", "network/protocol failure · model=" + model, t)
+            throw t
         }
     }
 

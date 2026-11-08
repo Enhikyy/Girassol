@@ -5,6 +5,8 @@
 #include <android/log.h>
 
 #include <atomic>
+#include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -30,6 +32,11 @@
 #include <gguf.h>
 #include <random>
 #include <set>
+#include <mutex>
+#include <new>
+#include <exception>
+#include <limits>
+#include <cstdint>
 
 #define LOG_TAG "LabForgeNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
@@ -43,9 +50,11 @@ static JavaVM * g_vm = nullptr;
 static jclass    g_cb_class = nullptr;
 static jmethodID g_cb_log = nullptr;
 static jmethodID g_cb_epoch = nullptr;
+static jmethodID g_cb_token = nullptr;
 
 static jobject   g_cb_obj = nullptr;
-static JNIEnv  * g_call_env = nullptr;
+static std::mutex g_native_mutex;
+static std::atomic<bool> g_chat_abort{false};
 
 // stdout/stderr capture so native logs stream into the Compose console
 static int  g_saved_out = -1;
@@ -55,13 +64,111 @@ static int  g_pipe_wr = -1;
 static std::atomic<bool> g_capture_run{false};
 static std::thread g_reader;
 
-static std::string jstr(JNIEnv * env, jstring s) {
-    if (!s) return {};
-    const char * c = env->GetStringUTFChars(s, nullptr);
-    std::string out = c ? c : "";
-    if (c) env->ReleaseStringUTFChars(s, c);
+static void append_utf8(std::string & out, uint32_t cp) {
+    if (cp <= 0x7f) {
+        out.push_back((char) cp);
+    } else if (cp <= 0x7ff) {
+        out.push_back((char) (0xc0 | (cp >> 6)));
+        out.push_back((char) (0x80 | (cp & 0x3f)));
+    } else if (cp <= 0xffff) {
+        out.push_back((char) (0xe0 | (cp >> 12)));
+        out.push_back((char) (0x80 | ((cp >> 6) & 0x3f)));
+        out.push_back((char) (0x80 | (cp & 0x3f)));
+    } else {
+        out.push_back((char) (0xf0 | (cp >> 18)));
+        out.push_back((char) (0x80 | ((cp >> 12) & 0x3f)));
+        out.push_back((char) (0x80 | ((cp >> 6) & 0x3f)));
+        out.push_back((char) (0x80 | (cp & 0x3f)));
+    }
+}
+
+static jstring utf8_to_jstring(JNIEnv * env, const std::string & value) {
+    std::vector<jchar> utf16;
+    utf16.reserve(value.size());
+    size_t i = 0;
+    while (i < value.size()) {
+        const unsigned char first = (unsigned char) value[i];
+        uint32_t cp = 0xfffd;
+        size_t width = 1;
+        if (first < 0x80) {
+            cp = first;
+        } else if (first >= 0xc2 && first <= 0xdf) {
+            width = 2; cp = first & 0x1f;
+        } else if (first >= 0xe0 && first <= 0xef) {
+            width = 3; cp = first & 0x0f;
+        } else if (first >= 0xf0 && first <= 0xf4) {
+            width = 4; cp = first & 0x07;
+        }
+        bool valid = i + width <= value.size();
+        for (size_t j = 1; valid && j < width; ++j) {
+            const unsigned char next = (unsigned char) value[i + j];
+            if ((next & 0xc0) != 0x80) { valid = false; break; }
+            cp = (cp << 6) | (next & 0x3f);
+        }
+        if (!valid || (width == 3 && cp < 0x800) || (width == 4 && cp < 0x10000) ||
+            cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+            utf16.push_back((jchar) 0xfffd);
+            ++i;
+            continue;
+        }
+        i += width;
+        if (cp <= 0xffff) {
+            utf16.push_back((jchar) cp);
+        } else {
+            cp -= 0x10000;
+            utf16.push_back((jchar) (0xd800 + (cp >> 10)));
+            utf16.push_back((jchar) (0xdc00 + (cp & 0x3ff)));
+        }
+    }
+    static const jchar empty = 0;
+    return env->NewString(utf16.empty() ? &empty : utf16.data(), (jsize) utf16.size());
+}
+
+static std::string jstr(JNIEnv * env, jstring value) {
+    if (!value) return {};
+    const jsize length = env->GetStringLength(value);
+    const jchar * chars = env->GetStringChars(value, nullptr);
+    if (!chars) return {};
+    std::string out;
+    out.reserve((size_t) length * 3);
+    for (jsize i = 0; i < length; ++i) {
+        uint32_t cp = chars[i];
+        if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < length &&
+            chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {
+            cp = 0x10000 + (((cp - 0xd800) << 10) | (chars[++i] - 0xdc00));
+        } else if (cp >= 0xd800 && cp <= 0xdfff) {
+            cp = 0xfffd;
+        }
+        append_utf8(out, cp);
+    }
+    env->ReleaseStringChars(value, chars);
     return out;
 }
+
+static size_t complete_utf8_prefix(const std::string & value) {
+    size_t pos = 0;
+    size_t complete = 0;
+    while (pos < value.size()) {
+        const unsigned char c = (unsigned char) value[pos];
+        size_t width = 1;
+        if (c >= 0xc2 && c <= 0xdf) width = 2;
+        else if (c >= 0xe0 && c <= 0xef) width = 3;
+        else if (c >= 0xf0 && c <= 0xf4) width = 4;
+        if (pos + width > value.size()) break;
+        bool valid = true;
+        for (size_t j = 1; j < width; ++j) {
+            if (((unsigned char) value[pos + j] & 0xc0) != 0x80) { valid = false; break; }
+        }
+        if (!valid) width = 1;
+        pos += width;
+        complete = pos;
+    }
+    return complete;
+}
+
+static std::string g_token_pending;
+static std::mutex g_token_pending_mutex;
+
 
 static std::string json_escape(const std::string & in) {
     std::string out;
@@ -81,22 +188,67 @@ static std::string json_escape(const std::string & in) {
     return out;
 }
 
-static void emit_log(const std::string & line) {
-    if (!g_cb_obj || !g_cb_log) return;
-    if (line.empty()) return;
-    JNIEnv * env = g_call_env;
-    bool attached = false;
-    if (!env) {
-        if (!g_vm) return;
-        if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
-            if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
-            attached = true;
-        }
+// Verify that the selected GGUF is actually present in this process' file-backed mappings.
+// LLAMA_LOAD_MODE_MMAP intentionally does not request mlock: Linux/Android owns page-cache
+// residency and may reclaim clean pages under memory pressure.
+static bool model_file_is_mapped(const std::string & model_path, size_t * matching_regions = nullptr) {
+    std::ifstream maps("/proc/self/maps");
+    std::string line;
+    size_t matches = 0;
+    while (std::getline(maps, line)) {
+        if (line.find(model_path) != std::string::npos) ++matches;
     }
-    jstring js = env->NewStringUTF(line.c_str());
-    env->CallVoidMethod(g_cb_obj, g_cb_log, js);
-    if (env->ExceptionCheck()) env->ExceptionClear();
-    env->DeleteLocalRef(js);
+    if (matching_regions) *matching_regions = matches;
+    return matches > 0;
+}
+
+static void log_mmap_status(const std::string & model_path, const char * purpose) {
+    size_t regions = 0;
+    const bool mapped = model_file_is_mapped(model_path, &regions);
+    printf("[mmap] purpose=%s enabled=true mlock=false verified=%s regions=%zu path=%s\\n",
+           purpose, mapped ? "yes" : "no", regions, model_path.c_str());
+}
+
+static void emit_log(const std::string & line) {
+    if (!g_cb_obj || !g_cb_log || line.empty() || !g_vm) return;
+    JNIEnv * env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
+    jstring js = utf8_to_jstring(env, line);
+    if (js) {
+        env->CallVoidMethod(g_cb_obj, g_cb_log, js);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(js);
+    }
+    if (attached) g_vm->DetachCurrentThread();
+}
+
+static void emit_token(const std::string & piece, bool final = false) {
+    if (!g_cb_obj || !g_cb_token || !g_vm) return;
+    std::string safe;
+    {
+        std::lock_guard<std::mutex> guard(g_token_pending_mutex);
+        g_token_pending += piece;
+        const size_t count = final ? g_token_pending.size() : complete_utf8_prefix(g_token_pending);
+        if (count == 0) return;
+        safe.assign(g_token_pending.data(), count);
+        g_token_pending.erase(0, count);
+    }
+    JNIEnv * env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
+    jstring js = utf8_to_jstring(env, safe);
+    if (js) {
+        env->CallVoidMethod(g_cb_obj, g_cb_token, js);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        env->DeleteLocalRef(js);
+    }
     if (attached) g_vm->DetachCurrentThread();
 }
 
@@ -120,17 +272,17 @@ static void reader_loop() {
 }
 
 static void capture_start(JNIEnv * env, jobject cb) {
-    g_call_env = nullptr;
     if (cb) {
         g_cb_obj = env->NewGlobalRef(cb);
-        if (!g_cb_class) {
-            jclass local = env->GetObjectClass(cb);
-            g_cb_class = (jclass) env->NewGlobalRef(local);
-            env->DeleteLocalRef(local);
-            g_cb_log   = env->GetMethodID(g_cb_class, "onLog", "(Ljava/lang/String;)V");
-            g_cb_epoch = env->GetMethodID(g_cb_class, "onEpoch", "(IIIDD)V");
-            if (!g_cb_epoch) env->ExceptionClear();
-        }
+        jclass local = env->GetObjectClass(cb);
+        g_cb_class = (jclass) env->NewGlobalRef(local);
+        env->DeleteLocalRef(local);
+        g_cb_log = env->GetMethodID(g_cb_class, "onLog", "(Ljava/lang/String;)V");
+        if (!g_cb_log) env->ExceptionClear();
+        g_cb_epoch = env->GetMethodID(g_cb_class, "onEpoch", "(IIIDD)V");
+        if (!g_cb_epoch) env->ExceptionClear();
+        g_cb_token = env->GetMethodID(g_cb_class, "onToken", "(Ljava/lang/String;)V");
+        if (!g_cb_token) env->ExceptionClear();
     }
     int fds[2];
     if (pipe(fds) != 0) return;
@@ -154,8 +306,48 @@ static void capture_stop() {
     if (g_pipe_wr >= 0) { close(g_pipe_wr); g_pipe_wr = -1; }
     if (g_reader.joinable()) g_reader.join();
     if (g_pipe_rd >= 0) { close(g_pipe_rd); g_pipe_rd = -1; }
-    if (g_cb_obj) { JNIEnv * env = nullptr; if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) env->DeleteGlobalRef(g_cb_obj); g_cb_obj = nullptr; }
+    JNIEnv * env = nullptr;
+    if (g_vm && g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK) {
+        if (g_cb_obj) env->DeleteGlobalRef(g_cb_obj);
+        if (g_cb_class) env->DeleteGlobalRef(g_cb_class);
+    }
+    g_cb_obj = nullptr;
+    g_cb_class = nullptr;
+    g_cb_log = nullptr;
+    g_cb_epoch = nullptr;
+    g_cb_token = nullptr;
     g_capture_run = false;
+}
+
+// Keep the corpus on disk and sample a bounded window for each autonomous cycle.
+static constexpr size_t MAX_TRAIN_WINDOW_BYTES = 128 * 1024;
+static constexpr uint64_t MAX_LORA_WORKING_BYTES = 200ULL * 1024ULL * 1024ULL;
+static bool read_training_window(std::ifstream & file, std::string & text, uint64_t & source_bytes) {
+    file.seekg(0, std::ios::end);
+    const std::streamoff size = file.tellg();
+    if (size < 0) return false;
+    source_bytes = (uint64_t) size;
+    if (source_bytes <= MAX_TRAIN_WINDOW_BYTES) {
+        file.clear();
+        file.seekg(0, std::ios::beg);
+    } else {
+        const uint64_t max_start = source_bytes - MAX_TRAIN_WINDOW_BYTES;
+        const uint64_t seed = (uint64_t) std::chrono::steady_clock::now().time_since_epoch().count();
+        const uint64_t offset = max_start ? seed % (max_start + 1) : 0;
+        file.clear();
+        file.seekg((std::streamoff) offset, std::ios::beg);
+        if (offset > 0) { std::string partial; std::getline(file, partial); }
+    }
+    std::vector<char> buffer(MAX_TRAIN_WINDOW_BYTES);
+    file.read(buffer.data(), (std::streamsize) buffer.size());
+    const std::streamsize count = file.gcount();
+    if (count <= 0) return false;
+    text.assign(buffer.data(), (size_t) count);
+    if (source_bytes > MAX_TRAIN_WINDOW_BYTES) {
+        const size_t boundary = text.find_last_of('\n');
+        if (boundary != std::string::npos && boundary > 64) text.resize(boundary);
+    }
+    return !text.empty();
 }
 
 // -----------------------------------------------------------------------------
@@ -262,6 +454,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeQuantize(
         JNIEnv * env, jobject /*thiz*/,
         jstring j_in, jstring j_out, jstring j_ftype, jstring j_imatrix,
         jint nthreads, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string in   = jstr(env, j_in);
     const std::string out  = jstr(env, j_out);
@@ -352,16 +545,24 @@ static bool train_param_filter(const ggml_tensor * t, void * ud) {
 
 static std::atomic<int> g_train_epoch{0};
 static std::atomic<float> g_train_lr{0.f};
+static std::atomic<bool> g_train_abort{false};
 
 static void train_epoch_cb(bool train, ggml_opt_context_t, ggml_opt_dataset_t,
                            ggml_opt_result_t result, int64_t ibatch,
                            int64_t ibatch_max, int64_t) {
-    if (!g_cb_obj || !g_cb_epoch || !g_call_env) return;
+    if (!g_cb_obj || !g_cb_epoch || !g_vm) return;
+    JNIEnv * callback_env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **) &callback_env, JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&callback_env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
     double loss = 0.0, unc = 0.0;
     if (result) ggml_opt_result_loss(result, &loss, &unc);
-    g_call_env->CallVoidMethod(g_cb_obj, g_cb_epoch, (jint) g_train_epoch.load(), (jint) ibatch,
-                               (jint) ibatch_max, (jdouble) loss, (jdouble) g_train_lr.load());
-    if (g_call_env->ExceptionCheck()) g_call_env->ExceptionClear();
+    callback_env->CallVoidMethod(g_cb_obj, g_cb_epoch, (jint) g_train_epoch.load(), (jint) ibatch,
+                                 (jint) ibatch_max, (jdouble) loss, (jdouble) g_train_lr.load());
+    if (callback_env->ExceptionCheck()) callback_env->ExceptionClear();
+    if (attached) g_vm->DetachCurrentThread();
     (void) train;
 }
 
@@ -371,6 +572,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
         jstring j_model, jstring j_out, jstring j_dataset,
         jint epochs, jfloat lr0, jint n_ctx, jint n_batch, jint n_ubatch,
         jint nthreads, jstring j_filter, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string model_path = jstr(env, j_model);
     const std::string out_path   = jstr(env, j_out);
@@ -378,13 +580,17 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
     const std::string filter     = jstr(env, j_filter);
 
     capture_start(env, cb);
-    g_call_env = env;
+    g_train_abort = false;
 
     std::string err;
     bool ok = false;
     double final_loss = 0.0;
     int n_tokens = 0, n_seq = 0;
+    llama_model * active_model = nullptr;
+    llama_context * active_ctx = nullptr;
+    bool backend_initialized = false;
 
+    try {
     if (model_path.empty() || out_path.empty() || data_path.empty()) {
         err = "parâmetros vazios";
     } else {
@@ -392,12 +598,16 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
         if (!f) {
             err = "não foi possível abrir o dataset";
         } else {
-            std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            std::string text;
+            uint64_t source_bytes = 0;
+            const bool has_window = read_training_window(f, text, source_bytes);
             f.close();
-            if (text.size() < 64) {
-                err = "dataset muito pequeno";
+            if (!has_window || text.size() < 64) {
+                err = has_window ? "dataset muito pequeno" : "não foi possível ler uma janela do dataset";
             } else {
+                printf("[train] corpus=%llu bytes, janela=%zu bytes\\n", (unsigned long long) source_bytes, text.size());
                 llama_backend_init();
+                backend_initialized = true;
 
                 llama_model_params mp = llama_model_default_params();
                 mp.n_gpu_layers = 0;
@@ -408,6 +618,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                 if (!model) {
                     err = "falha ao carregar o modelo (use um GGUF F32/F16)";
                 } else {
+                    active_model = model;
                     const llama_vocab * vocab = llama_model_get_vocab(model);
 
                     llama_context_params cp = llama_context_default_params();
@@ -425,6 +636,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                     if (!ctx) {
                         err = "falha ao criar o contexto de treino";
                     } else {
+                        active_ctx = ctx;
                         std::vector<llama_token> tokens(text.size() + 8);
                         int n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
                                                tokens.data(), (int32_t) tokens.size(), true, true);
@@ -479,7 +691,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                             ggml_opt_result_t r_train = ggml_opt_result_init();
                             ggml_opt_result_t r_eval  = ggml_opt_result_init();
 
-                            for (lr.epoch = 0; lr.epoch < lr.epochs; ++lr.epoch) {
+                            for (lr.epoch = 0; lr.epoch < lr.epochs && !g_train_abort.load(); ++lr.epoch) {
                                 printf("[train] epoch %u/%u\n", lr.epoch + 1, lr.epochs);
                                 g_train_epoch = (int) lr.epoch + 1;
                                 g_train_lr = lr.get_lr();
@@ -497,20 +709,39 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
                             ggml_opt_result_free(r_eval);
                             ggml_opt_dataset_free(dataset);
 
-                            printf("[train] salvando %s\n", out_path.c_str());
-                            llama_model_save_to_file(model, out_path.c_str());
-                            ok = true;
+                            if (g_train_abort.load()) {
+                                err = "treino interrompido por pressão de memória; nenhum modelo final foi exportado";
+                            } else {
+                                printf("[train] salvando %s\n", out_path.c_str());
+                                llama_model_save_to_file(model, out_path.c_str());
+                                std::ifstream saved(out_path, std::ios::binary | std::ios::ate);
+                                ok = saved.good() && saved.tellg() > 0;
+                                if (!ok) err = "falha ao gravar o modelo treinado";
+                            }
                         }
                         llama_free(ctx);
+                        active_ctx = nullptr;
                     }
                     llama_model_free(model);
+                    active_model = nullptr;
                 }
                 llama_backend_free();
+                backend_initialized = false;
             }
         }
     }
+    } catch (const std::bad_alloc &) {
+        err = "memória nativa insuficiente durante fine-tuning completo; reduza contexto/batch ou use LoRA";
+    } catch (const std::exception & ex) {
+        err = std::string("exceção nativa durante fine-tuning: ") + ex.what();
+    } catch (...) {
+        err = "erro nativo desconhecido durante fine-tuning completo";
+    }
 
-    g_call_env = nullptr;
+    if (active_ctx) { llama_free(active_ctx); active_ctx = nullptr; }
+    if (active_model) { llama_model_free(active_model); active_model = nullptr; }
+    if (backend_initialized) { llama_backend_free(); backend_initialized = false; }
+
     capture_stop();
 
     std::string result = "{\"ok\":" + std::string(ok ? "true" : "false") +
@@ -528,6 +759,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeFinetune(
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeTokenStats(
         JNIEnv * env, jobject /*thiz*/, jstring j_model, jstring j_text, jint n_ctx) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string model_path = jstr(env, j_model);
     const std::string text = jstr(env, j_text);
@@ -583,6 +815,72 @@ static bool lora_param_filter(const ggml_tensor * t, void *) {
     return strstr(t->name, ".lora_a") != nullptr || strstr(t->name, ".lora_b") != nullptr;
 }
 
+// Estimate the resident LoRA working set, excluding the read-only mmap base model.
+// The cap includes adapter weights, gradient/Adam state, activation/context buffers,
+// and bounded corpus staging. It is a conservative preflight, not an RSS guarantee.
+static uint64_t estimate_lora_working_bytes(
+        llama_model * model, int ctx_len, int rank, bool include_ffn) {
+    if (!model) return std::numeric_limits<uint64_t>::max();
+
+    std::set<ggml_tensor *> seen;
+    uint64_t adapter_bytes = 0;
+    uint64_t hidden_width = 1;
+    bool overflow = false;
+    auto add = [&](ggml_tensor * w) {
+        if (!w || ggml_n_dims(w) != 2 || !w->name[0] || !seen.insert(w).second) return;
+        const uint64_t n0 = (uint64_t) w->ne[0];
+        const uint64_t n1 = (uint64_t) w->ne[1];
+        const uint64_t r = (uint64_t) std::min<int>(rank, std::min<int>((int) n0, (int) n1));
+        if (r == 0 || n0 + n1 > std::numeric_limits<uint64_t>::max() / r / sizeof(float)) {
+            overflow = true;
+            return;
+        }
+        const uint64_t bytes = (n0 + n1) * r * sizeof(float);
+        if (adapter_bytes > std::numeric_limits<uint64_t>::max() - bytes) {
+            overflow = true;
+            return;
+        }
+        adapter_bytes += bytes;
+        hidden_width = std::max(hidden_width, std::min(n0, n1));
+    };
+
+    for (auto & layer : model->layers) {
+        add(layer.wq); add(layer.wk); add(layer.wv); add(layer.wo);
+        add(layer.wqkv);
+        add(layer.wq_a); add(layer.wq_b);
+        add(layer.wkv_a_mqa); add(layer.wkv_b); add(layer.wkv);
+        add(layer.wk_b); add(layer.wv_b); add(layer.wqkv_b);
+        add(layer.wo_a); add(layer.wo_b);
+        if (include_ffn) {
+            add(layer.ffn_gate); add(layer.ffn_down); add(layer.ffn_up);
+        }
+    }
+
+    if (overflow || seen.empty()) return std::numeric_limits<uint64_t>::max();
+    const uint64_t layers = std::max<uint64_t>(1, (uint64_t) model->layers.size());
+    const uint64_t ctx = (uint64_t) std::max(64, ctx_len);
+    if (adapter_bytes > std::numeric_limits<uint64_t>::max() / 4ULL) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+
+    // Trainable values + gradients + Adam first/second moments.
+    const uint64_t optimizer = adapter_bytes * 4ULL;
+    // Conservative layerwise activation and attention working buffers.
+    const uint64_t per_layer = ctx * hidden_width * sizeof(float);
+    if (per_layer > std::numeric_limits<uint64_t>::max() / layers / 6ULL) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    const uint64_t activations_and_kv = layers * per_layer * 6ULL;
+    const uint64_t dataset_staging = (uint64_t) MAX_TRAIN_WINDOW_BYTES * 12ULL;
+    const uint64_t fixed_overhead = 24ULL * 1024ULL * 1024ULL;
+
+    if (optimizer > std::numeric_limits<uint64_t>::max() - activations_and_kv ||
+        optimizer + activations_and_kv > std::numeric_limits<uint64_t>::max() - dataset_staging - fixed_overhead) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    return optimizer + activations_and_kv + dataset_staging + fixed_overhead;
+}
+
 static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraTargets & t, std::string & err) {
     auto adapter = std::make_shared<llama_adapter_lora>(model);
     adapter->alpha = t.alpha;
@@ -624,6 +922,11 @@ static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraT
         const int r = std::min<int>(t.rank, std::min<int>((int) w->ne[0], (int) w->ne[1]));
         ggml_tensor * a = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, w->ne[0], r);
         ggml_tensor * b = ggml_new_tensor_2d(gctx, GGML_TYPE_F32, r, w->ne[1]);
+        if (!a || !b) {
+            err = "falha ao criar tensor A/B do LoRA";
+            ggml_free(gctx);
+            return nullptr;
+        }
         ggml_set_name(a, (name + ".lora_a").c_str());
         ggml_set_name(b, (name + ".lora_b").c_str());
         adapter->ab_map[name] = llama_adapter_lora_weight(a, b);
@@ -637,14 +940,26 @@ static std::shared_ptr<llama_adapter_lora> build_lora(llama_model * model, LoraT
     // A ~ N(0, 0.02), B = 0  =>  delta starts at zero
     std::mt19937 rng(1337);
     std::normal_distribution<float> nd(0.f, 0.02f);
-    std::vector<float> tmp;
     for (auto & [name, w] : t.items) {
+        (void) w;
         auto & lw = adapter->ab_map[name];
-        tmp.resize((size_t) ggml_nelements(lw.a));
-        for (auto & v : tmp) v = nd(rng);
-        ggml_backend_tensor_set(lw.a, tmp.data(), 0, ggml_nbytes(lw.a));
-        std::fill(tmp.begin(), tmp.end(), 0.f);
-        ggml_backend_tensor_set(lw.b, tmp.data(), 0, ggml_nbytes(lw.b));
+        const size_t a_count = (size_t) ggml_nelements(lw.a);
+        const size_t b_count = (size_t) ggml_nelements(lw.b);
+        const size_t a_bytes = ggml_nbytes(lw.a);
+        const size_t b_bytes = ggml_nbytes(lw.b);
+        // A and B are rectangular in many architectures. Reusing a vector sized
+        // for A to initialize B could read past its allocation and corrupt the
+        // native heap, causing an uncatchable process crash.
+        if (a_count == 0 || b_count == 0 ||
+            a_bytes > a_count * sizeof(float) || b_bytes > b_count * sizeof(float)) {
+            err = "dimensões inválidas nos tensores A/B do LoRA";
+            return nullptr;
+        }
+        std::vector<float> a_values(a_count);
+        std::vector<float> b_values(b_count, 0.0f);
+        for (auto & value : a_values) value = nd(rng);
+        ggml_backend_tensor_set(lw.a, a_values.data(), 0, a_bytes);
+        ggml_backend_tensor_set(lw.b, b_values.data(), 0, b_bytes);
         ggml_set_param(lw.a);
         ggml_set_param(lw.b);
     }
@@ -679,6 +994,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
         jstring j_model, jstring j_out, jstring j_dataset,
         jint epochs, jfloat lr0, jint n_ctx, jint nthreads,
         jint rank, jfloat alpha, jstring j_targets, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
 
     const std::string model_path = jstr(env, j_model);
     const std::string out_path   = jstr(env, j_out);
@@ -686,13 +1002,17 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
     const std::string targets    = jstr(env, j_targets);
 
     capture_start(env, cb);
-    g_call_env = env;
+    g_train_abort = false;
 
     std::string err;
     bool ok = false;
     double final_loss = 0.0;
     int n_tokens = 0, n_seq = 0, n_tensors = 0;
+    llama_model * active_model = nullptr;
+    llama_context * active_ctx = nullptr;
+    bool backend_initialized = false;
 
+    try {
     if (model_path.empty() || out_path.empty() || data_path.empty()) {
         err = "parâmetros vazios";
     } else {
@@ -700,39 +1020,80 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
         if (!f) {
             err = "não foi possível abrir o dataset";
         } else {
-            std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            std::string text;
+            uint64_t source_bytes = 0;
+            const bool has_window = read_training_window(f, text, source_bytes);
             f.close();
-            if (text.size() < 64) {
-                err = "dataset muito pequeno";
+            if (!has_window || text.size() < 64) {
+                err = has_window ? "dataset muito pequeno" : "não foi possível ler uma janela do dataset";
             } else {
+                printf("[train] corpus=%llu bytes, janela=%zu bytes\\n", (unsigned long long) source_bytes, text.size());
                 llama_backend_init();
+                backend_initialized = true;
 
                 llama_model_params mp = llama_model_default_params();
                 mp.n_gpu_layers = 0;
+                // The pinned llama.cpp API expresses this as a load mode:
+                // MMAP = file mapping without mlock (MLOCK/MAP_MLOCK are deliberately not selected).
                 mp.load_mode = LLAMA_LOAD_MODE_MMAP;
+                mp.use_extra_bufts = false;
 
-                llama_model * model = llama_model_load_from_file(model_path.c_str(), mp);
+                llama_model * model = nullptr;
+                try {
+                    model = llama_model_load_from_file(model_path.c_str(), mp);
+                } catch (const std::bad_alloc &) {
+                    err = "memória nativa insuficiente ao mapear GGUF (mmap); tente um modelo Q4 menor";
+                } catch (const std::exception & ex) {
+                    err = std::string("exceção ao abrir GGUF: ") + ex.what();
+                }
                 if (!model) {
-                    err = "falha ao carregar o modelo";
+                    if (err.empty()) err = "falha ao carregar o modelo via mmap";
                 } else {
+                    active_model = model;
+                    log_mmap_status(model_path, "lora-base-frozen");
                     const llama_vocab * vocab = llama_model_get_vocab(model);
-                    const int ctx_len = n_ctx > 0 ? n_ctx : 512;
+                    int ctx_len = std::max(64, std::min(512, n_ctx > 0 ? (int) n_ctx : 128));
+                    int effective_rank = std::max(2, std::min(16, rank > 0 ? (int) rank : 4));
+                    const bool include_ffn = targets.find("ffn") != std::string::npos || targets == "all";
+                    uint64_t estimated_working = estimate_lora_working_bytes(model, ctx_len, effective_rank, include_ffn);
 
+                    while (estimated_working > MAX_LORA_WORKING_BYTES &&
+                           (ctx_len > 64 || effective_rank > 2)) {
+                        if (ctx_len > 64) ctx_len = std::max(64, ctx_len / 2);
+                        else effective_rank = std::max(2, effective_rank / 2);
+                        estimated_working = estimate_lora_working_bytes(model, ctx_len, effective_rank, include_ffn);
+                    }
+
+                    printf("[lora-budget] estimated=%llu MiB limit=200 MiB ctx=%d rank=%d\\n",
+                           (unsigned long long) (estimated_working / (1024ULL * 1024ULL)),
+                           ctx_len, effective_rank);
+
+                    if (estimated_working > MAX_LORA_WORKING_BYTES) {
+                        err = "buffers LoRA estimados acima de 200 MiB mesmo em ctx=64/rank=2; reduza o modelo ou desative FFN";
+                    } else {
                     llama_context_params cp = llama_context_default_params();
                     cp.n_ctx = ctx_len;
                     cp.n_batch = ctx_len;
-                    cp.n_ubatch = ctx_len;   // gradients through attention need ubatch == ctx
-                    cp.n_threads = nthreads > 0 ? nthreads : (int) std::thread::hardware_concurrency();
+                    cp.n_ubatch = ctx_len;   // backward graph in the pinned llama.cpp needs ubatch == ctx
+                    cp.n_threads = std::max(1, std::min(2, nthreads > 0 ? (int) nthreads : 1));
                     cp.n_threads_batch = cp.n_threads;
                     cp.type_k = GGML_TYPE_F32;
                     cp.type_v = GGML_TYPE_F32;
                     cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
                     cp.no_perf = true;
 
-                    llama_context * ctx = llama_init_from_model(model, cp);
+                    llama_context * ctx = nullptr;
+                    try {
+                        ctx = llama_init_from_model(model, cp);
+                    } catch (const std::bad_alloc &) {
+                        err = "memória nativa insuficiente para buffers/gradientes LoRA; reduza contexto e rank";
+                    } catch (const std::exception & ex) {
+                        err = std::string("exceção ao criar contexto LoRA: ") + ex.what();
+                    }
                     if (!ctx) {
-                        err = "falha ao criar contexto";
+                        if (err.empty()) err = "falha ao criar contexto";
                     } else {
+                        active_ctx = ctx;
                         std::vector<llama_token> tokens(text.size() + 8);
                         int n = llama_tokenize(vocab, text.c_str(), (int32_t) text.size(),
                                                tokens.data(), (int32_t) tokens.size(), true, true);
@@ -748,9 +1109,9 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                             n_tokens = n;
 
                             LoraTargets lt;
-                            lt.rank = rank > 0 ? rank : 16;
+                            lt.rank = effective_rank;
                             lt.alpha = alpha > 0 ? alpha : (float) lt.rank;
-                            lt.include_ffn = targets.find("ffn") != std::string::npos || targets == "all";
+                            lt.include_ffn = include_ffn;
 
                             auto adapter = build_lora(model, lt, err);
                             if (adapter) {
@@ -786,7 +1147,8 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                 ggml_opt_result_t r_train = ggml_opt_result_init();
                                 ggml_opt_result_t r_eval  = ggml_opt_result_init();
 
-                                for (lr.epoch = 0; lr.epoch < lr.epochs; ++lr.epoch) {
+                                const std::string checkpoint_path = out_path + ".checkpoint.gguf";
+                                for (lr.epoch = 0; lr.epoch < lr.epochs && !g_train_abort.load(); ++lr.epoch) {
                                     printf("[lora] epoch %u/%u\n", lr.epoch + 1, lr.epochs);
                                     g_train_epoch = (int) lr.epoch + 1;
                                     g_train_lr = lr.get_lr();
@@ -798,26 +1160,52 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
                                     printf("[lora] epoch %u loss=%.6f\n", lr.epoch + 1, loss);
                                     ggml_opt_result_reset(r_train);
                                     ggml_opt_result_reset(r_eval);
+                                    if (!save_lora(adapter, model, lt.alpha, checkpoint_path, err)) break;
+                                    printf("[lora] checkpoint da época %u salvo\\n", lr.epoch + 1);
                                 }
 
                                 ggml_opt_result_free(r_train);
                                 ggml_opt_result_free(r_eval);
                                 ggml_opt_dataset_free(dataset);
 
-                                printf("[lora] salvando adaptador %s\n", out_path.c_str());
-                                ok = save_lora(adapter, model, lt.alpha, out_path, err);
+                                if (g_train_abort.load()) {
+                                    std::ifstream checkpoint(checkpoint_path, std::ios::binary | std::ios::ate);
+                                    const bool checkpoint_valid = checkpoint.good() && checkpoint.tellg() > 0;
+                                    err = checkpoint_valid
+                                        ? "treino interrompido; último checkpoint preservado em " + checkpoint_path
+                                        : "treino interrompido antes da primeira época; nenhum checkpoint válido foi gerado";
+                                } else if (err.empty()) {
+                                    printf("[lora] exportando adaptador final %s\n", out_path.c_str());
+                                    ok = save_lora(adapter, model, lt.alpha, out_path, err);
+                                    if (ok) std::remove(checkpoint_path.c_str());
+                                }
                             }
                         }
                         llama_free(ctx);
+                        active_ctx = nullptr;
                     }
+                    } // end of 200 MiB native working-set gate
                     llama_model_free(model);
+                    active_model = nullptr;
                 }
                 llama_backend_free();
+                backend_initialized = false;
             }
         }
     }
+    } catch (const std::bad_alloc &) {
+        err = "memória nativa insuficiente durante o treino LoRA; diminua rank/contexto ou use um modelo menor";
+    } catch (const std::exception & ex) {
+        err = std::string("exceção nativa durante treino LoRA: ") + ex.what();
+    } catch (...) {
+        err = "erro nativo desconhecido durante treino LoRA";
+    }
 
-    g_call_env = nullptr;
+    // Exceptions must never cross the JNI boundary; release partially-created resources.
+    if (active_ctx) { llama_free(active_ctx); active_ctx = nullptr; }
+    if (active_model) { llama_model_free(active_model); active_model = nullptr; }
+    if (backend_initialized) { llama_backend_free(); backend_initialized = false; }
+
     capture_stop();
 
     std::string result = "{\"ok\":" + std::string(ok ? "true" : "false") +
@@ -832,6 +1220,7 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLoraTrain(
 extern "C" JNIEXPORT jint JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeCountTokens(
         JNIEnv * env, jobject /*thiz*/, jstring j_model, jstring j_text) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
     const std::string model_path = jstr(env, j_model);
     const std::string text = jstr(env, j_text);
     if (model_path.empty() || text.empty()) return 0;
@@ -853,12 +1242,232 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeCountTokens(
     return n;
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRequestTrainingStop(JNIEnv *, jobject) {
+    g_train_abort = true;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeVersion(JNIEnv * env, jobject /*thiz*/) {
     // deliberately does not initialize backends: keeps app startup free of native work
     std::string v = llama_version();
     std::string b = "llama.cpp " + v + " | " + std::to_string(std::thread::hardware_concurrency()) + " threads";
     return env->NewStringUTF(b.c_str());
+}
+
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
+        JNIEnv * env, jobject /*thiz*/,
+        jstring j_model, jstring j_system, jstring j_prompt,
+        jint n_ctx, jint nthreads, jint max_tokens, jfloat temperature, jobject cb) {
+    std::lock_guard<std::mutex> native_guard(g_native_mutex);
+    const std::string model_path = jstr(env, j_model);
+    const std::string system_text = jstr(env, j_system);
+    const std::string user_text = jstr(env, j_prompt);
+
+    capture_start(env, cb);
+    g_chat_abort = false;
+    { std::lock_guard<std::mutex> guard(g_token_pending_mutex); g_token_pending.clear(); }
+
+    std::string err;
+    int prompt_tokens = 0;
+    int completion_tokens = 0;
+    const auto started = std::chrono::steady_clock::now();
+
+    if (model_path.empty() || system_text.empty() || user_text.empty()) {
+        err = "modelo ou prompt vazio";
+    } else {
+        printf("[infer] modelo=%s, ctx solicitado=%d, threads=%d, max_tokens=%d\\n",
+               model_path.c_str(), (int) n_ctx, (int) nthreads, (int) max_tokens);
+        llama_backend_init();
+
+        llama_model_params mp = llama_model_default_params();
+        mp.n_gpu_layers = 0;
+        // LLAMA_LOAD_MODE_MMAP is the pinned API's explicit mmap=true/mlock=false mode.
+        // Do not use MLOCK or MMAP_MLOCK: Android must be free to reclaim page-cache pages.
+        mp.load_mode = LLAMA_LOAD_MODE_MMAP;
+        mp.use_extra_bufts = false;
+        llama_model * model = nullptr;
+        try {
+            model = llama_model_load_from_file(model_path.c_str(), mp);
+        } catch (const std::bad_alloc &) {
+            err = "memória nativa insuficiente durante mmap do GGUF; tente Q4 ou um modelo menor";
+        } catch (const std::exception & ex) {
+            err = std::string("exceção ao abrir GGUF: ") + ex.what();
+        }
+        if (!model) {
+            if (err.empty()) err = "falha ao abrir GGUF via mmap; confira arquivo e arquitetura suportada";
+        } else {
+            log_mmap_status(model_path, "inference");
+            const llama_vocab * vocab = llama_model_get_vocab(model);
+            int ctx_len = std::max(256, (int) n_ctx);
+            const int train_ctx = llama_model_n_ctx_train(model);
+            if (train_ctx > 0) ctx_len = std::min(ctx_len, train_ctx);
+
+            llama_context_params cp = llama_context_default_params();
+            cp.n_ctx = (uint32_t) ctx_len;
+            // Small micro-batches bound transient compute memory on 4-GB devices.
+            cp.n_batch = 2;
+            cp.n_ubatch = 2;
+            cp.n_threads = std::max(1, (int) nthreads);
+            cp.n_threads_batch = cp.n_threads;
+            cp.type_k = GGML_TYPE_F16;
+            cp.type_v = GGML_TYPE_F16;
+            cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+            cp.no_perf = false;
+
+            llama_context * ctx = nullptr;
+            try {
+                ctx = llama_init_from_model(model, cp);
+            } catch (const std::bad_alloc &) {
+                err = "memória nativa insuficiente para KV cache/contexto; o fallback compacto será tentado";
+            } catch (const std::exception & ex) {
+                err = std::string("exceção ao criar contexto de inferência: ") + ex.what();
+            }
+            if (!ctx) {
+                if (err.empty()) err = "não foi possível alocar o contexto de inferência";
+            } else {
+                const llama_chat_message chat[] = {
+                    { "system", system_text.c_str() },
+                    { "user", user_text.c_str() },
+                };
+                const char * tmpl = llama_model_chat_template(model, nullptr);
+                std::string formatted;
+                if (tmpl) {
+                    int32_t needed = llama_chat_apply_template(tmpl, chat, 2, true, nullptr, 0);
+                    if (needed > 0) {
+                        formatted.resize((size_t) needed + 1);
+                        int32_t written = llama_chat_apply_template(
+                            tmpl, chat, 2, true, formatted.data(), (int32_t) formatted.size());
+                        if (written >= 0) formatted.resize((size_t) written);
+                        else formatted.clear();
+                    }
+                }
+                if (formatted.empty()) {
+                    // Generic ChatML fallback for GGUF models that omit a supported template.
+                    formatted = "<|im_start|>system\n" + system_text +
+                        "\n<|im_start|>user\n" + user_text +
+                        "\n<|im_start|>assistant\n";
+                }
+
+                std::vector<llama_token> tokens(formatted.size() + 16);
+                int32_t n = llama_tokenize(vocab, formatted.c_str(), (int32_t) formatted.size(),
+                                           tokens.data(), (int32_t) tokens.size(), false, true);
+                if (n < 0) {
+                    tokens.resize((size_t) -n);
+                    n = llama_tokenize(vocab, formatted.c_str(), (int32_t) formatted.size(),
+                                       tokens.data(), (int32_t) tokens.size(), false, true);
+                }
+                const int available_output = ctx_len - n - 1;
+                const int generation_limit = std::min((int) max_tokens, available_output);
+                if (n <= 0) {
+                    err = "tokenização do prompt falhou";
+                } else if (generation_limit < 1) {
+                    err = "o prompt preencheu toda a janela de contexto; reduza o histórico";
+                } else {
+                    tokens.resize((size_t) n);
+                    prompt_tokens = n;
+                    printf("[infer] prompt=%d tokens, ctx=%d, template=%s\\n",
+                           prompt_tokens, ctx_len, tmpl ? "GGUF" : "ChatML fallback");
+                    llama_batch batch = llama_batch_init(2, 0, 1);
+                    int decode = 0;
+                    // Feed prompt tokens in batches of at most two while preserving absolute positions.
+                    for (int offset = 0; offset < n && decode == 0; offset += 2) {
+                        const int count = std::min(2, n - offset);
+                        batch.n_tokens = count;
+                        for (int j = 0; j < count; ++j) {
+                            const int token_index = offset + j;
+                            batch.token[j] = tokens[(size_t) token_index];
+                            batch.pos[j] = token_index;
+                            batch.n_seq_id[j] = 1;
+                            batch.seq_id[j][0] = 0;
+                            batch.logits[j] = token_index == n - 1;
+                        }
+                        decode = llama_decode(ctx, batch);
+                    }
+                    if (decode != 0) {
+                        err = "falha ao processar prompt em micro-batches (decode=" + std::to_string(decode) + ")";
+                    } else {
+                        llama_sampler * sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+                        if (!sampler) {
+                            err = "não foi possível criar o sampler";
+                        } else {
+                            llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+                            llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.92f, 1));
+                            if (temperature <= 0.001f) {
+                                llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
+                            } else {
+                                llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
+                                llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+                            }
+
+                            for (int i = 0; i < generation_limit && !g_chat_abort.load(); ++i) {
+                                const llama_token token = llama_sampler_sample(sampler, ctx, -1);
+                                if (llama_vocab_is_eog(vocab, token)) break;
+
+                                char piece_buf[512];
+                                int32_t piece_len = llama_token_to_piece(vocab, token, piece_buf,
+                                                                         (int32_t) sizeof(piece_buf), 0, false);
+                                std::string piece;
+                                if (piece_len < 0) {
+                                    std::vector<char> larger((size_t) -piece_len + 1);
+                                    piece_len = llama_token_to_piece(vocab, token, larger.data(),
+                                        (int32_t) larger.size(), 0, false);
+                                    if (piece_len > 0) piece.assign(larger.data(), (size_t) piece_len);
+                                } else if (piece_len > 0) {
+                                    piece.assign(piece_buf, (size_t) piece_len);
+                                }
+                                if (!piece.empty()) {
+                                    emit_token(piece);
+                                    completion_tokens++;
+                                }
+                                if (i + 1 < generation_limit && !g_chat_abort.load()) {
+                                    batch.n_tokens = 1;
+                                    batch.token[0] = token;
+                                    batch.pos[0] = n + i;
+                                    batch.n_seq_id[0] = 1;
+                                    batch.seq_id[0][0] = 0;
+                                    batch.logits[0] = 1;
+                                    const int next_decode = llama_decode(ctx, batch);
+                                    if (next_decode != 0) {
+                                        err = "falha ao avançar geração nativa (decode=" + std::to_string(next_decode) + ")";
+                                        break;
+                                    }
+                                }
+                            }
+                            emit_token("", true);
+                            if (g_chat_abort.load()) err = "geração interrompida pelo utilizador";
+                            llama_sampler_free(sampler);
+                        }
+                    }
+                    llama_batch_free(batch);
+                }
+                llama_free(ctx);
+            }
+            llama_model_free(model);
+        }
+        llama_backend_free();
+    }
+
+    emit_token("", true);
+    fflush(stdout);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    capture_stop();
+    const bool ok = err.empty() && completion_tokens > 0;
+    if (!ok && err.empty()) err = "o modelo não gerou tokens de resposta";
+    const std::string json = "{\"ok\":" + std::string(ok ? "true" : "false") +
+        ",\"prompt_tokens\":" + std::to_string(prompt_tokens) +
+        ",\"completion_tokens\":" + std::to_string(completion_tokens) +
+        ",\"elapsed_ms\":" + std::to_string(elapsed) +
+        ",\"error\":\"" + json_escape(err) + "\"}";
+    return utf8_to_jstring(env, json);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRequestChatStop(JNIEnv *, jobject) {
+    g_chat_abort = true;
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {

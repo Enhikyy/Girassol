@@ -13,8 +13,8 @@ android {
         applicationId = "app.girassol"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.6.0"
+        versionCode = 14
+        versionName = "2.0.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -80,6 +80,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("dev.chrisbanes.haze:haze:1.7.3")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

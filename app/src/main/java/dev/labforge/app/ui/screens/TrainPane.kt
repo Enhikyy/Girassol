@@ -71,9 +71,9 @@ fun TrainPane(vm: LabViewModel) {
     val autoPreset = remember { AppSelection.preset }
     var epochs by remember { mutableStateOf(autoPreset?.epochs ?: 3) }
     var lrText by remember { mutableStateOf(autoPreset?.lr?.let { "%.7f".format(it).trimEnd('0').trimEnd('.') } ?: "1e-4") }
-    var ctx by remember { mutableStateOf(autoPreset?.ctx ?: 512) }
+    var ctx by remember { mutableStateOf(autoPreset?.ctx ?: if (vm.deviceRamGb < 6.0) 128 else 512) }
     var batch by remember { mutableStateOf(128) }
-    var rank by remember { mutableStateOf(autoPreset?.rank ?: 16) }
+    var rank by remember { mutableStateOf(autoPreset?.rank ?: if (vm.deviceRamGb < 6.0) 2 else 16) }
     var targets by remember { mutableStateOf(if (autoPreset?.targets?.contains("ffn") == true) 1 else 0) } // 0 attn, 1 attn+ffn
     var filterMode by remember { mutableStateOf(0) }
     var customFilter by remember { mutableStateOf("") }
@@ -96,7 +96,7 @@ fun TrainPane(vm: LabViewModel) {
     val eta = if (tokens > 0 && meta != null) {
         Perf.trainingSeconds(tokens, epochs, meta.parameterCount, bits, vm.deviceCores, mode == 0)
     } else 0.0
-    val budget = model?.let { MemoryGuard.check(context, it.sizeBytes, if (mode == 0) "lora" else "full") }
+    val budget = model?.let { MemoryGuard.check(context, it.sizeBytes, if (mode == 0) "lora" else "full", ctx, rank) }
 
     LaunchedEffect(vm.models) {
         if (modelPath.isBlank()) modelPath = AppSelection.modelPath ?: vm.models.firstOrNull()?.file?.absolutePath ?: ""
@@ -264,7 +264,7 @@ fun TrainPane(vm: LabViewModel) {
         Spacer(Modifier.height(10.dp))
         GlassCard {
             if (mode == 0) {
-                Stepper("Rank LoRA", rank, listOf(8, 16, 32, 64), Modifier.fillMaxWidth()) { rank = it }
+                Stepper("Rank LoRA", rank, listOf(2, 4, 8, 16, 32, 64), Modifier.fillMaxWidth()) { rank = it }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("Atenção" to 0, "Atenção + FFN" to 1).forEach { (label, value) ->
@@ -290,13 +290,13 @@ fun TrainPane(vm: LabViewModel) {
                 Spacer(Modifier.height(12.dp))
                 Stepper("Epochs", epochs, listOf(1, 2, 3, 5), Modifier.fillMaxWidth()) { epochs = it }
                 Spacer(Modifier.height(10.dp))
-                Stepper("Contexto", ctx, listOf(256, 512, 1024, 2048), Modifier.fillMaxWidth()) { ctx = it }
+                Stepper("Contexto", ctx, listOf(64, 128, 256, 512, 1024, 2048), Modifier.fillMaxWidth()) { ctx = it }
                 Spacer(Modifier.height(10.dp))
                 LabField("Learning rate", lrText, placeholder = "1e-4", onValueChange = { lrText = it })
             } else {
                 Stepper("Epochs", epochs, listOf(1, 2, 3, 5), Modifier.fillMaxWidth()) { epochs = it }
                 Spacer(Modifier.height(10.dp))
-                Stepper("Contexto", ctx, listOf(256, 512, 1024, 2048), Modifier.fillMaxWidth()) { ctx = it }
+                Stepper("Contexto", ctx, listOf(64, 128, 256, 512, 1024, 2048), Modifier.fillMaxWidth()) { ctx = it }
                 Spacer(Modifier.height(10.dp))
                 Stepper("Batch", batch, listOf(32, 64, 128, 256), Modifier.fillMaxWidth()) { batch = it }
                 Spacer(Modifier.height(10.dp))
@@ -378,7 +378,7 @@ fun TrainPane(vm: LabViewModel) {
             if (mode == 0) "Treinar LoRA" else "Iniciar fine-tuning",
             Modifier.fillMaxWidth(),
             Icons.Rounded.AutoAwesome,
-            enabled = model != null && dataset != null && !vm.jobRunning,
+            enabled = model != null && dataset != null && !vm.jobRunning && budget?.ok == true,
             loading = vm.jobRunning && (vm.jobKind == "lora" || vm.jobKind == "full"),
         ) {
             val m = model ?: return@GradientButton
@@ -433,6 +433,18 @@ fun TrainPane(vm: LabViewModel) {
             }
         }
 
+        if (vm.ramAvailableHistory.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            GlassCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("RAM livre durante o treino", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text, modifier = Modifier.weight(1f))
+                    Text("%.2f GB".format(vm.ramAvailableHistory.last()), fontSize = 12.sp, color = Lab.Amber)
+                }
+                Spacer(Modifier.height(7.dp))
+                LineChart(vm.ramAvailableHistory, Modifier.fillMaxWidth().height(72.dp), color = Lab.Amber)
+                Text("Amostras a cada 3,5 s · parada cooperativa abaixo da reserva do sistema", fontSize = 12.sp, color = Lab.Muted)
+            }
+        }
         if (vm.jobKind == "lora" || vm.jobKind == "full" || vm.jobTitle.startsWith("LoRA") || vm.jobTitle.startsWith("Fine-tuning")) {
             Spacer(Modifier.height(16.dp))
             JobPanel(vm)
