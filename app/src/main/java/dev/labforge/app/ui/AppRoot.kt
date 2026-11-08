@@ -208,7 +208,7 @@ private fun JobStrip(title: String, progress: Float, eta: String, onClick: () ->
         )
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 11.sp, color = Lab.Text, maxLines = 1, fontWeight = FontWeight.Medium)
+            Text(title, fontSize = 12.sp, color = Lab.Text, maxLines = 1, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(4.dp))
             Box(
                 Modifier
@@ -226,7 +226,7 @@ private fun JobStrip(title: String, progress: Float, eta: String, onClick: () ->
             }
         }
         Spacer(Modifier.width(10.dp))
-        Text("~$eta", fontSize = 11.sp, color = Lab.Muted)
+        Text("~$eta", fontSize = 12.sp, color = Lab.Muted)
     }
 }
 
@@ -281,7 +281,7 @@ private fun BottomBar(current: String, onSelect: (String) -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     tab.label,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = labelColor,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,
