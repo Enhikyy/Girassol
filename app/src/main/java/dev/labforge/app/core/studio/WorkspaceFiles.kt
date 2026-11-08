@@ -114,6 +114,24 @@ object WorkspaceFiles {
         }
     }
 
+
+    /** Bounded visible file index for the in-app editor; generated/build trees are excluded. */
+    fun listFiles(root: File): List<String> {
+        val base = root.canonicalFile
+        val ignored = setOf(".git", "build", ".gradle", "models", "output", "runs", ".cache")
+        val found = base.walkTopDown()
+            .onEnter { dir -> dir == base || (dir.name !in ignored && !java.nio.file.Files.isSymbolicLink(dir.toPath())) }
+            .filter { file ->
+                file.isFile && !file.isHidden &&
+                    !java.nio.file.Files.isSymbolicLink(file.toPath()) &&
+                    runCatching { file.canonicalPath.startsWith(base.path + File.separator) }.getOrDefault(false)
+            }
+            .take(MAX_ENTRIES + 1)
+            .toList()
+        require(found.size <= MAX_ENTRIES) { "Workspace excede o limite de $MAX_ENTRIES arquivos indexados" }
+        return found.map { it.relativeTo(base).invariantSeparatorsPath }.sorted()
+    }
+
     fun findSourceFile(root: File): String? {
         val files = root.walkTopDown().filter { it.isFile && !it.isHidden }.take(MAX_ENTRIES + 1).toList()
         require(files.size <= MAX_ENTRIES) { "Projeto importado tem arquivos demais para indexar" }
