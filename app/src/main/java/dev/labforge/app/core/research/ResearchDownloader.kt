@@ -71,17 +71,9 @@ class ResearchDownloader(
     private fun downloadText(document: ResearchDoc): DownloadedText? {
         // GitHub-first research should ingest source documentation, not just the repository landing-page HTML.
         if (document.source.equals("GitHub", ignoreCase = true)) {
-            val uri = runCatching { URI(document.url) }.getOrNull()
-            val segments = uri?.path?.trim('/')?.split('/')?.filter { it.isNotBlank() }.orEmpty()
-            if (uri?.host.equals("github.com", ignoreCase = true) && segments.size >= 2) {
-                val owner = segments[0]
-                val repository = segments[1].removeSuffix(".git")
-                val names = listOf("README.md", "README.MD", "README")
-                val branches = listOf("main", "master")
-                for (branch in branches) for (name in names) {
-                    val readme = downloadTextUrl("https://raw.githubusercontent.com/$owner/$repository/$branch/$name")
-                    if (readme != null && readme.text.length >= MIN_TEXT_CHARS) return readme
-                }
+            for (readmeUrl in githubReadmeCandidates(document.url)) {
+                val readme = downloadTextUrl(readmeUrl)
+                if (readme != null && readme.text.length >= MIN_TEXT_CHARS) return readme
             }
         }
         return downloadTextUrl(document.url)
@@ -156,6 +148,21 @@ class ResearchDownloader(
         private const val MAX_ENRICHED_CHARS = 28_000
         private const val MIN_TEXT_CHARS = 80
 
+        /** Candidate raw README URLs for a public GitHub repository, ordered by common defaults. */
+        internal fun githubReadmeCandidates(repositoryUrl: String): List<String> {
+            val uri = runCatching { URI(repositoryUrl) }.getOrNull() ?: return emptyList()
+            if (!uri.scheme.equals("https", true) || !uri.host.equals("github.com", true)) return emptyList()
+            val segments = uri.path.trim('/').split('/').filter { it.isNotBlank() }
+            if (segments.size < 2) return emptyList()
+            val owner = segments[0]
+            val repository = segments[1].removeSuffix(".git")
+            if (!owner.matches(Regex("[A-Za-z0-9_.-]+")) || !repository.matches(Regex("[A-Za-z0-9_.-]+"))) return emptyList()
+            return listOf("main", "master").flatMap { branch ->
+                listOf("README.md", "README.MD", "README").map { name ->
+                    "https://raw.githubusercontent.com/$owner/$repository/$branch/$name"
+                }
+            }
+        }
         private fun defaultClient() = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(18, TimeUnit.SECONDS)
