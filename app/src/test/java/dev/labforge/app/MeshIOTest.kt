@@ -38,6 +38,20 @@ class MeshIOTest {
         assertTrue(parsed.vertices.isNotEmpty())
     }
 
+    @Test fun rejectsNonFiniteCoordinates() {
+        assertTrue(runCatching { MeshIO.readObj("v NaN 0 0\\nv 1 0 0\\nv 0 1 0\\nf 1 2 3") }.isFailure)
+    }
+
+    @Test fun rejectsZeroObjIndex() {
+        assertTrue(runCatching { MeshIO.readObj("v 0 0 0\\nv 1 0 0\\nv 0 1 0\\nf 0 2 3") }.isFailure)
+    }
+
+    @Test fun rejectsOversizedFaceBeforeTriangulating() {
+        val vertices = (1..260).joinToString("\\n") { "v ${it} 0 0" }
+        val face = "f " + (1..260).joinToString(" ")
+        assertTrue(runCatching { MeshIO.readObj(vertices + "\\n" + face) }.isFailure)
+    }
+
     @Test fun negativeObjIndicesResolveFromEnd() {
         val mesh=MeshIO.readObj("v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1")
         assertEquals(1,mesh.triangles.size)
