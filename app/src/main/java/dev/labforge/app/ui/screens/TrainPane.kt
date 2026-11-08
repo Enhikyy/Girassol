@@ -96,7 +96,7 @@ fun TrainPane(vm: LabViewModel) {
     val eta = if (tokens > 0 && meta != null) {
         Perf.trainingSeconds(tokens, epochs, meta.parameterCount, bits, vm.deviceCores, mode == 0)
     } else 0.0
-    val budget = model?.let { MemoryGuard.check(context, it.sizeBytes, if (mode == 0) "lora" else "full") }
+    val budget = model?.let { MemoryGuard.check(context, it.sizeBytes, if (mode == 0) "lora" else "full", ctx, rank) }
 
     LaunchedEffect(vm.models) {
         if (modelPath.isBlank()) modelPath = AppSelection.modelPath ?: vm.models.firstOrNull()?.file?.absolutePath ?: ""
