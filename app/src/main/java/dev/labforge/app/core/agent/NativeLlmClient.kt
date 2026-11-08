@@ -18,6 +18,7 @@ class NativeLlmClient(
     private val threads: Int,
     private val maxTokens: Int = 384,
     private val temperature: Float = 0.25f,
+    private val onNativeLog: ((String) -> Unit)? = null,
 ) : AgentLlm {
 
     override suspend fun chat(
@@ -79,6 +80,7 @@ class NativeLlmClient(
 
                 override fun onLog(line: String) {
                     Log.i("GirassolNativeChat", line)
+                    onNativeLog?.invoke(line)
                 }
 
                 override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) = Unit
