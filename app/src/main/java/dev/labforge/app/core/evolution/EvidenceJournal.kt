@@ -59,7 +59,7 @@ object SkillTree {
     val skills = listOf(
         Skill("read", "Explorar código", emptyList(), setOf("read_file", "search_code", "list_dir")),
         Skill("edit", "Editar projetos", listOf("read"), setOf("write_file", "apply_patch")),
-        Skill("verify", "Compilar e validar", listOf("edit"), setOf("android_build"), setOf("build", "test", "lint")),
+        Skill("verify", "Compilar e validar", listOf("edit"), setOf("android_build"), setOf("build", "test", "lint", "pipeline")),
         Skill("ui", "Testar interfaces", listOf("verify"), setOf("android_ui_test")),
         Skill("research", "Pesquisar fontes", emptyList(), setOf("research_web")),
         Skill("inference", "Medir inferência local", emptyList(), setOf("inference_benchmark")),

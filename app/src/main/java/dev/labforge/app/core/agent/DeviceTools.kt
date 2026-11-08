@@ -98,16 +98,26 @@ class TermuxCommandTool(ws: File, private val project: String) : AgentTool(ws) {
 
 class AndroidBuildTool(ws: File, private val project: String = "${TermuxBridge.HOME}/girassol") : AgentTool(ws) {
     override val name = "android_build"
-    override val description = "Compila/testa no Termux por RUN_COMMAND. diagnose, clone, build, test, lint, install. Instalação abre a tela Android para confirmação."
+    override val description = "Compila/testa no Termux por RUN_COMMAND. pipeline (validação completa), diagnose, clone, build, test, lint, install. Instalação abre a tela Android para confirmação."
     override fun parameters() = schema(JSONObject().apply {
-        put("action", prop("string", "diagnose, clone, build, test, lint ou install"))
+        put("action", prop("string", "pipeline, diagnose, clone, build, test, lint ou install"))
         put("project", prop("string", "Diretório do projeto no Termux; independente do workspace privado do Girassol"))
         put("repository", prop("string", "URL git para clone"))
         put("apk", prop("string", "Caminho do APK"))
+        put("module", prop("string", "Módulo Gradle, padrão :app"))
+        put("variant", prop("string", "debug ou release, padrão debug"))
+        put("offline", prop("boolean", "Usar somente dependências em cache"))
     }, listOf("action"))
     override suspend fun execute(args: JSONObject): ToolResult {
         val action = args.getString("action")
         val context = DeviceRuntime.context
+        if (action == "pipeline") {
+            val variant = dev.labforge.app.core.compiler.BuildVariant.valueOf(args.optString("variant", "debug").uppercase(java.util.Locale.ROOT))
+            val request = dev.labforge.app.core.compiler.BuildRequest(TermuxBridge.projectPath(args.optString("project", project)),
+                args.optString("module", ":app"), variant, args.optBoolean("offline", false))
+            val result = dev.labforge.app.core.compiler.BuildCoordinator.run(context, request)
+            return ToolResult(result.ok, result.json().toString(2))
+        }
         if (action == "install" && File(args.getString("apk")).isFile) {
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", File(args.getString("apk")))
             withContext(Dispatchers.Main) { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,

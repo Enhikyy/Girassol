@@ -202,7 +202,17 @@ O APK é validado por teste: `com.llamatik.core.platform.LlamaBridge` **não** e
 
 ---
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:73b49c17c546ab20d043e3b59cb6a7b3b560c63c75b542d7fb7e137e8681f7f9 -->
+
+## Central de compilação
+
+**Laboratório → Compilar** oferece diagnóstico, testes, lint, montagem e verificação de APK/assinatura, com logs por etapa, metadados SHA-256 e relatório persistido. A interface adaptável usa padrões Material pesquisados na documentação Flutter, implementados nativamente em Compose. Veja [uso, ambiente e limites](docs/BUILD_CENTER.md).
+
 ## Design
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 - Tema escuro “sunflower lab”: fundo `#070805`, superfícies `#13160F`, dourado `#F2C14E`, verde `#84D98A`.
 - Tipografia sans (Inter/Roboto), títulos com tracking negativo.
