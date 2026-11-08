@@ -27,10 +27,13 @@ import androidx.compose.ui.unit.sp
 import dev.labforge.app.core.geometry.Mesh
 import dev.labforge.app.core.geometry.MeshIO
 import dev.labforge.app.core.studio.AndroidProjectScaffold
+import dev.labforge.app.core.studio.WorkspaceFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.math.*
@@ -50,17 +53,25 @@ fun CodeStudioScreen() {
     var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(project) {
-        val f=File(project,fileName)
+        val f=WorkspaceFiles.resolve(project,fileName)
         if(f.exists()) source=f.readText()
     }
     val importCode= rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch {
             runCatching {
-                val name=Uri.decode(uri.lastPathSegment ?: "Imported.kt").substringAfterLast('/')
-                val text=withContext(Dispatchers.IO){context.contentResolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()} ?: error("Não foi possível ler o arquivo")}
-                fileName=name; source=text
-                withContext(Dispatchers.IO){File(project,name).writeText(text)}
-                status="Arquivo $name importado para o workspace"
+                val imported=withContext(Dispatchers.IO) {
+                    val candidate=Uri.decode(uri.lastPathSegment ?: "Imported.kt").substringAfterLast('/').substringAfterLast('\\\\')
+                    val name=runCatching { WorkspaceFiles.resolve(project,candidate).name }.getOrElse { "Imported-${System.nanoTime()}.txt" }
+                    val output=ByteArrayOutputStream()
+                    context.contentResolver.openInputStream(uri)?.use { WorkspaceFiles.copyBounded(it,output,WorkspaceFiles.MAX_FILE_BYTES) }
+                        ?: error("Não foi possível ler o arquivo")
+                    val text=String(output.toByteArray(),Charsets.UTF_8)
+                    val target=WorkspaceFiles.resolve(project,name)
+                    target.parentFile?.mkdirs(); target.writeText(text)
+                    name to text
+                }
+                fileName=imported.first; source=imported.second
+                status="Arquivo ${imported.first} importado para o workspace"
             }.onFailure{status="Importação falhou: ${it.message}"}
         }
     }
@@ -70,14 +81,45 @@ fun CodeStudioScreen() {
             status="Arquivo exportado"
         }.onFailure{status="Exportação falhou: ${it.message}"} }
     }
+    val importProject=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch { busy=true
+            runCatching {
+                val imported=withContext(Dispatchers.IO) {
+                    val archive=File(context.cacheDir,"studio-${System.nanoTime()}.zip")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            archive.outputStream().buffered().use { output ->
+                                WorkspaceFiles.copyBounded(input,output,WorkspaceFiles.MAX_ARCHIVE_BYTES)
+                            }
+                        } ?: error("Não foi possível abrir o ZIP")
+                        archive.inputStream().use { WorkspaceFiles.importZip(it,project) }
+                    } finally { archive.delete() }
+                }
+                val selection=withContext(Dispatchers.IO) {
+                    WorkspaceFiles.findSourceFile(imported)?.let { path ->
+                        val relative=imported.relativeTo(project).invariantSeparatorsPath + "/" + path
+                        relative to WorkspaceFiles.resolve(project,relative).readText()
+                    }
+                }
+                if(selection!=null) { fileName=selection.first; source=selection.second }
+                status="ZIP importado em ${imported.relativeTo(project).invariantSeparatorsPath}"
+            }.onFailure { status="Importação ZIP falhou: ${it.message}" }
+            busy=false
+        }
+    }
     val importMesh=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch { busy=true
             runCatching {
                 val temp=withContext(Dispatchers.IO) {
-                    val name=Uri.decode(uri.lastPathSegment ?: "model.obj").substringAfterLast('/')
-                    val f=File(context.cacheDir,name)
-                    context.contentResolver.openInputStream(uri)?.use { input->f.outputStream().use{input.copyTo(it)} } ?: error("Não foi possível ler a malha")
-                    f
+                    val ext=Uri.decode(uri.lastPathSegment ?: "model.obj").substringAfterLast('.').lowercase()
+                    require(ext=="obj" || ext=="stl") { "Use apenas OBJ ou STL" }
+                    val f=File(context.cacheDir,"mesh-${System.nanoTime()}.$ext")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            f.outputStream().buffered().use { output -> WorkspaceFiles.copyBounded(input,output,32L*1024L*1024L) }
+                        } ?: error("Não foi possível ler a malha")
+                        f
+                    } catch(failure:Throwable) { f.delete(); throw failure }
                 }
                 mesh=withContext(Dispatchers.Default){MeshIO.read(temp).normalized()}
                 status="Malha carregada: ${mesh?.vertices?.size} vértices · ${mesh?.triangles?.size} triângulos"
@@ -96,7 +138,7 @@ fun CodeStudioScreen() {
         if(uri!=null) scope.launch { runCatching {
             withContext(Dispatchers.IO) {
                 context.contentResolver.openOutputStream(uri)?.use { raw->ZipOutputStream(raw).use{zip->
-                    project.walkTopDown().filter{it.isFile}.forEach{f->
+                    project.walkTopDown().filter{it.isFile && !Files.isSymbolicLink(it.toPath()) && runCatching { it.canonicalPath.startsWith(project.canonicalPath+File.separator) }.getOrDefault(false)}.forEach{f->
                         zip.putNextEntry(ZipEntry(f.relativeTo(project).invariantSeparatorsPath))
                         f.inputStream().use{it.copyTo(zip)}
                         zip.closeEntry()
@@ -124,19 +166,22 @@ fun CodeStudioScreen() {
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick={
                     scope.launch { runCatching {
-                        withContext(Dispatchers.IO){AndroidProjectScaffold.create(File(root,"NovoProjetoAndroid"))}
-                        status="Projeto Android criado em NovoProjetoAndroid; exporte o ZIP para abrir no Android Studio."
+                        withContext(Dispatchers.IO){AndroidProjectScaffold.create(File(project,"NovoProjetoAndroid"))}
+                        fileName="NovoProjetoAndroid/app/src/main/java/dev/example/generated/MainActivity.kt"
+                        source=WorkspaceFiles.resolve(project,fileName).readText()
+                        status="Projeto Android criado no workspace; exporte o ZIP para abrir no Android Studio."
                     }.onFailure{status="Falha ao criar projeto: ${it.message}"} }
                 }){Icon(Icons.Rounded.AddBox,null);Spacer(Modifier.width(5.dp));Text("Novo Android")}
                 OutlinedButton(onClick={importCode.launch(arrayOf("text/*","application/json","application/xml"))}){Icon(Icons.Rounded.FolderOpen,null);Spacer(Modifier.width(5.dp));Text("Abrir")}
-                OutlinedButton(onClick={exportCode.launch(fileName)}){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(5.dp));Text("Exportar")}
-                OutlinedButton(onClick={exportProject.launch("GirassolWorkspace.zip")}){Icon(Icons.Rounded.Archive,null);Spacer(Modifier.width(5.dp));Text("Projeto ZIP")}
+                OutlinedButton(onClick={exportCode.launch(fileName.substringAfterLast('/'))}){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(5.dp));Text("Exportar")}
+                OutlinedButton(onClick={importProject.launch(arrayOf("application/zip","application/x-zip-compressed"))},enabled=!busy){Icon(Icons.Rounded.FolderOpen,null);Spacer(Modifier.width(5.dp));Text("Importar ZIP")}
+                OutlinedButton(onClick={exportProject.launch("GirassolWorkspace.zip")},enabled=!busy){Icon(Icons.Rounded.Archive,null);Spacer(Modifier.width(5.dp));Text("Projeto ZIP")}
             }
             OutlinedTextField(value=fileName,onValueChange={fileName=it},label={Text("Arquivo")},singleLine=true,modifier=Modifier.fillMaxWidth())
             OutlinedTextField(value=source,onValueChange={source=it},modifier=Modifier.weight(1f).fillMaxWidth(),label={Text("Editor de código")},textStyle=MaterialTheme.typography.bodySmall.copy(fontFamily=FontFamily.Monospace),minLines=12)
             Button(onClick={
                 scope.launch { runCatching {
-                    withContext(Dispatchers.IO){require(fileName.matches(Regex("[A-Za-z0-9_.-]{1,80}")) && !fileName.contains("..")); File(project,fileName).writeText(source)}
+                    withContext(Dispatchers.IO){require(fileName.matches(Regex("[A-Za-z0-9_.-]{1,80}")) && !fileName.contains("..")); WorkspaceFiles.resolve(project,fileName).apply { parentFile?.mkdirs(); writeText(source) }}
                     status="Salvo em armazenamento privado do app"
                 }.onFailure{status="Falha ao salvar: ${it.message}"} }
             },modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.Save,null);Spacer(Modifier.width(8.dp));Text("Salvar no projeto")}
