@@ -90,9 +90,9 @@ dependencies {
     implementation("org.slf4j:slf4j-nop:2.0.13")
 
     // Native glTF 2.0 viewer: PBR materials, textures, skins and animation.
-    implementation("com.google.android.filament:filament-android:1.80.0")
-    implementation("com.google.android.filament:gltfio-android:1.80.0")
-    implementation("com.google.android.filament:filament-utils-android:1.80.0")
+    implementation("com.google.android.filament:filament-android:1.77.3")
+    implementation("com.google.android.filament:gltfio-android:1.77.3")
+    implementation("com.google.android.filament:filament-utils-android:1.77.3")
 
     // Llamatik agent SDK (DSL, tools, persistent memory). The native core is excluded:
     // it ships a different llama.cpp build and would collide with liblabforge/libllama.
