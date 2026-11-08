@@ -1,3 +1,21 @@
+# Girassol 2.0.0 — autonomia de dispositivo
+
+- Adiciona `GirassolAccessibilityService`: leitura da árvore de UI, toque, gesto, digitação,
+  teclas de sistema, abertura de apps e captura de tela (Android 11+). Ativação manual pelo
+  usuário; o app não se autoautoriza.
+- Expõe 9 ferramentas `device_*` ao ReAct/Codex, ligadas por `autonomyToolsEnabled` e
+  registradas no diário local com assinatura da tela antes/depois.
+- Adiciona `DeviceScriptRunner`: roteiros declarativos `open → wait → tap → type → swipe →
+  key → assert` (máx. 25 passos), com relatório passo a passo usado como evidência de teste.
+- Adiciona ciclo noturno com WorkManager (ocioso + carregando), `CycleBudget` (RAM/bateria) e
+  `ThermalGate` (bloqueia em térmica moderada). O worker consolida a memória de aprendizado.
+- Nova tela **Autonomia** (Ajustes → Autonomia) e cartão de status na Home: acessibilidade,
+  ferramentas, sono, diário e limites do Android.
+- `ActionJournal` rotativo (500 linhas) e `UiSnapshot` com assinatura SHA-1 para detectar tela
+  repetida — base do watchdog contra loops.
+- Testes novos: seletor/árvore, diário, térmica e runner de roteiros.
+- Documentação: `docs/AUTONOMY.md`, arquitetura e README atualizados.
+
 # Girassol 1.8.0 — stack de pesquisa e continuidade de autoaprendizado
 
 # Correção de estabilidade LoRA — 2026-11-08

@@ -59,7 +59,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
-fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
+fun SettingsScreen(
+    vm: LabViewModel,
+    onOpenLlamatik: () -> Unit = {},
+    onOpenAutonomy: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     var endpoint by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
@@ -263,6 +267,30 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
             KeyValueRow("datasets", "${vm.datasets.size}")
             KeyValueRow("saídas", "${vm.outputs.size} · ${humanBytes(vm.outputs.sumOf { it.length() })}")
             KeyValueRow("workspace git", vm.store.workspace().absolutePath)
+        }
+
+        Spacer(Modifier.height(20.dp))
+        SectionHeader("Autonomia", "acessibilidade, sono e diário de ações")
+        Spacer(Modifier.height(10.dp))
+        GlassCard {
+            Text(
+                "O agente pode enxergar a tela e operar outros apps através do serviço de " +
+                    "acessibilidade. Você ativa e revoga quando quiser; o app não se autoautoriza.",
+                fontSize = 12.sp, color = Lab.Muted, lineHeight = 14.sp,
+            )
+            Spacer(Modifier.height(9.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Lab.Cyan.copy(alpha = 0.12f))
+                    .border(1.dp, Lab.Cyan.copy(alpha = 0.3f), RoundedCornerShape(11.dp))
+                    .clickable { onOpenAutonomy() }
+                    .padding(11.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Abrir Autonomia", fontSize = 12.sp, color = Lab.Cyan, fontWeight = FontWeight.SemiBold)
+            }
         }
 
         Spacer(Modifier.height(20.dp))

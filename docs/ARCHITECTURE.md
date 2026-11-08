@@ -109,6 +109,26 @@ Fila serializada de trabalhos longos (quantização/treino), com:
 - notificação e `JobStrip` na UI;
 - `MemoryGuard` antes de alocar.
 
+### Dispositivo (`core/device/` + `service/`)
+
+- `GirassolAccessibilityService`: serviço opcional, habilitado pelo usuário, com
+  `canRetrieveWindowContent`, `canPerformGestures` e `flagReportViewIds`.
+- `DeviceModels`: `UiNode`, `Bounds`, `UiSelector`, `UiSnapshot` — Kotlin puro, testável na JVM.
+- `AccessibilityDeviceController`: traduz a árvore para o modelo, executa gestos, texto,
+  teclas, abertura de apps e screenshot (Android 11+).
+- `DeviceTools`: 9 ferramentas `device_*` registradas no `defaultTools` quando
+  `autonomyToolsEnabled` está ligado.
+- `DeviceScriptRunner`: roteiros declarativos de auto-teste (`open`, `wait`, `tap`, `assert`…).
+- `ActionJournal`: JSONL rotativo em `workspace/.girassol/device-journal.jsonl`.
+
+### Autonomia (`core/autonomy/`)
+
+- `SleepScheduler`: `PeriodicWorkRequest` de 6 h com `requiresDeviceIdle`, `requiresCharging`,
+  `requiresBatteryNotLow` e `requiresStorageNotLow`.
+- `NightWorker`: consolida `LearningContinuity.dream()` e registra o resultado.
+- `CycleBudget` + `ThermalGate`: RAM, bateria e térmica decidem se o ciclo pode rodar.
+- `AutonomyStore`: último resultado em `SharedPreferences` (nada sai do aparelho).
+
 ### Agentes
 
 - `ReActAgent`: loop pensamento → ação → observação, 12 ferramentas.
@@ -177,6 +197,10 @@ ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125 JOBS=2 ./scripts/build-native.s
 - Sem telemetria.
 - Chaves de API ficam em `SharedPreferences`/DataStore locais.
 - Shell e arquivos só operam no sandbox do app (ou no diretório que o usuário escolher).
+- Ferramentas `device_*` são opt-in, exigem o serviço de acessibilidade ativo e ficam
+  desligadas por padrão. Ações de dispositivo são gravadas no diário local.
+- `device_*` não deve ser ligado durante ciclos automáticos: conteúdo de pesquisa não é
+  confiável o suficiente para autorizar ações no sistema.
 - O app é destinado a dispositivo controlado; ferramentas de shell são intencionais.
 - `AgentActionLogRepository` registra ações do agente.
 
@@ -187,3 +211,5 @@ ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125 JOBS=2 ./scripts/build-native.s
 - LLM local no dispositivo depende do modelo e da RAM.
 - APIs gratuitas têm rate limit e cobertura variável.
 - A debug keystore é usada no APK de CI.
+- Automação por acessibilidade não é aceita no Google Play; distribuição por sideload.
+- WorkManager é melhor-esforço: Doze pode atrasar o ciclo noturno por horas.

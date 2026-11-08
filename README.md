@@ -96,9 +96,25 @@ O Girassol transforma o celular em um laboratório de modelos locais:
 | **Piloto automático** | Mantém ciclos autônomos de pesquisa, ingestão, síntese, dataset, autoajuste, consolidação offline e LoRA automático (ativado por padrão, com margem de RAM); persiste métricas e gráficos de evolução. |
 | **Codex** | Agente de código com plano, edição de arquivos, shell, Git e revisão. |
 | **Chat ReAct** | Agente com 12 ferramentas, memória, pesquisa web, cálculo, data e APIs públicas. |
+| **Autonomia** | Com acessibilidade ativa, o agente lê a tela e toca, digita, rola e abre apps (9 ferramentas `device_*`). |
+| **Auto-teste de UI** | Roteiros declarativos `open → wait → tap → assert` executados no próprio aparelho, com relatório. |
+| **Sono** | WorkManager consolida memória quando o aparelho está ocioso e carregando, com trava térmica. |
 | **GitHub** | Agente busca repositórios e código, lê arquivos e issues, clona, cria branch, faz push e abre issues/PRs com o token configurado em Ajustes. |
 | **Llamatik** | SDK de agentes 2.2.2 integrado: tools, executor, permissões, memória persistente e streaming. |
 | **RAM** | Mede memória, encerra processos de terceiros, limpa cache e informa o ganho real. |
+
+### Autonomia (2.0)
+
+O agente pode operar **outros apps** através do serviço de acessibilidade: leitura da árvore
+de UI, toque por seletor, digitação, rolagem, teclas de sistema, abertura de apps, captura
+de tela e roteiros de auto-teste. O Android exige ativação manual em
+**Configurações → Acessibilidade → Girassol — Autonomia**; o app nunca se autoautoriza.
+
+Toda ação é registrada em um diário local com assinatura da tela antes/depois. O ciclo
+noturno usa WorkManager (ocioso + carregando) e respeita térmica, bateria e RAM.
+
+> Automação por acessibilidade não é aceita no Google Play. Este módulo é para sideload em
+> dispositivo controlado. Detalhes em [`docs/AUTONOMY.md`](docs/AUTONOMY.md).
 
 ### Sem chave de API
 

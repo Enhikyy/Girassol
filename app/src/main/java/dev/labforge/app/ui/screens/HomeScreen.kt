@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.labforge.app.R
+import dev.labforge.app.core.device.DeviceBridge
 import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.service.MemoryBooster
 import dev.labforge.app.service.MemoryGuard
@@ -279,6 +281,25 @@ fun HomeScreen(
             StatCard("imatrices", vm.imatrices.size, Lab.Cyan, Modifier.weight(1f))
             StatCard("saídas", vm.outputs.size, Lab.Green, Modifier.weight(1f))
             StatCard("lições", agentVm.lessonList.size, Lab.Pink, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(14.dp))
+        val deviceReady = DeviceBridge.enabledInSettings(ctx)
+        GlassCard(onClick = { onNavigate(Routes.AUTONOMY) }, padding = 13) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.TouchApp, null, tint = if (deviceReady) Lab.Green else Lab.Muted, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Autonomia", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
+                    Text(
+                        if (deviceReady) "olhos e mãos ativos · ciclo noturno" else "ative a acessibilidade para operar apps",
+                        fontSize = 12.sp, color = Lab.Muted,
+                    )
+                }
+                Pill(if (deviceReady) "ativa" else "off", if (deviceReady) Lab.Green else Lab.Muted)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Rounded.ChevronRight, null, tint = Lab.Muted, modifier = Modifier.size(15.dp))
+            }
         }
 
         Spacer(Modifier.height(20.dp))

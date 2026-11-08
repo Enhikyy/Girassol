@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntOffset
 import dev.labforge.app.ui.components.Segmented
 import dev.labforge.app.ui.screens.AgentScreen
+import dev.labforge.app.ui.screens.AutonomyScreen
 import dev.labforge.app.ui.screens.CodexScreen
 import dev.labforge.app.ui.screens.HomeScreen
 import dev.labforge.app.ui.screens.LabScreen
@@ -90,6 +91,7 @@ object Routes {
     const val AGENT = "agent"
     const val LLAMATIK = "llamatik"
     const val SETTINGS = "settings"
+    const val AUTONOMY = "autonomy"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -135,6 +137,7 @@ fun AppRoot() {
             Routes.MODEL -> go(Routes.MODELS)
             Routes.LLAMATIK -> go(llamatikBack)
             Routes.CODEX -> go(Routes.AGENT)
+            Routes.AUTONOMY -> go(Routes.SETTINGS)
             else -> go(Routes.HOME)
         }
     }
@@ -183,7 +186,12 @@ fun AppRoot() {
                         Routes.CODEX -> CodexScreen(codexVm) { go(Routes.AGENT) }
                         Routes.AGENT -> AgentScreen(agentVm, vm) { go(Routes.CODEX) }
                         Routes.LLAMATIK -> LlamatikScreen { go(llamatikBack) }
-                        Routes.SETTINGS -> SettingsScreen(vm) { go(Routes.LLAMATIK) }
+                        Routes.SETTINGS -> SettingsScreen(
+                            vm,
+                            onOpenLlamatik = { go(Routes.LLAMATIK) },
+                            onOpenAutonomy = { go(Routes.AUTONOMY) },
+                        )
+                        Routes.AUTONOMY -> AutonomyScreen { go(Routes.SETTINGS) }
                         else -> HomeScreen(vm, agentVm, { r -> go(r) }) { labTab = it; go(Routes.LAB) }
                     }
                 }

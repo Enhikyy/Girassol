@@ -24,6 +24,10 @@ data class AppSettings(
     val braveApiKey: String = "",
     val githubToken: String = "",
     val pureBlackOled: Boolean = false,
+    /** Exposes device_* tools to the agent. Requires the accessibility service. */
+    val autonomyToolsEnabled: Boolean = false,
+    /** Enables the WorkManager "night cycle" (consolidation while idle/charging). */
+    val nightCycleEnabled: Boolean = false,
 )
 
 fun AppSettings.researchKeys() = dev.labforge.app.core.research.ResearchKeys(braveApiKey, githubToken)
@@ -40,6 +44,8 @@ class SettingsRepository(private val context: Context) {
         val braveApiKey = stringPreferencesKey("brave_api_key")
         val githubToken = stringPreferencesKey("github_token")
         val pureBlackOled = booleanPreferencesKey("pure_black_oled")
+        val autonomyToolsEnabled = booleanPreferencesKey("autonomy_tools_enabled")
+        val nightCycleEnabled = booleanPreferencesKey("night_cycle_enabled")
     }
 
     private fun read(p: Preferences) = AppSettings(
@@ -52,6 +58,8 @@ class SettingsRepository(private val context: Context) {
         braveApiKey = p[Keys.braveApiKey] ?: "",
         githubToken = p[Keys.githubToken] ?: "",
         pureBlackOled = p[Keys.pureBlackOled] ?: false,
+        autonomyToolsEnabled = p[Keys.autonomyToolsEnabled] ?: false,
+        nightCycleEnabled = p[Keys.nightCycleEnabled] ?: false,
     )
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { read(it) }
@@ -71,6 +79,8 @@ class SettingsRepository(private val context: Context) {
             p[Keys.braveApiKey] = next.braveApiKey
             p[Keys.githubToken] = next.githubToken
             p[Keys.pureBlackOled] = next.pureBlackOled
+            p[Keys.autonomyToolsEnabled] = next.autonomyToolsEnabled
+            p[Keys.nightCycleEnabled] = next.nightCycleEnabled
         }
     }
 }

@@ -165,6 +165,12 @@ git_clone para trazer um repo ao workspace; git_branch, git_commit, git_push, gi
 Nunca faça push em main/master: crie uma branch e abra PR. Se faltar token, diga isso e continue com o que for possível.
 Você trabalha em um sandbox com acesso a arquivos, terminal (sh/toybox) e git.
 
+Se as ferramentas device_* estiverem disponíveis, você também enxerga e opera a interface do Android:
+device_ui (árvore da tela), device_tap, device_type, device_swipe, device_key, device_open,
+device_wait e device_screenshot. Fluxo correto: device_ui → escolher alvo por text/desc/id →
+agir → device_ui de novo para confirmar. Nunca toque em coordenadas sem antes ler a tela,
+e nunca execute ações irreversíveis (enviar mensagem, pagar, apagar) sem o usuário pedir.
+
 Fluxo obrigatório:
 1. Consulte o caderno de estudos (memory_search) quando a tarefa lembrar um problema anterior.
 2. Inspecione o código antes de editar (list_dir, read_file, search_code).
@@ -199,7 +205,8 @@ Método:
 2. Faça um plano curto e verificável.
 3. Faça git_commit antes de mudanças estruturais.
 4. Implemente com apply_patch (prefira patches pequenos) ou write_file.
-5. Rode os testes com run_terminal. Leia a saída inteira.
+5. Rode os testes com run_terminal. Leia a saída inteira. Se a mudança for de UI Android e
+   device_* estiver disponível, valide o fluxo com device_script (open/wait/tap/assert).
 6. Se falhar: diagnostique, corrija, rode de novo. Não pare no primeiro erro.
 7. Se passar: git_commit e memory_save com a lição.
 8. Termine com um resumo objetivo: o que mudou, como testou, o que ficou pendente.
