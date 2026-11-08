@@ -28,7 +28,7 @@ object AutoTuner {
         // A 4-GB Android phone learns through small repeated LoRA cycles.
         // Do not prescribe a desktop-sized context/rank and hope the OS survives.
         val lowMemory = ramGb < 6.0
-        val rank = if (lowMemory) 4 else when {
+        val rank = if (lowMemory) 2 else when {
             tokens < 15_000 -> 8
             tokens < 60_000 -> 16
             tokens < 200_000 -> 24
@@ -48,7 +48,7 @@ object AutoTuner {
             else -> 1e-4f
         }
         val ctx = when {
-            lowMemory -> 256
+            lowMemory -> 128
             tokens > 80_000 -> 1024
             technical -> 1024
             else -> 512
@@ -66,7 +66,7 @@ object AutoTuner {
                     else -> "Corpus grande: rank maior e menos epochs."
                 },
             )
-            if (lowMemory) append(" Perfil móvel de baixa RAM: LoRA rank 4, contexto 256, atenção e ciclos curtos repetíveis.")
+            if (lowMemory) append(" Perfil móvel de baixa RAM: LoRA rank 2, contexto 128, atenção e ciclos curtos repetíveis.")
         }
 
         return TrainingPreset(rank, epochs, lr, ctx, targets, notes, tokens, minutes)
