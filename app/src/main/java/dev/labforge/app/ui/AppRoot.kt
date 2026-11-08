@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -102,6 +103,10 @@ fun AppRoot() {
     val vm: LabViewModel = viewModel()
     val agentVm: AgentViewModel = viewModel()
     val codexVm: CodexViewModel = viewModel()
+
+    LaunchedEffect(vm.settings.pureBlackOled) {
+        Lab.pureBlack = vm.settings.pureBlackOled
+    }
 
     var route by rememberSaveable { mutableStateOf(Routes.HOME) }
     var arg by rememberSaveable { mutableStateOf("") }
