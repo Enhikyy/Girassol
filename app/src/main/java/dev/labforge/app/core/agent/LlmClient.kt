@@ -1,6 +1,10 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -58,16 +62,28 @@ class LlmClient(
             .header("Content-Type", "application/json")
         if (apiKey.isNotBlank()) builder.header("Authorization", "Bearer $apiKey")
 
-        http.newCall(builder.build()).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                throw IllegalStateException(httpError(resp.code, resp.body?.string().orEmpty()))
+        val call = http.newCall(builder.build())
+        val cancelHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        try {
+            call.execute().use { resp ->
+                currentCoroutineContext().ensureActive()
+                if (!resp.isSuccessful) {
+                    throw IllegalStateException(httpError(resp.code, resp.body?.string().orEmpty()))
+                }
+                if (onDelta != null) {
+                    val body = resp.body ?: throw IllegalStateException("resposta vazia")
+                    parseStream(body.source(), onDelta)
+                } else {
+                    parseReply(resp.body?.string().orEmpty())
+                }
             }
-            if (onDelta != null) {
-                val body = resp.body ?: throw IllegalStateException("resposta vazia")
-                parseStream(body.source(), onDelta)
-            } else {
-                parseReply(resp.body?.string().orEmpty())
-            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            currentCoroutineContext().ensureActive()
+            throw t
+        } finally {
+            cancelHandle?.dispose()
         }
     }
 
@@ -85,6 +101,9 @@ class LlmClient(
             if (data == "[DONE]") break
             if (data.isEmpty()) continue
             val obj = runCatching { JSONObject(data) }.getOrNull() ?: continue
+            obj.optJSONObject("error")?.let { err ->
+                throw IllegalStateException(err.optString("message", "erro do provedor"))
+            }
 
             obj.optJSONObject("usage")?.let {
                 promptTokens = it.optInt("prompt_tokens", promptTokens)

@@ -84,7 +84,11 @@ object JobEngine {
         }
     }
 
+    @Synchronized
     fun clear() {
+        // Never expose a finished state while a native job is alive: doing so
+        // would let a second job start on top of the first one.
+        if (_state.value.running) return
         synchronized(logBuffer) { logBuffer.setLength(0) }
         lastFlushed = -1
         _state.value = JobState()
@@ -104,8 +108,21 @@ object JobEngine {
                 startedAt = System.currentTimeMillis(), output = output?.absolutePath,
             )
         }
-        GirassolService.start(context, title, detail)
+        if (!GirassolService.start(context, title, detail)) {
+            _state.value = JobState(
+                done = true, success = false,
+                summary = "Não foi possível iniciar o serviço em segundo plano",
+                finishedAt = System.currentTimeMillis(),
+            )
+            return false
+        }
         return true
+    }
+
+    private fun epochProgress(epoch: Int, step: Int, total: Int, epochs: Int): Float {
+        if (total <= 0 || epochs <= 0) return 0.02f
+        val ratio = (step.toFloat() / total).coerceIn(0f, 1f)
+        return (((epoch - 1).coerceAtLeast(0) + ratio) / epochs).coerceIn(0.02f, 0.99f)
     }
 
     private fun finish(success: Boolean, summary: String, output: File?) {
@@ -142,9 +159,10 @@ object JobEngine {
         val budget = MemoryGuard.check(context, input.length(), "quantize")
         if (!begin(context, "quantize", "Quantizando ${input.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
-        if (!budget.ok) MemoryGuard.trim()
+        val trim = !budget.ok
 
         current = scope.launch {
+            if (trim) MemoryGuard.trim()
             val boost = MemoryBooster.boost(context)
             append("[ram] liberados ${boost.freedMb} MB (${boost.appsTouched} apps, ${boost.cachesMb} MB de cache)")
             val cb = object : NativeCallback {
@@ -187,8 +205,10 @@ object JobEngine {
         val budget = MemoryGuard.check(context, model.length(), "lora")
         if (!begin(context, "lora", "LoRA · ${model.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
+        val trim = !budget.ok
 
         current = scope.launch {
+            if (trim) MemoryGuard.trim()
             val boost = MemoryBooster.boost(context)
             append("[ram] liberados ${boost.freedMb} MB antes do LoRA")
             val cb = object : NativeCallback {
@@ -197,7 +217,7 @@ object JobEngine {
                     if (loss.isFinite() && loss > 0) {
                         _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
                     }
-                    if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
+                    _state.update { it.copy(progress = epochProgress(epoch, step, total, epochs)) }
                     if (epoch > 0) _state.update { it.copy(title = "LoRA · epoch $epoch/$epochs") }
                 }
             }
@@ -241,8 +261,10 @@ object JobEngine {
         val budget = MemoryGuard.check(context, model.length(), "full")
         if (!begin(context, "full", "Fine-tuning · ${model.name}", budget.message, output)) return
         append("[ram] ${budget.message}")
+        val trim = !budget.ok
 
         current = scope.launch {
+            if (trim) MemoryGuard.trim()
             val boost = MemoryBooster.boost(context)
             append("[ram] liberados ${boost.freedMb} MB antes do full FT")
             val cb = object : NativeCallback {
@@ -251,7 +273,7 @@ object JobEngine {
                     if (loss.isFinite() && loss > 0) {
                         _state.update { st -> st.copy(loss = (st.loss + loss.toFloat()).takeLast(400)) }
                     }
-                    if (total > 0) _state.update { it.copy(progress = (step.toFloat() / total).coerceIn(0f, 1f)) }
+                    _state.update { it.copy(progress = epochProgress(epoch, step, total, epochs)) }
                     if (epoch > 0) _state.update { it.copy(title = "Fine-tuning · epoch $epoch/$epochs") }
                 }
             }

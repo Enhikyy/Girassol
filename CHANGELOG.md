@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.6.1 — 2026-11-08
+
+Correção de bugs críticos de memória, JNI, cancelamento e estado.
+
+### JNI / nativo
+
+- `emit_log` não reutiliza mais o `JNIEnv*` da thread chamadora; method IDs do callback são resolvidos por classe a cada job.
+- LoRA B inicializado com `nelements(B)` (over-read/corrupção em `ffn_down`/`wqkv`).
+- Dataset exige 2 sequências e fine-tune completo exige tensores F32 treináveis, evitando `GGML_ASSERT`/abort.
+- Full FT usa `n_ubatch == n_ctx` (gradientes de K/V) e restaura `n_ctx_train` no GGUF exportado.
+- Quantização/treino/LoRA gravam `.part` e só renomeiam após validar; falha não deixa GGUF quebrado.
+- UTF-8 não-BMP convertido para UTF-16 antes de `NewString`.
+
+### GGUF / imatrix
+
+- Arrays com `itemType` inválido, contagens enormes e strings truncadas falham rápido em vez de loop infinito/OOM.
+- Overflow de dimensões e alignment inválido rejeitados.
+- Imatrix usa `.in_sum2/.counts` normalizado, cobre 100% corretamente e lê counts F32/I64.
+
+### Fluxo
+
+- Stop de Chat/Codex/autoestudo invalida a execução e limpa buffers/ids; `CancellationException` não é mais convertida em erro.
+- Botão **Parar** do Llamatik funciona; HTTP/shell cancelam junto com a coroutine.
+- Histórico de pesquisa ignora `project-*.json`; abrir histórico limpa dataset/preset antigos.
+- Currículo vazio do LLM cai para extrativo; dataset convertido é selecionado; model detail seleciona o modelo antes de abrir o Lab.
+- `SettingsRepository` tolera DataStore corrompido; `AppSelection` é volátil; importação parcial é apagada.
+- Nomes de saída sanitizados; `read_file`/`inspectDataset` limitam memória.
+- JobEngine: progresso monotônico por epoch, `begin` atômico, `clear` não permite job concorrente, MemoryGuard fora da main.
+- Foreground service com wake lock parcial e `START_NOT_STICKY` sem job; falha de FGS falha o job.
+- 42 testes (0 falhas).
+
+
 ## 1.6.0 — 2026-11-08
 
 Pesquisa ampliada, ingestão de conteúdo e piloto automático.

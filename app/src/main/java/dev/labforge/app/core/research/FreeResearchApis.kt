@@ -1,6 +1,10 @@
 package dev.labforge.app.core.research
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -35,7 +39,11 @@ object FreeResearchApis {
             .header("Accept", "application/json, application/atom+xml, text/html;q=0.8, */*;q=0.5")
             .get()
             .build()
-        client.newCall(req).execute().use { resp ->
+        val call = client.newCall(req)
+        val cancelHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        try {
+        call.execute().use { resp ->
+            currentCoroutineContext().ensureActive()
             if (!resp.isSuccessful) error("HTTP ${resp.code} em ${req.url.host}")
             val body = resp.body ?: error("resposta vazia")
             val declared = body.contentLength()
@@ -54,6 +62,14 @@ object FreeResearchApis {
                 }
             }
             String(output.toByteArray(), charset)
+        }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            currentCoroutineContext().ensureActive()
+            throw t
+        } finally {
+            cancelHandle?.dispose()
         }
     }
 
@@ -126,6 +142,7 @@ object FreeResearchApis {
             positions[k] = arr
             arr.forEach { if (it > max) max = it }
         }
+        if (max > 100_000) return ""
         val out = arrayOfNulls<String>(max + 1)
         positions.forEach { (word, pos) -> pos.forEach { if (it in out.indices) out[it] = word } }
         return out.filterNotNull().joinToString(" ")

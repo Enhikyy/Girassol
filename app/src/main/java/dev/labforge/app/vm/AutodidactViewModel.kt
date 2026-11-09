@@ -175,6 +175,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
     private var job: Job? = null
     private var autopilotJob: Job? = null
+    private var runId = 0
 
     init {
         viewModelScope.launch {
@@ -201,6 +202,7 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
     fun start() {
         if (running || theme.isBlank()) return
+        val myRun = ++runId
         running = true
         stage = StudyStage.RESEARCH
         progress = 0.02f
@@ -213,6 +215,8 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
         preset = null
         datasetStats = null
         downloadedCount = 0
+        AppSelection.datasetPath = null
+        AppSelection.preset = null
         val themeValue = theme.trim()
 
         job = viewModelScope.launch {
@@ -225,8 +229,10 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
 
                 // 1. research
                 val researched = ResearchEngine(repo, cfg.researchKeys()).research(themeValue) { st ->
-                    status = "${st.label}: ${st.detail}"
-                    append("${st.label} · ${st.detail}")
+                    if (myRun == runId) {
+                        status = "${st.label}: ${st.detail}"
+                        append("${st.label} · ${st.detail}")
+                    }
                 }
                 if (researched.docs.isEmpty()) error("nenhuma fonte encontrada para o tema")
                 progress = 0.30f
@@ -262,16 +268,19 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 // 3. curriculum
                 stage = StudyStage.CURRICULUM
                 progress = 0.46f
-                val curriculum = if (llm != null) {
+                var curriculum = if (llm != null) {
                     try {
                         llmCurriculum(llm, themeValue, summary, found)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
                         append("currículo via LLM falhou; derivando das fontes")
-                        extractiveCurriculum(themeValue, found, topicCount)
+                        emptyList()
                     }
-                } else extractiveCurriculum(themeValue, found, topicCount)
+                } else emptyList()
+                // An LLM may return prose instead of JSON; never abort a completed
+                // study just because its curriculum was empty.
+                if (curriculum.isEmpty()) curriculum = extractiveCurriculum(themeValue, found, topicCount)
                 topics = curriculum.take(topicCount).map { StudyTopic(it) }
                 if (topics.isEmpty()) error("não foi possível montar o currículo")
                 append("Currículo: ${topics.size} tópicos")
@@ -285,7 +294,9 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 var total = 0
                 topics.forEachIndexed { index, topic ->
                     status = "gerando material: ${index + 1}/${topics.size} · ${topic.title}"
-                    val retrieved = repo.retrieve(found, "${topic.title} $themeValue", 4)
+                    val retrieved = withContext(Dispatchers.IO) {
+                        repo.retrieve(found, "${topic.title} $themeValue", 4)
+                    }
                     val pairs = if (llm != null) {
                         try {
                             generateWithLlm(llm, themeValue, topic.title, retrieved, perTopic)
@@ -330,11 +341,17 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
                 stage = StudyStage.TUNING
                 status = "redefinindo parâmetros de treino…"
                 val tokens = if (stats.approxTokens > 0) stats.approxTokens else (txt.length() / 3.6).toLong()
+                val baseParams = withContext(Dispatchers.IO) {
+                    AppSelection.modelPath?.let { p ->
+                        runCatching { store.readModel(File(p)).meta?.parameterCount }.getOrNull()
+                    }
+                } ?: 1_000_000_000L
                 val rec = AutoTuner.recommend(
                     tokens = tokens,
                     docs = found.docs.size,
                     ramGb = MemoryGuard.totalGb(getApplication()),
                     cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1),
+                    params = baseParams,
                     technical = true,
                 )
                 preset = rec
@@ -411,12 +428,16 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (t: Throwable) {
-                stage = StudyStage.ERROR
-                status = "falhou: ${t.message}"
-                append("erro: ${t.message}")
+                if (myRun == runId) {
+                    stage = StudyStage.ERROR
+                    status = "falhou: ${t.message}"
+                    append("erro: ${t.message}")
+                }
             } finally {
-                running = false
-                live = ""
+                if (myRun == runId) {
+                    running = false
+                    live = ""
+                }
             }
         }
     }
@@ -551,8 +572,13 @@ class AutodidactViewModel(app: Application) : AndroidViewModel(app) {
     fun openHistory(b: ResearchBundle) {
         bundle = b
         theme = b.theme
+        project = null
+        preset = null
+        datasetStats = null
         AppSelection.researchTheme = b.theme
         AppSelection.researchBundleId = b.id
+        AppSelection.datasetPath = null
+        AppSelection.preset = null
     }
 
     /** Repeats research, ingestion, dataset creation and tuning while this ViewModel is alive. */

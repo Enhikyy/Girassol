@@ -54,12 +54,13 @@ object ImatrixReader {
                 .sortedBy { it.layer }
 
         fun coverageAgainst(model: Gguf.Model): Coverage {
-            val modelNames = model.tensors.map { it.name }.toSet()
-            val matched = entries.count { e -> model.tensors.any { it.name == e.name || it.name.startsWith(e.name) } }
-            val missingInImatrix = model.tensors
-                .filter { t -> t.dims.size >= 2 && entries.none { e -> t.name == e.name || t.name.startsWith(e.name) } }
+            // Only 2-D tensors exist in an imatrix; 1-D norms would make a
+            // perfect match look incomplete.
+            val covered = model.tensors.filter { t -> t.dims.size >= 2 }
+            val missingInImatrix = covered
+                .filter { t -> entries.none { e -> t.name == e.name || t.name.startsWith(e.name) } }
                 .map { it.name }
-            return Coverage(matched, modelNames.size, missingInImatrix)
+            return Coverage(covered.size - missingInImatrix.size, covered.size, missingInImatrix)
         }
     }
 
@@ -81,20 +82,23 @@ object ImatrixReader {
 
     private fun readGguf(file: File): Report {
         val model = Gguf.read(file)
-        val sums = model.tensors.filter { it.name.endsWith(".in_sum") }
+        // llama.cpp uses .in_sum2 normalized by .counts; some older files only
+        // have .in_sum. Support both, preferring the current format.
+        val sumSuffix = if (model.tensors.any { it.name.endsWith(".in_sum2") }) ".in_sum2" else ".in_sum"
+        val sums = model.tensors.filter { it.name.endsWith(sumSuffix) }
         val counts = model.tensors.filter { it.name.endsWith(".counts") }
             .associateBy { it.name.substringBeforeLast(".counts") }
 
         val entries = ArrayList<Entry>(sums.size)
         RandomAccessFile(file, "r").use { raf ->
             for (t in sums) {
-                val base = t.name.substringBeforeLast(".in_sum")
+                val base = t.name.substringBeforeLast(sumSuffix)
                 val countTensor = counts[base]
                 val ncall = if (countTensor != null) readFirstInt(raf, model, countTensor) else 0L
-                val stats = sampleStats(raf, model, t)
+                val stats = sampleStats(raf, model, t, countTensor)
                 entries += Entry(
                     name = base,
-                    values = t.elements.toInt(),
+                    values = t.elements.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
                     ncall = ncall,
                     meanAbs = stats.first,
                     maxAbs = stats.second,
@@ -117,19 +121,21 @@ object ImatrixReader {
 
     private fun readFirstInt(raf: RandomAccessFile, model: Gguf.Model, t: Gguf.Tensor): Long {
         val pos = model.headerBytes + t.offset
-        // A truncated/corrupt imatrix must not throw EOFException out of the reader.
         if (pos < 0 || pos + 4 > raf.length()) return 0L
         raf.seek(pos)
-        return when {
-            t.type.id == 26 -> { // I32
+        return when (t.type.id) {
+            6 -> { // F32 counts (current imatrix)
+                val b = ByteArray(4)
+                raf.readFully(b)
+                ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN).float.toLong()
+            }
+            26 -> { // I32
                 val b = ByteArray(4)
                 raf.readFully(b)
                 ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN).int.toLong()
             }
-            t.type.id == 24 -> { // I8
-                raf.readByte().toLong()
-            }
-            else -> {
+            24 -> raf.readByte().toLong()
+            else -> { // I64 / legacy
                 val b = ByteArray(8)
                 raf.readFully(b)
                 ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN).long
@@ -137,30 +143,46 @@ object ImatrixReader {
         }
     }
 
-    /** Reads at most 262144 floats per tensor and returns (mean|v|, max|v|, p95). */
-    private fun sampleStats(raf: RandomAccessFile, model: Gguf.Model, t: Gguf.Tensor): Triple<Double, Double, Double> {
+    /** Reads at most 262144 normalized (in_sum2 / counts) values. */
+    private fun sampleStats(
+        raf: RandomAccessFile,
+        model: Gguf.Model,
+        t: Gguf.Tensor,
+        countTensor: Gguf.Tensor?,
+    ): Triple<Double, Double, Double> {
         val total = t.elements.coerceAtLeast(1)
         val start = model.headerBytes + t.offset
-        // Clamp to what the file actually holds: the last tensor can be shorter than
-        // its declared element count, and readFully() would throw EOFException.
         val available = (raf.length() - start).coerceAtLeast(0)
         val take = minOf(total, 262_144L, available / 4).toInt()
         if (take <= 0) return Triple(0.0, 0.0, 0.0)
         val bytes = ByteArray(take * 4)
         raf.seek(start)
         raf.readFully(bytes)
-        val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        val sums = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+
+        val counts = if (countTensor != null && countTensor.type.id == 6 && countTensor.elements >= take) {
+            val countBytes = ByteArray(take * 4)
+            val countStart = model.headerBytes + countTensor.offset
+            if (countStart >= 0 && countStart + countBytes.size <= raf.length()) {
+                raf.seek(countStart)
+                raf.readFully(countBytes)
+                ByteBuffer.wrap(countBytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+            } else null
+        } else null
+
         var sum = 0.0
         var mx = 0.0
         val vals = FloatArray(take)
         for (i in 0 until take) {
-            val v = abs(buf.get(i).toDouble())
+            val raw = abs(sums.get(i).toDouble())
+            val c = counts?.get(i)?.toDouble() ?: 1.0
+            val v = if (c > 0.0) raw / c else raw
             vals[i] = v.toFloat()
             sum += v
             if (v > mx) mx = v
         }
         vals.sort()
-        val p95 = if (take == 0) 0.0 else vals[((take - 1) * 0.95).toInt()].toDouble()
+        val p95 = vals[((take - 1) * 0.95).toInt()].toDouble()
         return Triple(sum / take, mx, p95)
     }
 

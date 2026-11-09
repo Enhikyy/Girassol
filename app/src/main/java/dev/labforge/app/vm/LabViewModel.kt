@@ -214,7 +214,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
             datasets = loadedDs
             outputs = loadedOut
             if (selectedModel == null) selectedModel = loadedModels.firstOrNull()
-            selectedModel?.let { AppSelection.modelPath = it.file.absolutePath }
+            AppSelection.modelPath = selectedModel?.file?.absolutePath
             if (imatrixFile == null) {
                 imatrixFile = loadedIm.firstOrNull()
                 imatrixFile?.let { parseImatrix(it) }
@@ -232,7 +232,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
                 when (kind) {
                     AssetKind.MODEL -> file?.let { f ->
                         val entry = withContext(Dispatchers.IO) { store.readModel(f) }
-                        selectedModel = entry
+                        selectModel(entry)
                     }
                     AssetKind.IMATRIX -> file?.let { parseImatrix(it) }
                     else -> Unit
@@ -280,7 +280,12 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ dataset
 
-    fun prepareDataset(files: List<File>, format: ChatFormat, name: String) {
+    fun prepareDataset(
+        files: List<File>,
+        format: ChatFormat,
+        name: String,
+        onDone: (File?) -> Unit = {},
+    ) {
         viewModelScope.launch {
             preparingDataset = true
             val result = runCatching {
@@ -293,15 +298,24 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
             result.onSuccess { (file, stats) ->
                 datasetStats = stats
                 builtDataset = file
+                AppSelection.datasetPath = file.absolutePath
                 refresh()
-            }.onFailure { jobSummary = "Falha ao preparar dataset: ${it.message}" }
+                onDone(file)
+            }.onFailure {
+                jobSummary = "Falha ao preparar dataset: ${it.message}"
+                onDone(null)
+            }
         }
     }
 
     fun inspectDataset(file: File, nCtx: Int = 512) {
         val model = selectedModel?.meta ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val text = runCatching { file.readText().take(4_000_000) }.getOrDefault("")
+            val text = runCatching {
+                val buf = CharArray(4_000_000)
+                val n = file.reader().use { it.read(buf) }
+                String(buf, 0, n.coerceAtLeast(0))
+            }.getOrDefault("")
             val stats = LlamaBridge.tokenStats(model.file.absolutePath, text, nCtx)
             withContext(Dispatchers.Main) {
                 datasetStats = DatasetStats(
@@ -320,7 +334,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runQuantize(config: QuantConfig) {
         if (jobRunning) return
-        val out = File(store.outputsDir, config.outputName.ifBlank {
+        val out = File(store.outputsDir, safeOutputName(config.outputName) {
             "${config.model.nameWithoutExtension}-${config.ftype}.gguf"
         })
         JobEngine.startQuantize(
@@ -335,7 +349,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runLora(config: LoraConfig) {
         if (jobRunning) return
-        val out = File(store.outputsDir, config.outputName.ifBlank {
+        val out = File(store.outputsDir, safeOutputName(config.outputName) {
             "${config.model.nameWithoutExtension}-lora-r${config.rank}.gguf"
         })
         JobEngine.startLora(
@@ -355,7 +369,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runFinetune(config: TrainConfig) {
         if (jobRunning) return
-        val out = File(store.outputsDir, config.outputName.ifBlank {
+        val out = File(store.outputsDir, safeOutputName(config.outputName) {
             "${config.model.nameWithoutExtension}-finetuned.gguf"
         })
         JobEngine.startFinetune(
@@ -375,6 +389,11 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearJob() {
         JobEngine.clear()
+    }
+
+    private fun safeOutputName(raw: String, fallback: () -> String): String {
+        val cleaned = raw.trim().replace(Regex("[^A-Za-z0-9._-]"), "_").trim('.', '_')
+        return if (cleaned.isBlank() || cleaned == "." || cleaned == "..") fallback() else cleaned
     }
 
     fun updateSettings(block: (AppSettings) -> AppSettings) {

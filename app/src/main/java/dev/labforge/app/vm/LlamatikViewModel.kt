@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.llamatik.sdk.agent.AgentToolResult
 import com.llamatik.sdk.framework.AgentStreamChunk
 import dev.labforge.app.integration.llamatik.LlamatikRuntime
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
@@ -29,6 +31,8 @@ class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var testingTool by mutableStateOf(false)
         private set
+
+    private var streamJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -51,7 +55,7 @@ class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
         streaming = true
         output = ""
         status = "gerando…"
-        viewModelScope.launch {
+        streamJob = viewModelScope.launch {
             var done = false
             try {
                 LlamatikRuntime.stream(prompt).collect { chunk ->
@@ -72,6 +76,8 @@ class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (t: Throwable) {
                 output += "\n[erro] ${t.message}"
             }
@@ -80,6 +86,13 @@ class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
             streaming = false
             status = "pronto"
         }
+    }
+
+    fun stop() {
+        streamJob?.cancel()
+        streamJob = null
+        streaming = false
+        status = "interrompido"
     }
 
     fun testRestApi() {

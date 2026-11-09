@@ -18,6 +18,7 @@ import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
 import dev.labforge.app.core.term.ShellSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -76,6 +77,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var job: Job? = null
+    private var runId = 0
     private var seq = 0L
     private var startedAt = 0L
 
@@ -99,9 +101,14 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send(task: String) {
         if (running || task.isBlank()) return
+        val myRun = ++runId
         running = true
         status = "pensando…"
         startedAt = System.currentTimeMillis()
+        promptTokens = 0
+        completionTokens = 0
+        elapsedMs = 0
+        tokensPerSecond = 0.0
         thinkId = null
         draftId = null
         thinkBuf.setLength(0)
@@ -135,24 +142,43 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         job = viewModelScope.launch {
-            val cfg = settingsRepo.settings.first()
-            val agent = ReActAgent(
-                workspace = store.workspace(),
-                lessons = lessons,
-                llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
-                maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
-                settings = cfg,
-                onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
-            )
-            agent.run(task)
-            flushStream()
-            running = false
-            status = "pronto"
-            elapsedMs = System.currentTimeMillis() - startedAt
-            if (completionTokens > 0 && elapsedMs > 0) {
-                tokensPerSecond = completionTokens / (elapsedMs / 1000.0)
+            try {
+                val cfg = settingsRepo.settings.first()
+                val agent = ReActAgent(
+                    workspace = store.workspace(),
+                    lessons = lessons,
+                    llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
+                    maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
+                    settings = cfg,
+                    onEvent = { event ->
+                        viewModelScope.launch(Dispatchers.Main) {
+                            if (myRun == runId) handle(event)
+                        }
+                    },
+                )
+                agent.run(task)
+                if (myRun != runId) return@launch
+                flushStream()
+                running = false
+                status = "pronto"
+                elapsedMs = System.currentTimeMillis() - startedAt
+                if (completionTokens > 0 && elapsedMs > 0) {
+                    tokensPerSecond = completionTokens / (elapsedMs / 1000.0)
+                }
+                lessonList = withContext(Dispatchers.IO) { lessons.all() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                if (myRun == runId) {
+                    add(AgentMessage(++seq, AgentMessage.Role.ERROR, t.message ?: "falha inesperada"))
+                    status = "falhou"
+                }
+            } finally {
+                if (myRun == runId) {
+                    running = false
+                    if (status == "pensando…") status = "pronto"
+                }
             }
-            lessonList = withContext(Dispatchers.IO) { lessons.all() }
         }
     }
 
@@ -235,6 +261,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun flushStream() {
+        if (!running) return
         if (thinkId != null && thinkBuf.isNotEmpty()) {
             val id = thinkId!!
             val text = thinkBuf.toString()
@@ -270,9 +297,15 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private fun add(m: AgentMessage) { messages = messages + m }
 
     fun stop() {
+        runId++
         job?.cancel()
         running = false
         status = "interrompido"
+        thinkBuf.setLength(0)
+        contentBuf.setLength(0)
+        thinkId = null
+        draftId = null
+        bufStamp = 0L
         messages = messages.map { if (it.pending) it.copy(pending = false, text = "cancelado") else it }
     }
 
@@ -285,6 +318,11 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         localPromptTokens = 0
         elapsedMs = 0
         tokensPerSecond = 0.0
+        thinkId = null
+        draftId = null
+        thinkBuf.setLength(0)
+        contentBuf.setLength(0)
+        bufStamp = 0L
     }
 
     fun injectFromCodex(summary: String) {

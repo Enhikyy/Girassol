@@ -15,6 +15,7 @@ import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
 import dev.labforge.app.core.term.ShellSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -58,6 +59,7 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var job: Job? = null
+    private var runId = 0
     private var seq = 0L
     private var startedAt = 0L
 
@@ -75,6 +77,7 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
 
     fun start(task: String, testCommand: String, autoTest: Boolean, unlimited: Boolean, maxIterations: Int) {
         if (running || task.isBlank()) return
+        val myRun = ++runId
         running = true
         status = "planejando…"
         liveText = ""
@@ -87,6 +90,7 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
         messages = listOf(AgentMessage(++seq, AgentMessage.Role.USER, task))
 
         job = viewModelScope.launch {
+            try {
             val cfg = settingsRepo.settings.first()
             val limit = if (unlimited) 0 else maxIterations.coerceAtLeast(1)
             var currentTask = task
@@ -112,7 +116,11 @@ class CodexViewModel(app: Application) : AndroidViewModel(app) {
                     maxSteps = 0,
                     systemOverride = ReActAgent.CODEX_SYSTEM,
                     settings = cfg,
-                    onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
+                    onEvent = { event ->
+                        viewModelScope.launch(Dispatchers.Main) {
+                            if (myRun == runId) handle(event)
+                        }
+                    },
                 )
                 val summary = agent.run(currentTask)
                 if (summary.isBlank()) {
@@ -166,6 +174,19 @@ Resumo do que já foi feito: ${summary.take(1200)}
                     ++seq, AgentMessage.Role.SYSTEM,
                     "Nova iteração $rounds: corrigindo a falha dos testes.",
                 )
+            }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                if (myRun == runId) {
+                    messages = messages + AgentMessage(++seq, AgentMessage.Role.ERROR, t.message ?: "falha inesperada no Codex")
+                    status = "falhou"
+                }
+            } finally {
+                if (myRun == runId) {
+                    running = false
+                    if (status == "planejando…") status = "pronto"
+                }
             }
         }
     }
@@ -223,9 +244,12 @@ Resumo do que já foi feito: ${summary.take(1200)}
     }
 
     fun stop() {
+        runId++
         job?.cancel()
         running = false
         status = "interrompido"
+        liveText = ""
+        messages = messages.map { if (it.pending) it.copy(pending = false, ok = false, text = "cancelado") else it }
     }
 
     fun clear() {

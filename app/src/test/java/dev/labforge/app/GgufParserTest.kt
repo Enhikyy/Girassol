@@ -68,6 +68,30 @@ class GgufParserTest {
         file.delete()
     }
 
+    @Test(timeout = 2_000)
+    fun `rejects malformed array instead of looping forever`() {
+        val out = ByteArrayOutputStream()
+        out.write(byteArrayOf('G'.code.toByte(), 'G'.code.toByte(), 'U'.code.toByte(), 'F'.code.toByte()))
+        u32(out, 3)
+        u64(out, 0)
+        u64(out, 1)
+        str(out, "bad")
+        u32(out, 9)
+        u32(out, 99)
+        u64(out, Long.MAX_VALUE)
+
+        val file = File.createTempFile("labforge-bad", ".gguf")
+        try {
+            file.writeBytes(out.toByteArray())
+            Gguf.read(file)
+            throw AssertionError("GGUF malformado deveria falhar")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message!!.contains("array"))
+        } finally {
+            file.delete()
+        }
+    }
+
     @Test
     fun `parses legacy dat imatrix`() {
         val out = ByteArrayOutputStream()

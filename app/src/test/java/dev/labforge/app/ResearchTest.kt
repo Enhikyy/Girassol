@@ -3,10 +3,12 @@ package dev.labforge.app
 import dev.labforge.app.core.research.Bm25
 import dev.labforge.app.core.research.FreeResearchApis
 import dev.labforge.app.core.research.ResearchDoc
+import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.train.AutoTuner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class ResearchTest {
 
@@ -40,6 +42,18 @@ class ResearchTest {
         assertEquals(d.url, back.url)
         assertEquals(d.source, back.source)
         assertEquals(d.year, back.year)
+    }
+
+    @Test
+    fun `research history excludes project files`() {
+        val dir = kotlin.io.path.createTempDirectory("girassol-research").toFile()
+        try {
+            File(dir, "project-sql-123.json").writeText("{}")
+            File(dir, "sql-456.json").writeText("{}")
+            assertEquals(listOf("sql-456.json"), ResearchRepository(dir).list().map { it.name })
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 
     @Test

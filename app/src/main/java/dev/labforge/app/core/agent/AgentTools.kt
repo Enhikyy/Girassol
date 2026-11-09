@@ -100,12 +100,20 @@ class ReadFileTool(ws: File) : AgentTool(ws) {
         runCatching {
             val f = resolve(args.getString("path"))
             require(f.isFile) { "arquivo não encontrado" }
-            val lines = f.readLines()
+            require(f.length() <= 8_000_000) { "arquivo grande demais para read_file (use offset)" }
             val offset = (args.optInt("offset", 1)).coerceAtLeast(1) - 1
             val limit = args.optInt("limit", 1200).coerceIn(1, 2000)
-            val slice = lines.drop(offset).take(limit)
-            val text = slice.joinToString("\n")
-            ToolResult(true, text.take(60_000) + if (lines.size > offset + limit) "\n[... ${lines.size} linhas no total]" else "")
+            var total = 0L
+            val out = ArrayList<String>(limit)
+            f.bufferedReader().use { reader ->
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    total++
+                    if (total > offset && out.size < limit) out += line
+                }
+            }
+            val text = out.joinToString("\n")
+            ToolResult(true, text.take(60_000) + if (total > offset + limit) "\n[... $total linhas no total]" else "")
         }.getOrElse { ToolResult(false, it.message ?: "erro") }
     }
 }
@@ -140,6 +148,7 @@ class ApplyPatchTool(ws: File) : AgentTool(ws) {
         runCatching {
             val f = resolveWritable(args.getString("path"))
             require(f.isFile) { "arquivo não encontrado" }
+            require(f.length() <= 2_000_000) { "arquivo grande demais para apply_patch" }
             val text = f.readText()
             val find = args.getString("find")
             val occurrences = Regex(Regex.escape(find)).findAll(text).count()
@@ -229,13 +238,14 @@ class GitTool(ws: File, private val action: String) : AgentTool(ws) {
     })
     override suspend fun execute(args: JSONObject): ToolResult {
         val repo = GitRepo(resolve(args.optString("dir").ifBlank { "." }))
-        return when (action) {
-            "status" -> ToolResult(true, repo.status())
-            "commit" -> ToolResult(true, repo.commit(args.optString("message", "checkpoint do agente")))
-            "log" -> ToolResult(true, repo.log(args.optInt("limit", 10)))
-            "reset" -> ToolResult(true, repo.resetHard(args.optString("rev", "HEAD~1")))
-            else -> ToolResult(false, "ação desconhecida")
+        val output = when (action) {
+            "status" -> repo.status()
+            "commit" -> repo.commit(args.optString("message", "checkpoint do agente"))
+            "log" -> repo.log(args.optInt("limit", 10))
+            "reset" -> repo.resetHard(args.optString("rev", "HEAD~1"))
+            else -> return ToolResult(false, "ação desconhecida")
         }
+        return ToolResult(!output.startsWith("erro"), output)
     }
 }
 

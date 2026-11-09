@@ -21,7 +21,10 @@ object Gguf {
         val offset: Long,
         val byteSize: Long,
     ) {
-        val elements: Long get() = dims.fold(1L) { a, b -> a * b }
+        val elements: Long
+            get() = dims.fold(1L) { a, b ->
+                if (b <= 0 || a > Long.MAX_VALUE / b) Long.MAX_VALUE else a * b
+            }
         val layer: Int? get() = Regex("""blk\.(\d+)\.|layers\.(\d+)\.|h\.(\d+)\.|model\.layers\.(\d+)\.|transformer\.h\.(\d+)\.""")
             .find(name)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() }?.toIntOrNull()
     }
@@ -108,6 +111,9 @@ object Gguf {
                 if (key == "general.alignment" && value is Number) alignment = value.toInt()
                 metadata += Metadata(key, value, typeName(vtype.toInt()))
             }
+            require(alignment in 1..4096 && (alignment and (alignment - 1)) == 0) {
+                "alignment GGUF inválido ($alignment)"
+            }
 
             val tensors = ArrayList<Tensor>(tensorCount.coerceAtMost(100_000).toInt())
             repeat(tensorCount.toInt()) {
@@ -117,7 +123,10 @@ object Gguf {
                 val dims = LongArray(nDims.toInt()) { reader.u64() }
                 val type = GgmlType.of(reader.u32().toInt())
                 val offset = reader.u64()
-                val elements = dims.fold(1L) { a, b -> a * b }
+                val elements = dims.fold(1L) { a, b ->
+                    if (b <= 0 || a > Long.MAX_VALUE / b) throw IllegalArgumentException("tensor $name com dimensões enormes")
+                    a * b
+                }
                 tensors += Tensor(name, dims, type, offset, type.byteSize(elements))
             }
 
@@ -138,7 +147,9 @@ object Gguf {
         8 -> r.string()
         9 -> {
             val itemType = r.u32().toInt()
+            require(itemType in 0..12) { "tipo de item de array GGUF inválido ($itemType)" }
             val n = r.u64()
+            require(n in 0..r.remaining()) { "array GGUF inválido (n=$n, restam ${r.remaining()} bytes)" }
             if (depth >= 2) {
                 // skip nested arrays without materializing
                 var i = 0L
@@ -159,7 +170,7 @@ object Gguf {
         10 -> r.u64()
         11 -> r.u64().toLong()
         12 -> Double.fromBits(r.u64())
-        else -> null
+        else -> throw IllegalArgumentException("tipo de metadado GGUF inválido ($type)")
     }
 
     private fun typeName(type: Int) = when (type) {
@@ -179,9 +190,11 @@ object Gguf {
         fun u16(): Int = ByteBuffer.wrap(bytes(2)).order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
         fun u32(): Long = ByteBuffer.wrap(bytes(4)).order(ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xFFFFFFFFL
         fun u64(): Long = ByteBuffer.wrap(bytes(8)).order(ByteOrder.LITTLE_ENDIAN).long
+        fun remaining(): Long = (raf.length() - raf.filePointer).coerceAtLeast(0)
         fun string(): String {
             val len = u64()
-            require(len in 0..64_000_000) { "String GGUF inválida (len=$len)" }
+            val max = remaining().coerceAtMost(64_000_000)
+            require(len in 0..max) { "String GGUF inválida (len=$len, restam $max bytes)" }
             return String(bytes(len.toInt()), Charsets.UTF_8)
         }
     }

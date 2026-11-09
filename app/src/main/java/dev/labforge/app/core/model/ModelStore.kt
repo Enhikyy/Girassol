@@ -43,7 +43,8 @@ class ModelStore(private val context: Context) {
     private fun dir(kind: AssetKind) = File(root, kind.folder).apply { mkdirs() }
 
     fun uniqueFile(kind: AssetKind, displayName: String): File {
-        val safe = displayName.replace(Regex("[^A-Za-z0-9._\\- ]"), "_").trim().ifBlank { "asset" }
+        var safe = displayName.replace(Regex("[^A-Za-z0-9._\\- ]"), "_").trim().ifBlank { "asset" }
+        if (safe == "." || safe == "..") safe = "asset"
         var f = File(dir(kind), safe)
         var i = 1
         while (f.exists()) {
@@ -65,22 +66,36 @@ class ModelStore(private val context: Context) {
                 "espaço insuficiente: ${total / (1 shl 20)} MB necessários, ${free / (1 shl 20)} MB livres"
             }
         }
-        context.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "Não foi possível abrir o arquivo" }
-            target.outputStream().use { out ->
-                val buf = ByteArray(1 shl 20)
-                var copied = 0L
-                while (true) {
-                    val n = input.read(buf)
-                    if (n <= 0) break
-                    out.write(buf, 0, n)
-                    copied += n
-                    if (total > 0) onProgress(copied.toFloat() / total)
+        return try {
+            var copied = 0L
+            context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "Não foi possível abrir o arquivo" }
+                target.outputStream().use { out ->
+                    val buf = ByteArray(1 shl 20)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        if (n == 0) continue
+                        out.write(buf, 0, n)
+                        copied += n
+                        if (total > 0) onProgress(copied.toFloat() / total)
+                    }
                 }
             }
+            require(total <= 0 || copied == total) { "importação incompleta: $copied de $total bytes" }
+            if (kind == AssetKind.MODEL) {
+                val magic = ByteArray(4)
+                java.io.RandomAccessFile(target, "r").use { it.readFully(magic) }
+                require(magic.contentEquals(byteArrayOf('G'.code.toByte(), 'G'.code.toByte(), 'U'.code.toByte(), 'F'.code.toByte()))) {
+                    "arquivo não é GGUF"
+                }
+            }
+            onProgress(1f)
+            target
+        } catch (t: Throwable) {
+            target.delete()
+            throw t
         }
-        onProgress(1f)
-        return target
     }
 
     fun writeText(kind: AssetKind, name: String, text: String): File {

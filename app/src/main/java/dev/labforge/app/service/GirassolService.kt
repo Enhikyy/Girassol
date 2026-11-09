@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dev.labforge.app.MainActivity
@@ -21,16 +22,23 @@ import dev.labforge.app.R
  */
 class GirassolService : Service() {
 
+    private var wakeLock: PowerManager.WakeLock? = null
+
     override fun onCreate() {
         super.onCreate()
         createChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent == null && !dev.labforge.app.core.job.JobEngine.isRunning) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Trabalhando no seu modelo"
         val detail = intent?.getStringExtra(EXTRA_DETAIL) ?: "Você pode sair do app; o processo continua."
         return try {
             startForeground(NOTIFICATION_ID, buildNotification(title, detail))
+            acquireWakeLock()
             START_STICKY
         } catch (t: Throwable) {
             // Some OEMs deny dataSync FGS even in foreground; never take the app down for this.
@@ -38,6 +46,21 @@ class GirassolService : Service() {
             stopSelf()
             START_NOT_STICKY
         }
+    }
+
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val pm = getSystemService(PowerManager::class.java) ?: return
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Girassol:job").apply {
+            setReferenceCounted(false)
+            acquire(6 * 60 * 60 * 1000L)
+        }
+    }
+
+    override fun onDestroy() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -79,11 +102,11 @@ class GirassolService : Service() {
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_DETAIL = "detail"
 
-        fun start(context: Context, title: String, detail: String = "Você pode sair do app; o processo continua.") {
+        fun start(context: Context, title: String, detail: String = "Você pode sair do app; o processo continua."): Boolean {
             val intent = Intent(context, GirassolService::class.java)
                 .putExtra(EXTRA_TITLE, title)
                 .putExtra(EXTRA_DETAIL, detail)
-            runCatching { ContextCompat.startForegroundService(context, intent) }
+            return runCatching { ContextCompat.startForegroundService(context, intent) }.isSuccess
         }
 
         fun stop(context: Context) {

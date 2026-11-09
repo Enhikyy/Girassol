@@ -1,5 +1,6 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
@@ -65,6 +66,8 @@ class ReActAgent(
                 llm.chat(messages, toolSpecs) { text, reasoning ->
                     onEvent(AgentEvent.Token(text, reasoning))
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (t: Throwable) {
                 onEvent(AgentEvent.Failure(t.message ?: "falha na chamada do modelo"))
                 return ""
@@ -106,8 +109,13 @@ class ReActAgent(
                 val result = if (tool == null) {
                     ToolResult(false, "ferramenta desconhecida: ${call.name}")
                 } else {
-                    runCatching { tool.execute(args) }
-                        .getOrElse { ToolResult(false, it.message ?: "erro na ferramenta") }
+                    try {
+                        tool.execute(args)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        ToolResult(false, t.message ?: "erro na ferramenta")
+                    }
                 }
                 onEvent(AgentEvent.ToolEnd(call.name, result.ok, result.output.take(7000)))
                 messages.put(JSONObject().apply {

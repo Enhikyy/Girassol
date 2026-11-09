@@ -223,7 +223,9 @@ fun TrainPane(vm: LabViewModel) {
                             enabled = !vm.preparingDataset,
                             loading = vm.preparingDataset,
                         ) {
-                            vm.prepareDataset(listOf(dataset!!), format, dataset.nameWithoutExtension)
+                            vm.prepareDataset(listOf(dataset!!), format, dataset.nameWithoutExtension) { f ->
+                                if (f != null) datasetPath = f.absolutePath
+                            }
                         }
                     }
                 }

@@ -1,6 +1,8 @@
 package dev.labforge.app.core.term
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -45,6 +47,7 @@ class ShellSession(private val workspace: File) {
         }
 
         val sb = StringBuilder()
+        val cancelHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { process.destroyForcibly() }
         val reader = Thread {
             runCatching {
                 process.inputStream.bufferedReader().useLines { lines ->

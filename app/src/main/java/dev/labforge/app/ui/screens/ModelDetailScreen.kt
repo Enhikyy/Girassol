@@ -163,8 +163,14 @@ fun ModelDetailScreen(vm: LabViewModel, path: String, onBack: () -> Unit, onOpen
 
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GradientButton("Quantizar", Modifier.weight(1f), Icons.Rounded.Science) { onOpenLab(0) }
-                GhostButton("Treinar", Modifier.weight(1f)) { onOpenLab(1) }
+                GradientButton("Quantizar", Modifier.weight(1f), Icons.Rounded.Science) {
+                    entry?.let(vm::selectModel)
+                    onOpenLab(0)
+                }
+                GhostButton("Treinar", Modifier.weight(1f)) {
+                    entry?.let(vm::selectModel)
+                    onOpenLab(1)
+                }
             }
 
             Spacer(Modifier.height(20.dp))

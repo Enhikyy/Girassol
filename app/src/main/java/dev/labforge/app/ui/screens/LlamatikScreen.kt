@@ -144,7 +144,7 @@ fun LlamatikScreen(onBack: () -> Unit) {
                     Icons.Rounded.PlayArrow,
                     enabled = vm.initialized && (prompt.isNotBlank() || vm.streaming),
                 ) {
-                    if (!vm.streaming) vm.stream(prompt)
+                    if (vm.streaming) vm.stop() else vm.stream(prompt)
                 }
                 Box(
                     Modifier
