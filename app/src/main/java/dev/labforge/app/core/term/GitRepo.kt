@@ -4,7 +4,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ResetCommand
-import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.ByteArrayOutputStream
@@ -93,15 +92,10 @@ class GitRepo(private val dir: File) {
     suspend fun diff(): String = withContext(Dispatchers.IO) {
         runCatching {
             ensureInit().use { git ->
-                val changes = git.diff().call()
-                if (changes.isEmpty()) return@use "(sem alterações)"
                 val output = ByteArrayOutputStream()
-                DiffFormatter(output).use { formatter ->
-                    formatter.setRepository(git.repository)
-                    formatter.format(changes)
-                    formatter.flush()
-                }
-                output.toString(Charsets.UTF_8.name()).trimEnd()
+                val changes = git.diff().setOutputStream(output).call()
+                if (changes.isEmpty()) return@use "(sem alterações)"
+                output.toString(Charsets.UTF_8.name())
             }
         }.getOrElse { "erro no diff: ${it.message}" }
     }

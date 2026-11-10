@@ -40,7 +40,7 @@ class GitRepoPushTest {
                 source.writeText("revised\n")
             }
             val patch = GitRepo(directory).diff()
-            assertTrue(patch.contains("diff --git a/message.txt b/message.txt"))
+            assertTrue(patch, patch.contains("diff --git a/message.txt b/message.txt"))
             assertTrue(patch.contains("-original"))
             assertTrue(patch.contains("+revised"))
         } finally {
