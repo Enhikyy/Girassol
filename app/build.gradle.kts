@@ -80,10 +80,18 @@ android {
                         result: org.gradle.api.tasks.testing.TestResult,
                     ) {
                         if (result.resultType == org.gradle.api.tasks.testing.TestResult.ResultType.FAILURE) {
+                            val testName = "${testDescriptor.className}.${testDescriptor.name}"
+                            val failure = result.exception?.stackTraceToString() ?: "Teste falhou sem exceção"
                             File(githubSummary).appendText(
-                                "### ${testDescriptor.className}.${testDescriptor.name}\n\n" +
-                                    "```text\n${result.exception?.stackTraceToString() ?: "Teste falhou sem exceção"}\n```\n\n"
+                                "### $testName\n\n```text\n$failure\n```\n\n"
                             )
+                            if (System.getenv("GITHUB_ACTIONS") == "true") {
+                                val annotation = failure
+                                    .replace("%", "%25")
+                                    .replace("\r", "%0D")
+                                    .replace("\n", "%0A")
+                                println("::error title=$testName::$annotation")
+                            }
                         }
                     }
                 })

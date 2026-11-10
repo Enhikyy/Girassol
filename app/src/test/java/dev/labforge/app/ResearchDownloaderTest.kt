@@ -46,13 +46,15 @@ class ResearchDownloaderTest {
                 server.enqueue(
                     MockResponse().setResponseCode(200)
                         .addHeader("Content-Type", "text/plain; charset=utf-8")
-                        .setBody(content),
+                        .setBody(content)
+                        .setBodyDelay(500, TimeUnit.MILLISECONDS),
                 )
             }
             val url = server.url("/document").toString()
             val documents = listOf("A", "B").map { ResearchDoc(it, url, "", "Test") }
             val result = ResearchDownloader(directory, client).enrich(documents, maxDocuments = 2)
             assertEquals(2, result.downloadedDocuments)
+            assertEquals(2, server.requestCount)
             assertTrue(result.documents.all { content in it.snippet })
             assertTrue(directory.listFiles().orEmpty().none { it.name.endsWith(".part") })
         } finally {

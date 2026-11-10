@@ -5,13 +5,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.job
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import java.io.IOException
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
@@ -90,53 +93,71 @@ class ResearchDownloader(
             .get()
             .build()
 
-        val call = client.newCall(request)
-        val cancellation = currentCoroutineContext().job.invokeOnCompletion { cause ->
-            if (cause is CancellationException) call.cancel()
-        }
-        try {
-            call.execute().use { response ->
-                if (!response.isSuccessful || !response.request.url.isHttps) return null
-                val body = response.body ?: return null
-                val type = body.contentType()?.toString()?.lowercase().orEmpty()
-                val readable = type.startsWith("text/") || "json" in type || "xml" in type
-                if (!readable || body.contentLength() > MAX_DOCUMENT_BYTES) return null
-                val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
-                val temporary = File.createTempFile("$key-", ".part", directory)
-                try {
-                    var copied = 0L
-                    body.byteStream().use { input ->
-                        temporary.outputStream().buffered(32 * 1024).use { output ->
-                            val buffer = ByteArray(16 * 1024)
-                            while (true) {
-                                currentCoroutineContext().ensureActive()
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                copied += read
-                                require(copied <= MAX_DOCUMENT_BYTES) { "documento excede o tamanho de ingestão permitido" }
-                                output.write(buffer, 0, read)
-                            }
-                        }
+        return suspendCancellableCoroutine { continuation ->
+            val call = client.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, error: IOException) {
+                    continuation.resumeWith(Result.failure(error))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val result = try {
+                        Result.success(storeResponse(response, key, destination, continuation))
+                    } catch (cancelled: CancellationException) {
+                        Result.failure(cancelled)
+                    } catch (error: Exception) {
+                        Result.failure(error)
                     }
-                    currentCoroutineContext().ensureActive()
-                    if (copied == 0L) return null
-                    val normalized = toPlainText(temporary.readText(charset), type)
-                    if (normalized.length < MIN_TEXT_CHARS) return null
-                    temporary.writeText(normalized, Charsets.UTF_8)
-                    currentCoroutineContext().ensureActive()
-                    Files.move(
-                        temporary.toPath(),
-                        destination.toPath(),
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING,
-                    )
-                    return DownloadedText(normalized, destination.length())
-                } finally {
-                    temporary.delete()
+                    continuation.resumeWith(result)
+                }
+            })
+        }
+    }
+
+    private fun storeResponse(
+        response: Response,
+        key: String,
+        destination: File,
+        continuation: CancellableContinuation<DownloadedText?>,
+    ): DownloadedText? = response.use {
+        if (!response.isSuccessful || !response.request.url.isHttps) return null
+        val body = response.body ?: return null
+        val type = body.contentType()?.toString()?.lowercase().orEmpty()
+        val readable = type.startsWith("text/") || "json" in type || "xml" in type
+        if (!readable || body.contentLength() > MAX_DOCUMENT_BYTES) return null
+        val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+        val temporary = File.createTempFile("$key-", ".part", directory)
+        try {
+            var copied = 0L
+            body.byteStream().use { input ->
+                temporary.outputStream().buffered(32 * 1024).use { output ->
+                    val buffer = ByteArray(16 * 1024)
+                    while (true) {
+                        if (!continuation.isActive) throw CancellationException("download cancelado")
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        copied += read
+                        require(copied <= MAX_DOCUMENT_BYTES) { "documento excede o tamanho de ingestão permitido" }
+                        output.write(buffer, 0, read)
+                    }
                 }
             }
+            if (!continuation.isActive) throw CancellationException("download cancelado")
+            if (copied == 0L) return null
+            val normalized = toPlainText(temporary.readText(charset), type)
+            if (normalized.length < MIN_TEXT_CHARS) return null
+            temporary.writeText(normalized, Charsets.UTF_8)
+            if (!continuation.isActive) throw CancellationException("download cancelado")
+            Files.move(
+                temporary.toPath(),
+                destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
+            DownloadedText(normalized, destination.length())
         } finally {
-            cancellation.dispose()
+            temporary.delete()
         }
     }
 
