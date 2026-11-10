@@ -1,8 +1,2 @@
--keep class dev.labforge.app.core.native.** { *; }
--keepclasseswithmembernames class * { native <methods>; }
--keep class org.eclipse.jgit.** { *; }
--keep class org.slf4j.** { *; }
--dontwarn org.slf4j.**
--dontwarn javax.naming.**
--dontwarn java.beans.**
--dontwarn org.eclipse.jgit.**
+-keep class app.girassol.core.ai.** { *; }
+-dontwarn com.llamatik.**

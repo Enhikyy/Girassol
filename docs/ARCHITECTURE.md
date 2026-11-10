@@ -1,189 +1,38 @@
 # Arquitetura
 
-## Visão geral
+## Grafo de dependências
 
-O Girassol é um app Android nativo (Kotlin + Compose) que executa todo o ciclo de vida de um modelo local:
+`GirassolApplication` cria um `AppContainer` por processo. O container reúne repositórios, motores e o `ActivityHub`. `MainActivity` instala a UI Compose; `AppViewModel` coordena corrotinas e estados observáveis. O `SleepWorker` usa o mesmo container quando o WorkManager executa uma consolidação em segundo plano.
 
-```text
-GGUF → inspeção → imatrix → quantização
-                     ↘
-tema → pesquisa → dossiê → currículo → dataset → auto-tuning → LoRA/fine-tune
-```
+## Estado real compartilhado
 
-Nada é enviado a um backend do Girassol. As únicas chamadas externas são as APIs de pesquisa e o endpoint de LLM que o usuário configurar.
+Produtores chamam `begin`, `progress`, `complete` ou `fail` no `ActivityHub`. Cada `ActivityKind` aponta para uma zona do Mundo. O renderizador lê o snapshot mais recente a cada frame e move o agente até a zona correspondente. O progresso exibido em Compose é exatamente o publicado pelo produtor.
 
-## Camadas
+Operações não são persistidas como se estivessem ativas após uma morte de processo. Apenas eventos finais são recarregados; isso evita mostrar um build ou treino antigo como se ainda estivesse executando.
 
-### UI (`ui/`)
+## IA local
 
-- `AppRoot` controla rotas, animações e a barra inferior.
-- `LabScreen` agrupa **Quantizar**, **Imatrix** e **Treinar**.
-- `AutodidactPane` é a bancada de autoestudo.
-- `CodexScreen`, `AgentScreen`, `LlamatikScreen`, `ModelsScreen`, `ModelDetailScreen`, `SettingsScreen`.
-- Componentes visuais em `ui/components` (aurora, anéis, donut, barras, spinner de girassol).
-- Tema em `ui/theme/Theme.kt` (paleta `Lab`).
+`ModelStore` importa GGUF pelo Storage Access Framework, valida o cabeçalho e limita a cópia pelo espaço disponível. `LocalLlmEngine` serializa inferências com um mutex, carrega/descarrega modelos por Llamatik e transmite deltas. O histórico é persistido somente no fim da resposta; os deltas ficam em memória para evitar escrita por token.
 
-### ViewModels (`vm/`)
+## Pesquisa e aprendizado
 
-- `LabViewModel`: catálogo, quantização, imatrix, treino, jobs e memória.
-- `AutodidactViewModel`: pesquisa → dataset → preset → auto-treino.
-- `AgentViewModel`: chat ReAct, streaming, histórico.
-- `CodexViewModel`: plano e execução do agente de código.
-- `LlamatikViewModel`: runtime do SDK, console e tools.
+`ResearchEngine` consulta Wikipédia e Crossref por OkHttp com respostas limitadas a 4 MiB. As notas mantêm URL e origem. O dataset é JSONL gerado das notas, não um registro de treino de pesos.
 
-ViewModels não fazem I/O de rede na main thread; usam `viewModelScope` + `Dispatchers.IO`.
+`MemoryEngine` classifica eventos finais por tipo, sucesso e falha. O resultado é inspecionável e determinístico. `SleepScheduler` usa trabalho periódico de 12 horas com carregamento, bateria não baixa e dispositivo ocioso.
 
-### Pesquisa (`core/research/`)
+## Studio
 
-`ResearchEngine.research(theme, count, perTopic)`:
+`ProjectRepository` cria e mantém projetos dentro de `files/workspace`. `CodeAnalyzer` implementa regras locais; somente espaços finais têm correção automática. `ToolchainManager` mantém processos e logs, executa o build real e publica falhas no barramento. O Codex usa inferência local e um estado `CodexProposal`; não há escrita automática no workspace.
 
-1. limpa o tema;
-2. consulta em paralelo:
-   - Wikipedia PT/EN;
-   - OpenAlex;
-   - arXiv;
-   - Stack Overflow;
-   - DuckDuckGo;
-   - Semantic Scholar (best effort);
-3. normaliza e deduplica por URL/título;
-4. ranqueia por relevância + BM25;
-5. salva o dossiê em `files/research/`;
-6. gera síntese:
-   - com LLM: resumo/currículo;
-   - sem LLM: extrativo, ancorado nos trechos.
+## Mundo nativo
 
-`Bm25` implementa índice invertido, IDF e pontuação para RAG local.
+`WorldView` é um `GLSurfaceView` OpenGL ES 3.0. `WorldRenderer` gera meshes de cubos e cilindros por função, usa shaders próprios, iluminação direcional, profundidade e fog. A cena é composta por seis zonas funcionais. Não há WebView, motor web ou serviço de telemetria.
 
-### Dataset (`core/train/DatasetBuilder.kt`)
+## Armazenamento
 
-Gera JSONL no formato chat:
-
-```json
-{"messages":[{"role":"system","content":"..."},{"role":"user","content":"..."},{"role":"assistant","content":"..."}]}
-```
-
-Fonte: pares pergunta/resposta do currículo, com contexto das fontes. O dataset é gravado em `files/autodidact/`.
-
-### Auto-tuning (`core/train/AutoTuner.kt`)
-
-Calcula:
-
-- rank/alpha a partir do tamanho do corpus;
-- epochs por tamanho e tempo disponível;
-- learning rate;
-- contexto;
-- módulos alvo;
-- ETA usando throughput estimado (`Perf`).
-
-O preset é enviado para a aba Treinar via `AppSelection`.
-
-### Motor nativo (`core/native/` + `cpp/`)
-
-`liblabforge.so` liga o llama.cpp **0.9.0-dev** e expõe:
-
-| JNI | Função |
-|---|---|
-| `nativeVersion` | versão do backend |
-| `nativeCountTokens` | contagem nativa |
-| `nativeTokenStats` | estatísticas de tokens |
-| `nativeQuantize` | `llama_model_quantize` com imatrix |
-| `nativeFinetune` | treino completo (AdamW) |
-| `nativeLoraTrain` | LoRA com base congelada + A/B |
-
-Bibliotecas empacotadas em `app/src/main/jniLibs/arm64-v8a/`:
-
-- `liblabforge.so`
-- `libllama.so`
-- `libllama-common.so`
-- `libggml.so`, `libggml-base.so`, `libggml-cpu.so`
-- `libc++_shared.so`
-
-O build CMake fica em `app/src/main/cpp/CMakeLists.txt`; o script `scripts/build-native.sh` reconstruciona com NDK 26.1.
-
-### Jobs (`core/job/JobEngine.kt`)
-
-Fila serializada de trabalhos longos (quantização/treino), com:
-
-- progresso, ETA, cancelamento;
-- `GirassolService` em foreground para sobreviver ao background;
-- notificação e `JobStrip` na UI;
-- `MemoryGuard` antes de alocar.
-
-### Agentes
-
-- `ReActAgent`: loop pensamento → ação → observação, 12 ferramentas.
-- `AgentTools`: shell, arquivos, Git, HTTP, pesquisa, cálculo, data, Python etc.
-- `CodexEngine`: plano, edição, diff, execução e revisão.
-- `LlamatikRuntime`: tools do SDK, executor, permissões, memória e streaming.
-
-### Integração Llamatik
-
-```text
-LlamatikRuntime
- ├── ToolRegistry (built-ins + PublicApiTool + ResearchTool)
- ├── AgentExecutor (permissions, action log, entitlement)
- ├── PersistentMemory (FileMemoryStorage)
- └── stream() → Flow<AgentStreamChunk>
-```
-
-`LlamatikToolBridge` registra as tools do SDK no ReAct, para que o Chat também as enxergue.
-
-## Fluxo do autoestudo
-
-```mermaid
-sequenceDiagram
-    participant U as Usuário
-    participant VM as AutodidactViewModel
-    participant R as ResearchEngine
-    participant D as DatasetBuilder
-    participant T as AutoTuner
-    participant J as JobEngine
-
-    U->>VM: tema + tópicos
-    VM->>R: research()
-    R-->>VM: docs + síntese + currículo
-    VM->>D: build(jsonl)
-    D-->>VM: dataset
-    VM->>T: recommend()
-    T-->>VM: preset
-    VM-->>U: fontes, preset, dataset
-    opt auto-treino
-        VM->>VM: valida GGUF F32/F16/BF16
-        VM->>J: startLora()
-        J-->>VM: progresso
-    end
-```
-
-## Decisões
-
-### `com.llamatik:core` excluído
-
-O SDK do Llamatik oferece um core nativo com llama.cpp próprio. O Girassol já tem um llama.cpp com APIs de treino/quantização. Os SONAMEs colidem. A exclusão é deliberada e testada.
-
-### `targetSdk 34`
-
-Mantido em 34 para evitar regressões de edge-to-edge e restrições novas de foreground service. `compileSdk 37` é exigido pelo AAR do Llamatik.
-
-### Pré-built `.so`
-
-As bibliotecas nativas são versionadas no repositório para que o CI consiga montar o APK sem baixar/compilar o llama.cpp inteiro (que excede a RAM de runners menores). Rebuild local:
-
-```bash
-ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125 JOBS=2 ./scripts/build-native.sh
-```
-
-## Segurança
-
-- Sem telemetria.
-- Chaves de API ficam em `SharedPreferences`/DataStore locais.
-- Shell e arquivos só operam no sandbox do app (ou no diretório que o usuário escolher).
-- O app é destinado a dispositivo controlado; ferramentas de shell são intencionais.
-- `AgentActionLogRepository` registra ações do agente.
-
-## Limitações
-
-- arm64 apenas.
-- LoRA nativo exige F32/F16/BF16.
-- LLM local no dispositivo depende do modelo e da RAM.
-- APIs gratuitas têm rate limit e cobertura variável.
-- A debug keystore é usada no APK de CI.
+- `files/models`: GGUF importados; excluído de backup.
+- `files/toolchain`: JDK/Gradle/SDK privados; excluído de backup.
+- `files/workspace`: projetos Android.
+- `files/research`: notas e datasets.
+- `files/state`: chat, histórico e memória.
+- DataStore: aparência, modelo ativo e automação.
