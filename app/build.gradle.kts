@@ -13,8 +13,8 @@ android {
         applicationId = "app.girassol"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "1.6.1"
+        versionCode = 12
+        versionName = "1.6.2"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -61,7 +61,10 @@ android {
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
-        unitTests.all { it.maxHeapSize = "1536m" }
+        unitTests.all {
+            it.maxHeapSize = "768m"
+            it.forkEvery = 1
+        }
     }
 }
 
@@ -104,6 +107,7 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.1.5")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
