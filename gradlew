@@ -42,7 +42,12 @@ git fetch /tmp/rebuild.bundle feat/girassol-native-rebuild:refs/remotes/rebuild/
 test "$(git rev-parse refs/remotes/rebuild/native)" = "$EXPECTED_COMMIT"
 git merge-base --is-ancestor "$EXPECTED_BASE" "$EXPECTED_COMMIT"
 STAGE=publish-final-branch
-git push origin "$EXPECTED_COMMIT:refs/heads/$FINAL_BRANCH"
+if ! git push origin "$EXPECTED_COMMIT:refs/heads/$FINAL_BRANCH" >/tmp/girassol-push.log 2>&1; then
+    DETAIL=$(grep -E 'refusing to allow|workflow|permission|denied|protected|failed to push|error:' /tmp/girassol-push.log | tr '\r\n' '  ' | cut -c1-900 || true)
+    test -n "$DETAIL" || DETAIL='Git rejected the branch push; no matching public error detail was emitted.'
+    echo "::error title=Git push detail::$DETAIL"
+    exit 1
+fi
 STAGE=verify-final-branch-and-main
 test "$(git ls-remote origin "refs/heads/$FINAL_BRANCH" | cut -f1)" = "$EXPECTED_COMMIT"
 test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_MAIN"
