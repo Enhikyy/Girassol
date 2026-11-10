@@ -5,12 +5,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -68,7 +73,7 @@ class ResearchDownloader(
         Result(enriched, downloaded, bytes)
     }
 
-    private fun downloadText(url: String): DownloadedText? {
+    private suspend fun downloadText(url: String): DownloadedText? {
         val uri = runCatching { URI(url) }.getOrNull() ?: return null
         if (!uri.scheme.equals("https", true) || uri.host.isNullOrBlank()) return null
         val key = sha256(url.toByteArray(Charsets.UTF_8)).take(24)
@@ -85,48 +90,53 @@ class ResearchDownloader(
             .get()
             .build()
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful || !response.request.url.isHttps) return null
-            val body = response.body ?: return null
-            val type = body.contentType()?.toString()?.lowercase().orEmpty()
-            val readable = type.startsWith("text/") || "json" in type || "xml" in type
-            if (!readable || body.contentLength() > MAX_DOCUMENT_BYTES) return null
-            val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
-            val temporary = File(directory, key + ".part")
-            var committed = false
-            try {
-                var copied = 0L
-                body.byteStream().use { input ->
-                    temporary.outputStream().buffered(32 * 1024).use { output ->
-                        val buffer = ByteArray(16 * 1024)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            copied += read
-                            require(copied <= MAX_DOCUMENT_BYTES) { "documento excede o tamanho de ingestão permitido" }
-                            output.write(buffer, 0, read)
+        val call = client.newCall(request)
+        val cancellation = currentCoroutineContext().job.invokeOnCompletion { cause ->
+            if (cause is CancellationException) call.cancel()
+        }
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful || !response.request.url.isHttps) return null
+                val body = response.body ?: return null
+                val type = body.contentType()?.toString()?.lowercase().orEmpty()
+                val readable = type.startsWith("text/") || "json" in type || "xml" in type
+                if (!readable || body.contentLength() > MAX_DOCUMENT_BYTES) return null
+                val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+                val temporary = File.createTempFile("$key-", ".part", directory)
+                try {
+                    var copied = 0L
+                    body.byteStream().use { input ->
+                        temporary.outputStream().buffered(32 * 1024).use { output ->
+                            val buffer = ByteArray(16 * 1024)
+                            while (true) {
+                                currentCoroutineContext().ensureActive()
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                copied += read
+                                require(copied <= MAX_DOCUMENT_BYTES) { "documento excede o tamanho de ingestão permitido" }
+                                output.write(buffer, 0, read)
+                            }
                         }
                     }
-                }
-                if (copied == 0L) {
+                    currentCoroutineContext().ensureActive()
+                    if (copied == 0L) return null
+                    val normalized = toPlainText(temporary.readText(charset), type)
+                    if (normalized.length < MIN_TEXT_CHARS) return null
+                    temporary.writeText(normalized, Charsets.UTF_8)
+                    currentCoroutineContext().ensureActive()
+                    Files.move(
+                        temporary.toPath(),
+                        destination.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING,
+                    )
+                    return DownloadedText(normalized, destination.length())
+                } finally {
                     temporary.delete()
-                    return null
                 }
-                if (destination.exists()) destination.delete()
-                check(temporary.renameTo(destination)) { "não foi possível finalizar o download" }
-                committed = true
-                val normalized = toPlainText(destination.readText(charset), type)
-                if (normalized.length < MIN_TEXT_CHARS) {
-                    destination.delete()
-                    return null
-                }
-                destination.writeText(normalized, Charsets.UTF_8)
-                return DownloadedText(normalized, destination.length())
-            } catch (error: Throwable) {
-                temporary.delete()
-                if (committed) destination.delete()
-                throw error
             }
+        } finally {
+            cancellation.dispose()
         }
     }
 
