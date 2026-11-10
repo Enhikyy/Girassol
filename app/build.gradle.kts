@@ -64,6 +64,30 @@ android {
         unitTests.all {
             it.maxHeapSize = "768m"
             it.forkEvery = 1
+
+            // Expose actionable test failures on the GitHub Actions run summary.
+            val githubSummary = System.getenv("GITHUB_STEP_SUMMARY")
+            if (!githubSummary.isNullOrBlank()) {
+                it.addTestListener(object : org.gradle.api.tasks.testing.TestListener {
+                    override fun beforeSuite(suite: org.gradle.api.tasks.testing.TestDescriptor) = Unit
+                    override fun afterSuite(
+                        suite: org.gradle.api.tasks.testing.TestDescriptor,
+                        result: org.gradle.api.tasks.testing.TestResult,
+                    ) = Unit
+                    override fun beforeTest(testDescriptor: org.gradle.api.tasks.testing.TestDescriptor) = Unit
+                    override fun afterTest(
+                        testDescriptor: org.gradle.api.tasks.testing.TestDescriptor,
+                        result: org.gradle.api.tasks.testing.TestResult,
+                    ) {
+                        if (result.resultType == org.gradle.api.tasks.testing.TestResult.ResultType.FAILURE) {
+                            File(githubSummary).appendText(
+                                "### ${testDescriptor.className}.${testDescriptor.name}\n\n" +
+                                    "```text\n${result.exception?.stackTraceToString() ?: "Teste falhou sem exceção"}\n```\n\n"
+                            )
+                        }
+                    }
+                })
+            }
         }
     }
 }
