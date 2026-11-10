@@ -123,6 +123,7 @@ object Gguf {
                 val dims = LongArray(nDims.toInt()) { reader.u64() }
                 val type = GgmlType.of(reader.u32().toInt())
                 val offset = reader.u64()
+                require(offset >= 0) { "offset inválido no tensor $name" }
                 val elements = dims.fold(1L) { a, b ->
                     if (b <= 0 || a > Long.MAX_VALUE / b) throw IllegalArgumentException("tensor $name com dimensões enormes")
                     a * b
@@ -168,7 +169,7 @@ object Gguf {
             }
         }
         10 -> r.u64()
-        11 -> r.u64().toLong()
+        11 -> r.u64()
         12 -> Double.fromBits(r.u64())
         else -> throw IllegalArgumentException("tipo de metadado GGUF inválido ($type)")
     }
@@ -178,7 +179,13 @@ object Gguf {
         7 -> "bool"; 8 -> "string"; 9 -> "array"; 10 -> "u64"; 11 -> "i64"; 12 -> "f64"; else -> "?"
     }
 
-    fun align(v: Long, a: Long): Long = if (a <= 1) v else (v + a - 1) / a * a
+    fun align(v: Long, a: Long): Long {
+        require(v >= 0) { "offset GGUF inválido ($v)" }
+        require(a > 0) { "alignment GGUF inválido ($a)" }
+        if (a == 1L) return v
+        val rounded = Math.addExact(v, a - 1) / a
+        return Math.multiplyExact(rounded, a)
+    }
 
     private class LeReader(private val raf: RandomAccessFile) {
         fun bytes(n: Int): ByteArray {
@@ -240,8 +247,14 @@ enum class GgmlType(val id: Int, val label: String, val block: Int, val bytesPer
     F8_E4M3(41, "F8_E4M3", 1, 1),
     UNKNOWN(-1, "?", 1, 0);
 
-    fun byteSize(elements: Long): Long =
-        if (bytesPerBlock == 0) 0 else (elements / block) * bytesPerBlock + (elements % block) * bytesPerBlock / block
+    fun byteSize(elements: Long): Long {
+        require(elements >= 0) { "quantidade de elementos inválida ($elements)" }
+        if (bytesPerBlock == 0) return 0
+        require(elements % block == 0L) {
+            "tensor $label com $elements elementos não preenche blocos de $block"
+        }
+        return Math.multiplyExact(elements / block, bytesPerBlock.toLong())
+    }
 
     fun bitsPerWeight(): Double = if (block == 0) 0.0 else bytesPerBlock * 8.0 / block
 

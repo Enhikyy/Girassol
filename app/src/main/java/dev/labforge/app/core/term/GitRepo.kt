@@ -4,10 +4,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ResetCommand
+import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
-import java.net.URI
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.net.URI
 
 /**
  * Git as the agent's safety net, implemented with JGit so it works on stock
@@ -91,7 +93,15 @@ class GitRepo(private val dir: File) {
     suspend fun diff(): String = withContext(Dispatchers.IO) {
         runCatching {
             ensureInit().use { git ->
-                git.diff().call().joinToString("\n") { d -> d.toString() }.ifBlank { "(sem alterações)" }
+                val changes = git.diff().call()
+                if (changes.isEmpty()) return@use "(sem alterações)"
+                val output = ByteArrayOutputStream()
+                DiffFormatter(output).use { formatter ->
+                    formatter.setRepository(git.repository)
+                    formatter.format(changes)
+                    formatter.flush()
+                }
+                output.toString(Charsets.UTF_8.name()).trimEnd()
             }
         }.getOrElse { "erro no diff: ${it.message}" }
     }
