@@ -65,8 +65,11 @@ fi
 STAGE=verify-final-branch-and-main
 test "$(git ls-remote origin "refs/heads/$FINAL_BRANCH" | cut -f1)" = "$EXPECTED_COMMIT"
 test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$EXPECTED_MAIN"
+STAGE=restore-temporary-wrapper-mode
+chmod 644 ./gradlew
 STAGE=checkout-imported-commit
 git checkout --detach "$EXPECTED_COMMIT"
+chmod 755 ./gradlew
 STAGE=install-android-35
 if command -v sdkmanager >/dev/null 2>&1; then
     yes | sdkmanager --licenses >/dev/null 2>&1 || true
