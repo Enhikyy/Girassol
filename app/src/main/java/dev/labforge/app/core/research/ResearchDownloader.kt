@@ -98,16 +98,16 @@ class ResearchDownloader(
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, error: IOException) {
-                    continuation.resumeWith(Result.failure(error))
+                    continuation.resumeWith(kotlin.Result.failure(error))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
                     val result = try {
-                        Result.success(storeResponse(response, key, destination, continuation))
+                        kotlin.Result.success(storeResponse(response, key, destination, continuation))
                     } catch (cancelled: CancellationException) {
-                        Result.failure(cancelled)
+                        kotlin.Result.failure(cancelled)
                     } catch (error: Exception) {
-                        Result.failure(error)
+                        kotlin.Result.failure(error)
                     }
                     continuation.resumeWith(result)
                 }
