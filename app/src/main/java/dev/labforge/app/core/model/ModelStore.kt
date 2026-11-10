@@ -38,7 +38,13 @@ class ModelStore(private val context: Context) {
     val runsDir: File = File(root, "runs").apply { mkdirs() }
     val researchDir: File = File(root, "research").apply { mkdirs() }
 
-    private val cache = ConcurrentHashMap<String, Pair<Long, Gguf.Model?>>()
+    private data class CacheEntry(
+        val lastModified: Long,
+        val length: Long,
+        val model: Gguf.Model?,
+    )
+
+    private val cache = ConcurrentHashMap<String, CacheEntry>()
 
     private fun dir(kind: AssetKind) = File(root, kind.folder).apply { mkdirs() }
 
@@ -121,14 +127,17 @@ class ModelStore(private val context: Context) {
     fun readModel(file: File): ModelEntry {
         val key = file.absolutePath
         val stamp = file.lastModified()
+        val length = file.length()
         val cached = cache[key]
-        if (cached != null && cached.first == stamp) return ModelEntry(file, cached.second)
+        if (cached != null && cached.lastModified == stamp && cached.length == length) {
+            return ModelEntry(file, cached.model)
+        }
         return try {
             val parsed = Gguf.read(file)
-            cache[key] = stamp to parsed
+            cache[key] = CacheEntry(stamp, length, parsed)
             ModelEntry(file, parsed)
-        } catch (t: Throwable) {
-            cache[key] = stamp to null
+        } catch (t: Exception) {
+            cache[key] = CacheEntry(stamp, length, null)
             ModelEntry(file, null, t.message ?: "GGUF inválido")
         }
     }

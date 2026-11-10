@@ -6,8 +6,9 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
-import java.net.URI
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.net.URI
 
 /**
  * Git as the agent's safety net, implemented with JGit so it works on stock
@@ -91,7 +92,10 @@ class GitRepo(private val dir: File) {
     suspend fun diff(): String = withContext(Dispatchers.IO) {
         runCatching {
             ensureInit().use { git ->
-                git.diff().call().joinToString("\n") { d -> d.toString() }.ifBlank { "(sem alterações)" }
+                val output = ByteArrayOutputStream()
+                val changes = git.diff().setOutputStream(output).call()
+                if (changes.isEmpty()) return@use "(sem alterações)"
+                output.toString(Charsets.UTF_8.name())
             }
         }.getOrElse { "erro no diff: ${it.message}" }
     }

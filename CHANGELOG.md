@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.2 — 2026-11-10
+
+Revisão de robustez, cancelamento e integridade de arquivos.
+
+- GGUF rejeita offsets negativos, blocos quantizados incompletos e overflows em tamanho/alinhamento.
+- Cache de metadados considera timestamp e tamanho do arquivo, evitando informações obsoletas após substituição.
+- Pesquisa salva bundles por escrita temporária, `fsync` e renomeação atômica, preservando a versão anterior em falhas.
+- Downloader usa temporários exclusivos por tentativa, cancela a chamada HTTP junto com a coroutine e confirma o cache atomicamente.
+- `git diff` agora entrega um patch textual real, adequado para revisão pelo Codex.
+- Ícones direcionais usam variantes auto-espelhadas e avisos redundantes de importação foram removidos.
+
+
 ## 1.6.1 — 2026-11-08
 
 Correção de bugs críticos de memória, JNI, cancelamento e estado.

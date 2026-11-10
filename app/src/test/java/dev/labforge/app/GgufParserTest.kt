@@ -1,8 +1,10 @@
 package dev.labforge.app
 
 import dev.labforge.app.core.gguf.Gguf
+import dev.labforge.app.core.gguf.GgmlType
 import dev.labforge.app.core.imatrix.ImatrixReader
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -158,6 +160,26 @@ class GgufParserTest {
         assertEquals(5L, report.entries[0].ncall)
         assertEquals(0, report.entries[0].layer)
         file.delete()
+    }
+
+    @Test
+    fun `rejects quantized tensors with incomplete blocks`() {
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            GgmlType.Q4_0.byteSize(31)
+        }
+        assertTrue(error.message.orEmpty().contains("blocos de 32"))
+        assertEquals(18L, GgmlType.Q4_0.byteSize(32))
+        assertEquals(36L, GgmlType.Q4_0.byteSize(64))
+    }
+
+    @Test
+    fun `tensor and alignment arithmetic cannot overflow silently`() {
+        assertThrows(ArithmeticException::class.java) {
+            GgmlType.F64.byteSize(Long.MAX_VALUE)
+        }
+        assertThrows(ArithmeticException::class.java) {
+            Gguf.align(Long.MAX_VALUE, 32)
+        }
     }
 
 }

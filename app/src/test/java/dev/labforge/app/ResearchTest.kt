@@ -2,6 +2,7 @@ package dev.labforge.app
 
 import dev.labforge.app.core.research.Bm25
 import dev.labforge.app.core.research.FreeResearchApis
+import dev.labforge.app.core.research.ResearchBundle
 import dev.labforge.app.core.research.ResearchDoc
 import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.train.AutoTuner
@@ -51,6 +52,44 @@ class ResearchTest {
             File(dir, "project-sql-123.json").writeText("{}")
             File(dir, "sql-456.json").writeText("{}")
             assertEquals(listOf("sql-456.json"), ResearchRepository(dir).list().map { it.name })
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `bundle save commits complete json and removes temporary file`() {
+        val dir = kotlin.io.path.createTempDirectory("girassol-bundle-save").toFile()
+        try {
+            val target = File(dir, "bundle.json")
+            val bundle = ResearchBundle(
+                theme = "SQL",
+                queries = listOf("joins"),
+                docs = listOf(ResearchDoc("Doc", "https://example.com", "snippet", "Test")),
+            )
+            bundle.save(target)
+            assertEquals("SQL", ResearchBundle.load(target)?.theme)
+            assertTrue(dir.listFiles().orEmpty().none { it.name.endsWith(".part") })
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `failed bundle serialization preserves previous file`() {
+        val dir = kotlin.io.path.createTempDirectory("girassol-bundle-atomic").toFile()
+        try {
+            val target = File(dir, "bundle.json")
+            val previous = "{\"theme\":\"original\"}"
+            target.writeText(previous)
+            val invalid = ResearchBundle(
+                theme = "broken",
+                queries = emptyList(),
+                docs = listOf(ResearchDoc("Doc", "https://example.com", "snippet", "Test", score = Double.NaN)),
+            )
+            assertTrue(runCatching { invalid.save(target) }.isFailure)
+            assertEquals(previous, target.readText())
+            assertTrue(dir.listFiles().orEmpty().none { it.name.endsWith(".part") })
         } finally {
             dir.deleteRecursively()
         }

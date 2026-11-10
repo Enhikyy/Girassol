@@ -13,8 +13,8 @@ android {
         applicationId = "app.girassol"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "1.6.1"
+        versionCode = 12
+        versionName = "1.6.2"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -61,7 +61,42 @@ android {
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
-        unitTests.all { it.maxHeapSize = "1536m" }
+        unitTests.all {
+            it.maxHeapSize = "768m"
+            it.forkEvery = 1
+
+            // Expose actionable test failures on the GitHub Actions run summary.
+            val githubSummary = System.getenv("GITHUB_STEP_SUMMARY")
+            if (!githubSummary.isNullOrBlank()) {
+                it.addTestListener(object : org.gradle.api.tasks.testing.TestListener {
+                    override fun beforeSuite(suite: org.gradle.api.tasks.testing.TestDescriptor) = Unit
+                    override fun afterSuite(
+                        suite: org.gradle.api.tasks.testing.TestDescriptor,
+                        result: org.gradle.api.tasks.testing.TestResult,
+                    ) = Unit
+                    override fun beforeTest(testDescriptor: org.gradle.api.tasks.testing.TestDescriptor) = Unit
+                    override fun afterTest(
+                        testDescriptor: org.gradle.api.tasks.testing.TestDescriptor,
+                        result: org.gradle.api.tasks.testing.TestResult,
+                    ) {
+                        if (result.resultType == org.gradle.api.tasks.testing.TestResult.ResultType.FAILURE) {
+                            val testName = "${testDescriptor.className}.${testDescriptor.name}"
+                            val failure = result.exception?.stackTraceToString() ?: "Teste falhou sem exceção"
+                            File(githubSummary).appendText(
+                                "### $testName\n\n```text\n$failure\n```\n\n"
+                            )
+                            if (System.getenv("GITHUB_ACTIONS") == "true") {
+                                val annotation = failure
+                                    .replace("%", "%25")
+                                    .replace("\r", "%0D")
+                                    .replace("\n", "%0A")
+                                println("::error title=$testName::$annotation")
+                            }
+                        }
+                    }
+                })
+            }
+        }
     }
 }
 
@@ -104,6 +139,7 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.1.5")
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

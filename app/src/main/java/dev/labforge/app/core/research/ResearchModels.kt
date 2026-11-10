@@ -3,6 +3,9 @@ package dev.labforge.app.core.research
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 data class ResearchDoc(
@@ -61,8 +64,25 @@ data class ResearchBundle(
     }
 
     fun save(file: File) {
-        file.parentFile?.mkdirs()
-        file.writeText(toJson().toString(2))
+        val parent = file.absoluteFile.parentFile
+            ?: throw IllegalArgumentException("arquivo de pesquisa sem diretório pai")
+        check(parent.isDirectory || parent.mkdirs()) { "não foi possível criar ${parent.path}" }
+        val serialized = toJson().toString(2)
+        val temporary = File.createTempFile("${file.name}.", ".part", parent)
+        try {
+            FileOutputStream(temporary).use { output ->
+                output.write(serialized.toByteArray(Charsets.UTF_8))
+                output.fd.sync()
+            }
+            Files.move(
+                temporary.toPath(),
+                file.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
+        } finally {
+            temporary.delete()
+        }
     }
 
     companion object {
