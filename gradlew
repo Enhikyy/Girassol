@@ -22,12 +22,16 @@ echo "::notice::gradlew: iniciando o Gradle Wrapper"
 "$JAVACMD" "$@" > "$LOG" 2>&1
 status=$?
 cat "$LOG"
-if [ "$status" -ne 0 ] && ! grep -q '::error::bootstrap:' "$LOG"; then
-    awk '/^FAILURE:/{show=1} show{print; count++; if(count==8)exit}' "$LOG" |
-        head -n 5 |
-        while IFS= read -r line; do
-            line=$(printf '%s' "$line" | sed 's/%/%25/g')
-            printf '::error::gradle: %s\n' "$line"
-        done
+if [ "$status" -ne 0 ]; then
+    failure_line=$(grep -n -m 1 '^FAILURE:' "$LOG" | cut -d: -f1)
+    if [ -n "$failure_line" ] && [ "$failure_line" -gt 1 ]; then
+        head -n "$((failure_line - 1))" "$LOG" | tail -n 8 > /tmp/girassol-failure.txt
+    else
+        tail -n 8 "$LOG" > /tmp/girassol-failure.txt
+    fi
+    while IFS= read -r line; do
+        line=$(printf '%s' "$line" | sed 's/%/%25/g')
+        printf '::error::ci: %s\n' "$line"
+    done < /tmp/girassol-failure.txt
 fi
 exit "$status"
