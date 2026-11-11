@@ -1,0 +1,6 @@
+Girassol 3.0 recovery checkpoint
+source-base=ee2b99f545b302da13ff09f7a5025644944f0261
+checkpoint-commit=3adb89ee562e65a0a7265d0a02c27640adb0bc5a
+parts=10
+patch-sha256=5ba1364cc81bc4d9f4ae6d336037e2e5af7e9256951a0faca1846ee86b8cb766
+archive-sha256=d0f0b69d277971b02069704d74bbb40921bac63a7287332de8c627eb41500388
