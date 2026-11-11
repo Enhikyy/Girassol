@@ -45,18 +45,20 @@ git reset --hard "$SOURCE_BASE" || die "reset da base no runner"
 git clean -fdx || die "limpeza do workspace do runner"
 EXCLUDES=(
   --exclude=gradle.properties
+  --exclude=gradle/wrapper/gradle-wrapper.properties
   --exclude=app/src/test/java/dev/labforge/app/ResearchTest.kt
   --exclude=app/src/test/java/dev/labforge/app/ResearchDownloaderTest.kt
 )
-git apply --check "${EXCLUDES[@]}" "$STAGE/source.patch" || die "git apply --check dos 52 diffs"
-git apply "${EXCLUDES[@]}" "$STAGE/source.patch" || die "git apply dos 52 diffs"
+git apply --check "${EXCLUDES[@]}" "$STAGE/source.patch" || die "git apply --check dos 51 diffs"
+git apply "${EXCLUDES[@]}" "$STAGE/source.patch" || die "git apply dos 51 diffs"
 cp "$STAGE/overrides/gradle.properties" "$ROOT/gradle.properties"
 cp "$STAGE/overrides/ResearchTest.kt" "$ROOT/app/src/test/java/dev/labforge/app/ResearchTest.kt"
 cp "$STAGE/overrides/ResearchDownloaderTest.kt" "$ROOT/app/src/test/java/dev/labforge/app/ResearchDownloaderTest.kt"
 cp "$STAGE/build.gradle.kts" "$ROOT/build.gradle.kts" || die "restauração do build principal"
 mkdir -p "$ROOT/scripts"
 cp "$STAGE/scripts/"*.sh "$ROOT/scripts/" || die "restauração dos scripts"
-echo "::notice::bootstrap: 52 diffs aplicados e 3 arquivos reconciliados"
+grep -q 'gradle-9.9.0-bin.zip' "$ROOT/gradle/wrapper/gradle-wrapper.properties" || die "wrapper Gradle 9.9.0 ausente"
+echo "::notice::bootstrap: 51 diffs aplicados; 3 arquivos reconciliados; wrapper 9.9.0 preservado"
 echo "::endgroup::"
 
 echo "::group::Restaurar fontes e reconstruir bibliotecas ARM64"
