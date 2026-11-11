@@ -28,7 +28,7 @@ trap 'rm -rf "$STAGE"' EXIT
 echo "::group::Recuperar e verificar o checkpoint imutável"
 mkdir -p "$STAGE/checkpoint" "$STAGE/scripts"
 cp "$ROOT/build.gradle.kts" "$STAGE/build.gradle.kts"
-for script in bootstrap-actions.sh build-native.sh fetch-llama.sh restore-design-fonts.sh; do
+for script in bootstrap-actions.sh build-native.sh fetch-llama.sh restore-design-fonts.sh audit-apk.sh collect-test-evidence.sh; do
   cp "$ROOT/scripts/$script" "$STAGE/scripts/$script"
 done
 for index in 00 01 02 03 04 05 06 07 08 09; do
