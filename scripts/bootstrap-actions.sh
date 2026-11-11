@@ -17,6 +17,7 @@ trap 'rm -rf "$STAGE"' EXIT
 echo "::group::Recuperar e verificar o checkpoint imutável"
 mkdir -p "$STAGE/checkpoint" "$STAGE/scripts"
 cp "$ROOT/build.gradle.kts" "$STAGE/build.gradle.kts"
+cp -R "$ROOT/.ci/overrides" "$STAGE/overrides" || die "arquivos de reconciliação ausentes"
 for script in bootstrap-actions.sh build-native.sh fetch-llama.sh restore-design-fonts.sh audit-apk.sh collect-test-evidence.sh; do
   cp "$ROOT/scripts/$script" "$STAGE/scripts/$script" || die "script ausente: $script"
 done
@@ -37,17 +38,25 @@ if grep -q '^GIT binary patch' "$STAGE/source.patch"; then die "patch binário i
 echo "::notice::bootstrap: checkpoint íntegro; 10 partes e 55 diffs"
 echo "::endgroup::"
 
-echo "::group::Restaurar a base exata e aplicar a integração"
+echo "::group::Restaurar a base remota e reconciliar a integração"
 # Este reset atinge apenas o workspace descartável do runner. Nenhuma ref remota muda.
 git fetch --depth 1 origin "$SOURCE_BASE" || die "fetch da base $SOURCE_BASE"
 git reset --hard "$SOURCE_BASE" || die "reset da base no runner"
 git clean -fdx || die "limpeza do workspace do runner"
-git apply --check "$STAGE/source.patch" || die "git apply --check"
-git apply "$STAGE/source.patch" || die "git apply"
+EXCLUDES=(
+  --exclude=gradle.properties
+  --exclude=app/src/test/java/dev/labforge/app/ResearchTest.kt
+  --exclude=app/src/test/java/dev/labforge/app/ResearchDownloaderTest.kt
+)
+git apply --check "${EXCLUDES[@]}" "$STAGE/source.patch" || die "git apply --check dos 52 diffs"
+git apply "${EXCLUDES[@]}" "$STAGE/source.patch" || die "git apply dos 52 diffs"
+cp "$STAGE/overrides/gradle.properties" "$ROOT/gradle.properties"
+cp "$STAGE/overrides/ResearchTest.kt" "$ROOT/app/src/test/java/dev/labforge/app/ResearchTest.kt"
+cp "$STAGE/overrides/ResearchDownloaderTest.kt" "$ROOT/app/src/test/java/dev/labforge/app/ResearchDownloaderTest.kt"
 cp "$STAGE/build.gradle.kts" "$ROOT/build.gradle.kts" || die "restauração do build principal"
 mkdir -p "$ROOT/scripts"
 cp "$STAGE/scripts/"*.sh "$ROOT/scripts/" || die "restauração dos scripts"
-echo "::notice::bootstrap: base restaurada e checkpoint aplicado"
+echo "::notice::bootstrap: 52 diffs aplicados e 3 arquivos reconciliados"
 echo "::endgroup::"
 
 echo "::group::Restaurar fontes e reconstruir bibliotecas ARM64"
