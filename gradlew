@@ -23,14 +23,15 @@ echo "::notice::gradlew: iniciando o Gradle Wrapper"
 status=$?
 cat "$LOG"
 if [ "$status" -ne 0 ]; then
-    failure_line=$(grep -n -m 1 '^FAILURE:' "$LOG" | cut -d: -f1)
-    if [ -n "$failure_line" ] && [ "$failure_line" -gt 1 ]; then
-        head -n "$((failure_line - 1))" "$LOG" | tail -n 8 > /tmp/girassol-failure.txt
-    else
-        tail -n 8 "$LOG" > /tmp/girassol-failure.txt
+    grep -Ei 'fatal:|error:|failed|exception|invalid|not found|denied|could not|cannot|checksum|sha256|patch|curl:' "$LOG" |
+        grep -Ev '::error::|What went wrong|FAILURE:|Build file|Where:|Try:|Run with|stacktrace|Daemon' |
+        head -n 8 > /tmp/girassol-failure.txt
+    if [ ! -s /tmp/girassol-failure.txt ]; then
+        grep -Ev '^::|^[[:space:]]*$|^> Task|^Download|Daemon|Incubating' "$LOG" |
+            tail -n 8 > /tmp/girassol-failure.txt
     fi
     while IFS= read -r line; do
-        line=$(printf '%s' "$line" | sed 's/%/%25/g')
+        line=$(printf '%s' "$line" | tr -d '\r' | sed 's/%/%25/g' | cut -c1-600)
         printf '::error::ci: %s\n' "$line"
     done < /tmp/girassol-failure.txt
 fi
