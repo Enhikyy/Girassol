@@ -8,7 +8,7 @@ die() {
   exit 1
 }
 
-SOURCE_BASE="ee2b99f545b302da13ff09f7a5025644944f0261"
+SOURCE_BASE="0b1009be4a03b22a343f2fdcc60f229a24e9f652"
 CHECKPOINT_REV="3adb89ee562e65a0a7265d0a02c27640adb0bc5a"
 CHECKPOINT_URL="https://raw.githubusercontent.com/Enhikyy/Girassol/${CHECKPOINT_REV}/.ci/source-checkpoint"
 STAGE="$(mktemp -d)"
