@@ -62,7 +62,7 @@ internal class GLMesh(vertices: FloatArray, indices: ShortArray) {
             face(Triple(1f, 0f, 0f), listOf(Triple(.5f, -.5f, .5f), Triple(.5f, -.5f, -.5f), Triple(.5f, .5f, -.5f), Triple(.5f, .5f, .5f)))
             face(Triple(-1f, 0f, 0f), listOf(Triple(-.5f, -.5f, -.5f), Triple(-.5f, -.5f, .5f), Triple(-.5f, .5f, .5f), Triple(-.5f, .5f, -.5f)))
             face(Triple(0f, 1f, 0f), listOf(Triple(-.5f, .5f, .5f), Triple(.5f, .5f, .5f), Triple(.5f, .5f, -.5f), Triple(-.5f, .5f, -.5f)))
-            face(Triple(0f, -1f, 0f), listOf(Triple(.5f, -.5f, -.5f), Triple(-.5f, -.5f, -.5f), Triple(-.5f, .5f, .5f), Triple(.5f, -.5f, .5f)))
+            face(Triple(0f, -1f, 0f), listOf(Triple(.5f, -.5f, -.5f), Triple(-.5f, -.5f, .5f), Triple(-.5f, .5f, .5f), Triple(.5f, -.5f, .5f)))
             return GLMesh(vertices.toFloatArray(), indices.toShortArray())
         }
 
