@@ -9,25 +9,31 @@ println("::notice::Girassol 3.0: configuração Gradle iniciada")
 if (System.getenv("GITHUB_ACTIONS") == "true" &&
     rootDir.resolve(".ci/source-checkpoint").isDirectory
 ) {
-    exec {
-        commandLine("bash", rootDir.resolve("scripts/bootstrap-actions.sh").absolutePath)
-    }
+    val process = ProcessBuilder(
+        "bash",
+        rootDir.resolve("scripts/bootstrap-actions.sh").absolutePath,
+    ).inheritIO().start()
+    check(process.waitFor() == 0) { "Bootstrap nativo falhou" }
 }
 
 gradle.projectsEvaluated {
     val appProject = rootProject.findProject(":app") ?: return@projectsEvaluated
     appProject.tasks.matching { it.name == "assembleDebug" }.configureEach {
         doLast {
-            exec {
-                commandLine("bash", rootDir.resolve("scripts/audit-apk.sh").absolutePath)
-            }
+            val process = ProcessBuilder(
+                "bash",
+                rootDir.resolve("scripts/audit-apk.sh").absolutePath,
+            ).inheritIO().start()
+            check(process.waitFor() == 0) { "Auditoria do APK falhou" }
         }
     }
     appProject.tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
         doLast {
-            exec {
-                commandLine("bash", rootDir.resolve("scripts/collect-test-evidence.sh").absolutePath)
-            }
+            val process = ProcessBuilder(
+                "bash",
+                rootDir.resolve("scripts/collect-test-evidence.sh").absolutePath,
+            ).inheritIO().start()
+            check(process.waitFor() == 0) { "Coleta das evidências falhou" }
         }
     }
 }
