@@ -22,9 +22,9 @@ echo "::notice::gradlew: iniciando o Gradle Wrapper"
 "$JAVACMD" "$@" > "$LOG" 2>&1
 status=$?
 cat "$LOG"
-if [ "$status" -ne 0 ]; then
-    awk '/^FAILURE:/{show=1} show{print; count++; if(count==16)exit}' "$LOG" |
-        head -n 10 |
+if [ "$status" -ne 0 ] && ! grep -q '::error::bootstrap:' "$LOG"; then
+    awk '/^FAILURE:/{show=1} show{print; count++; if(count==8)exit}' "$LOG" |
+        head -n 5 |
         while IFS= read -r line; do
             line=$(printf '%s' "$line" | sed 's/%/%25/g')
             printf '::error::gradle: %s\n' "$line"
