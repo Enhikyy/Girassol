@@ -5,6 +5,8 @@ import android.util.Log
 import java.io.File
 
 class LabForgeApp : Application() {
+    val worldRuntime by lazy { dev.labforge.app.core.world.WorldRuntime(this) }
+
     override fun onCreate() {
         super.onCreate()
         installCrashLogger()
