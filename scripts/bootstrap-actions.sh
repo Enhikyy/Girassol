@@ -1,8 +1,24 @@
 #!/usr/bin/env bash
 # Reconstrói a árvore 3.0 somente na cópia efêmera do GitHub Actions.
-set -euo pipefail
+set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
+LOG=/tmp/girassol-bootstrap.log
+: > "$LOG"
+exec > >(tee -a "$LOG") 2>&1
+report_failure() {
+  status=$?
+  trap - ERR
+  echo "::endgroup::"
+  tail -n 12 "$LOG" | while IFS= read -r line; do
+    line=${line//%/%25}
+    line=${line//$'\r'/%0D}
+    printf '::error::bootstrap: %s\n' "$line"
+  done
+  exit "$status"
+}
+trap report_failure ERR
+
 SOURCE_BASE="ee2b99f545b302da13ff09f7a5025644944f0261"
 CHECKPOINT_REV="3adb89ee562e65a0a7265d0a02c27640adb0bc5a"
 CHECKPOINT_URL="https://raw.githubusercontent.com/Enhikyy/Girassol/${CHECKPOINT_REV}/.ci/source-checkpoint"
