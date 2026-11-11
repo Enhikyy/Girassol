@@ -246,4 +246,16 @@ eval "set -- $(
         tr '\n' ' '
     )" '"$@"'
 
-exec "$JAVACMD" "$@"
+LOG=/tmp/girassol-gradle.log
+: > "$LOG"
+echo "::notice::gradlew: iniciando o Gradle Wrapper"
+"$JAVACMD" "$@" > "$LOG" 2>&1
+status=$?
+cat "$LOG"
+if [ "$status" -ne 0 ]; then
+    tail -n 12 "$LOG" | while IFS= read -r line; do
+        line=$(printf '%s' "$line" | sed 's/%/%25/g')
+        printf '::error::gradle: %s\n' "$line"
+    done
+fi
+exit "$status"
