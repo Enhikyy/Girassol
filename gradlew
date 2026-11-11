@@ -23,15 +23,15 @@ echo "::notice::gradlew: iniciando o Gradle Wrapper"
 status=$?
 cat "$LOG"
 if [ "$status" -ne 0 ]; then
-    grep -Ei 'fatal:|error:|failed|exception|invalid|not found|denied|could not|cannot|checksum|sha256|patch|curl:' "$LOG" |
-        grep -Ev '::error::|What went wrong|FAILURE:|Build file|Where:|Try:|Run with|stacktrace|Daemon' |
-        head -n 8 > /tmp/girassol-failure.txt
+    grep -Ei 'fatal:|error:|FAILED:|ninja: build stopped|undefined reference|exception|invalid|not found|denied|could not|cannot|No such file|missing|checksum|curl:' "$LOG" |
+        grep -Ev '::error::|What went wrong|FAILURE:|Build file|Where:|Try:|Run with|stacktrace|Daemon|sha256=|source\.patch|trailing whitespace' |
+        tail -n 12 > /tmp/girassol-failure.txt
     if [ ! -s /tmp/girassol-failure.txt ]; then
-        grep -Ev '^::|^[[:space:]]*$|^> Task|^Download|Daemon|Incubating' "$LOG" |
-            tail -n 8 > /tmp/girassol-failure.txt
+        grep -Ev '^::|^[[:space:]]*$|^> Task|^Download|Daemon|Incubating|sha256=|source\.patch' "$LOG" |
+            tail -n 12 > /tmp/girassol-failure.txt
     fi
     while IFS= read -r line; do
-        line=$(printf '%s' "$line" | tr -d '\r' | sed 's/%/%25/g' | cut -c1-600)
+        line=$(printf '%s' "$line" | tr -d '\r' | sed 's/%/%25/g' | cut -c1-900)
         printf '::error::ci: %s\n' "$line"
     done < /tmp/girassol-failure.txt
 fi
