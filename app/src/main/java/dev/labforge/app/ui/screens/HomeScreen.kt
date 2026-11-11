@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dataset
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SmartToy
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +54,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.labforge.app.R
 import dev.labforge.app.core.native.LlamaBridge
+import dev.labforge.app.core.world.activeCompanies
+import dev.labforge.app.core.world.day
 import dev.labforge.app.service.MemoryBooster
 import dev.labforge.app.service.MemoryGuard
 import dev.labforge.app.ui.Routes
@@ -68,6 +72,7 @@ import dev.labforge.app.ui.theme.Lab
 import dev.labforge.app.vm.AgentViewModel
 import dev.labforge.app.vm.AutodidactViewModel
 import dev.labforge.app.vm.LabViewModel
+import dev.labforge.app.vm.WorldViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,6 +84,8 @@ fun HomeScreen(
 ) {
     val ctx = LocalContext.current
     val study: AutodidactViewModel = viewModel()
+    val worldVm: WorldViewModel = viewModel()
+    val world by worldVm.world.collectAsState()
     val scope = rememberCoroutineScope()
     var availableGb by remember { mutableStateOf(MemoryGuard.availableGb(ctx)) }
     var boosting by remember { mutableStateOf(false) }
@@ -188,6 +195,58 @@ fun HomeScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 SunflowerSpinner(96.dp, 14)
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        GlassCard(
+            Modifier.fillMaxWidth(),
+            onClick = { onNavigate(Routes.WORLD) },
+            padding = 15,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Lab.Green.copy(alpha = 0.13f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Public, null, tint = Lab.Green, modifier = Modifier.size(23.dp))
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${world.cities.firstOrNull()?.name ?: world.name} · Mundo vivo",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Lab.Text,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "Dia ${world.day + 1} · ${world.agents.size} habitantes · ${world.activeCompanies.size} empresas ativas",
+                        fontSize = 11.sp,
+                        color = Lab.Muted,
+                    )
+                }
+                Icon(Icons.Rounded.ChevronRight, "Abrir Mundo", tint = Lab.Muted)
+            }
+            Spacer(Modifier.height(11.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Pill(if (world.paused) "SIMULAÇÃO PAUSADA" else "SIMULAÇÃO ATIVA", if (world.paused) Lab.Amber else Lab.Green)
+                Pill("${world.buildings.size} locais", Lab.Cyan)
+                world.economyHistory.lastOrNull()?.let { metric ->
+                    Pill("resultado ₡${metric.profit.toLong()}", if (metric.profit >= 0) Lab.Violet else Lab.Red)
+                }
+            }
+            if (world.economyHistory.isEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "O histórico econômico será formado no primeiro fechamento diário da simulação.",
+                    fontSize = 10.5.sp,
+                    color = Lab.Muted,
+                )
             }
         }
 
