@@ -97,11 +97,18 @@ class WorldEngineTest {
             },
         )
         val engine = WorldEngine(movedToEndOfDay)
-        val releasedIds = initial.agents.filter { it.employerId == initial.companies.first().id }.map { it.id }.toSet()
+        val failedCompanyId = initial.companies.first().id
+        val releasedIds = initial.agents.filter { it.employerId == failedCompanyId }.map { it.id }.toSet()
         engine.step(60)
         assertTrue(engine.state.companies.first().bankrupt)
-        assertTrue(releasedIds.all { id -> engine.state.agent(id)?.employerId == null })
-        assertTrue(engine.state.events.any { it.kind == WorldEventKind.BANKRUPTCY })
+        val finalEmployers = releasedIds.associateWith { id -> engine.state.agent(id)?.employerId }
+        assertTrue("Vínculos finais: $finalEmployers", finalEmployers.values.all { it != failedCompanyId })
+        assertTrue(finalEmployers.values.filterNotNull().all { employerId ->
+            engine.state.companies.singleOrNull { it.id == employerId }?.bankrupt == false
+        })
+        assertTrue(engine.state.events.any {
+            it.kind == WorldEventKind.BANKRUPTCY && failedCompanyId in it.companyIds
+        })
     }
 
     @Test

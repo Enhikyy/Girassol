@@ -6,7 +6,14 @@ Atualizado em 2026-11-11. Branch de trabalho: `feat/mundo-simulation`. Base: `ma
 
 Esta branch contém uma fatia vertical funcional em código do universo persistente, não a conclusão de toda a visão do MUNDO. O motor, a economia, a persistência, a cena OpenGL, os painéis e as integrações usam o mesmo `WorldState`. Não há gráficos históricos preenchidos com valores aleatórios nem respostas fictícias quando a inferência falha.
 
-**Verificação no momento deste registro:** os testes e o build Android ainda não foram executados neste ambiente. O ambiente local não possui JDK 21 nem Android SDK utilizáveis. A compilação, os testes e o lint serão executados pelo GitHub Actions; seus resultados devem substituir este parágrafo. Nenhum teste em aparelho físico ou emulador foi realizado.
+**Verificação local em 2026-11-11:** o ambiente foi provisionado com Temurin 21.0.13, Gradle 9.9.0 e Android SDK; os runtimes Android instrumentados do Robolectric foram disponibilizados localmente para evitar downloads durante a suíte.
+
+- `:app:assembleDebug`: **BUILD SUCCESSFUL**. APK debug com 37.320.164 bytes e SHA-256 `62f03fdfd9588dfc2e503ffb9ad57f3eeb72ba58cae747f830f4ad19fe3a74e3`.
+- APK verificado com assinatura APK Signature Scheme v2 válida e um signer; pacote `app.girassol`, `versionCode 11`, `versionName 1.6.1`, `minSdk 26`, `targetSdk 34` e somente `arm64-v8a`. As bibliotecas nativas do llama.cpp/JNI e demais dependências esperadas estão empacotadas.
+- `:app:testDebugUnitTest`: **BUILD SUCCESSFUL**; 62 testes, 55 aprovados, 0 falhas, 0 erros e 7 ignorados. Os sete skips são testes opt-in de rede/fluxo ao vivo condicionados a `LIVE_API=1`: cinco em `LiveResearchSmokeTest`, um em `PublicApiLiveTest` e um fluxo Compose em `AutodidactFlowTest`. Eles não foram executados nem contados como aprovações.
+- `:app:lintDebug`: **BUILD SUCCESSFUL**; 0 erros, 48 avisos e 41 sugestões. Os relatórios locais estão em `app/build/reports/lint-results-debug.*`.
+
+Esses resultados são locais. Nenhum teste em aparelho físico ou emulador foi realizado; build, testes unitários e lint não comprovam renderização, gestures, memória ou desempenho em runtime.
 
 ## Arquitetura implementada
 
@@ -90,7 +97,7 @@ Esta branch contém uma fatia vertical funcional em código do universo persiste
 - `app/src/main/java/dev/labforge/app/ui/screens/HomeScreen.kt`
 - `app/src/main/java/dev/labforge/app/core/agent/ReActAgent.kt`
 - `app/src/main/java/dev/labforge/app/vm/AgentViewModel.kt`
-- `.github/workflows/android.yml`
+- `.github/workflows/android.yml` — ampliação preparada somente na cópia local; não transferida ao PR por falta do escopo `workflow`.
 
 ## Testes adicionados
 
@@ -123,14 +130,14 @@ Esta branch contém uma fatia vertical funcional em código do universo persiste
 - Limites de zoom/pitch e convergência do foco.
 - Targets derivados da geometria persistida.
 
-**Situação:** testes criados, ainda sem resultado de execução quando este documento foi escrito.
+**Situação:** suíte local concluída com 55 testes aprovados e 7 skips opt-in, sem falhas. O teste de falência exige que nenhum vínculo permaneça na empresa encerrada e permite recontratação legítima por empresa solvente no mesmo fechamento. O teste de câmera verifica separadamente o clamp do fator de zoom (distância 144 após o primeiro gesto extremo) e o limite máximo de distância (145 após o segundo).
 
 ## CI, segurança e artifacts
 
-- Push em `main` e `feat/mundo-simulation`, PRs para `main`, tags e execução manual disparam o workflow.
-- O job principal compila o APK, executa testes unitários e Android lint e publica APK e relatórios como artifacts.
-- A permissão padrão é `contents: read`.
-- `contents: write` existe somente no job separado de release para tags `v*`.
+- O workflow **remoto atual** executa build, testes unitários, upload de APK e relatório de testes, com release no mesmo job para tags. Ele ainda usa `contents: write` global e não executa `lintDebug`.
+- O run remoto `43009566933` (run 205), no SHA `05331486764da025a9ab7f57af31f50a1b8625fe`, falhou em `Assemble debug APK`; `Unit tests` e `Upload APK` foram pulados. O upload condicional do relatório apareceu como sucesso com `if-no-files-found: ignore`, o que não comprova a existência de resultados. Nenhum artifact remoto foi validado nesse run.
+- O log remoto detalhado não foi obtido. Os quatro erros de compilação abaixo foram reproduzidos e corrigidos localmente, mas não se afirma que sejam comprovadamente a causa do run remoto.
+- A ampliação local do workflow contém triggers adicionais, `contents: read`, `lintDebug`, artifacts de lint e release separado com `contents: write` somente para tags. Seu envio foi recusado por falta do escopo `workflow`; a permissão não foi contornada e essa versão ainda não está no GitHub.
 - Nenhum token, credencial ou segredo foi incluído no código ou neste relatório.
 - Workflow verde não será tratado como prova de funcionamento visual ou de desempenho em dispositivo físico.
 
@@ -148,10 +155,15 @@ Esta branch contém uma fatia vertical funcional em código do universo persiste
 - Corrigida a numeração de eventos de empresas fundadas.
 - O teste de energia crítica passou a permitir o deslocamento até a residência antes de verificar recuperação.
 - O card da Home passou a rotular lucro como resultado, não como caixa.
+- Uma divergência de transferência em `WorldMeshes.kt` foi detectada por comparação de SHA de blob e corrigida; o SHA final local/remoto conferido foi `3d75cd85f974016c905ecc41b2dcb2a08a940776`.
+- Removida a chamada não compilável `GLES30.glEnable(GLES30.GL_MULTISAMPLE)`. Em OpenGL ES, MSAA pertence à configuração EGL; não havia funcionalidade MSAA compilável sendo removida.
+- `AgentViewModel` passou a manter `worldRuntime` em uma propriedade, pois o parâmetro `app` do construtor não era acessível na lambda membro.
+- Adicionados os imports das extensões `day` e `minuteOfDay` em `WorldViewModel`.
+- Após essas correções, `assembleDebug` passou localmente. A suíte então expôs duas expectativas incorretas, ambas ajustadas sem alterar a economia ou a câmera de produção: recontratação por empresa solvente após falência é válida, e o primeiro zoom extremo produz 144 antes de uma segunda chamada atingir 145.
 
 ## Limitações e próximas tarefas
 
-1. Obter resultados reais de compilação, testes e lint; corrigir cada falha reproduzível.
+1. Confirmar as correções em um novo run do GitHub Actions e verificar se os artifacts `girassol-debug-apk` e `test-report` foram efetivamente produzidos; depois, obter autorização com escopo `workflow` para enviar lint e permissões mínimas.
 2. Validar o APK em emulador e aparelho arm64, incluindo gestures, picking, OpenGL, memória e retomada de processo.
 3. Executar estresse com milhares de agentes e medir memória/tempo de tick; o limite de 4.096 da factory não é evidência de desempenho validado.
 4. Evoluir para interiores exploráveis e mais cidades sem quebrar a migração de snapshots.

@@ -57,7 +57,8 @@ class WorldRenderer(
             GLES30.glEnable(GLES30.GL_DEPTH_TEST)
             GLES30.glDepthFunc(GLES30.GL_LEQUAL)
             GLES30.glDisable(GLES30.GL_CULL_FACE)
-            GLES30.glEnable(GLES30.GL_MULTISAMPLE)
+            // Em OpenGL ES, MSAA pertence à configuração da superfície EGL;
+            // não existe a capacidade GL_MULTISAMPLE para glEnable.
             onReady()
         } catch (error: Throwable) {
             failed = true

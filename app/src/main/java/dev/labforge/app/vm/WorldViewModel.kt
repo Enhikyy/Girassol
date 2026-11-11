@@ -15,7 +15,9 @@ import dev.labforge.app.core.world.HappeningType
 import dev.labforge.app.core.world.WorldState
 import dev.labforge.app.core.world.agent
 import dev.labforge.app.core.world.company
+import dev.labforge.app.core.world.day
 import dev.labforge.app.core.world.displayName
+import dev.labforge.app.core.world.minuteOfDay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

@@ -47,6 +47,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
     private val shell = ShellSession(store.workspace())
     private val git = GitRepo(store.workspace())
+    private val worldRuntime = (app as LabForgeApp).worldRuntime
 
     var messages by mutableStateOf<List<AgentMessage>>(emptyList())
         private set
@@ -151,7 +152,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
                     maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
                     settings = cfg,
-                    worldRuntime = (app as LabForgeApp).worldRuntime,
+                    worldRuntime = worldRuntime,
                     onEvent = { event ->
                         viewModelScope.launch(Dispatchers.Main) {
                             if (myRun == runId) handle(event)

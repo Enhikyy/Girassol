@@ -45,6 +45,8 @@ class WorldCameraTest {
     fun cameraClampsInputAndConvergesToFocusedEntity() {
         val camera = OrbitCamera()
         camera.zoom(0.0001f)
+        assertEquals(144f, camera.distance, 0.0001f)
+        camera.zoom(0.0001f)
         assertEquals(145f, camera.distance, 0.0001f)
         repeat(20) { camera.zoom(2f) }
         assertEquals(10f, camera.distance, 0.01f)
