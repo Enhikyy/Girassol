@@ -136,6 +136,8 @@ Esses resultados são locais. Nenhum teste em aparelho físico ou emulador foi r
 
 - O workflow **remoto atual** executa build, testes unitários, upload de APK e relatório de testes, com release no mesmo job para tags. Ele ainda usa `contents: write` global e não executa `lintDebug`.
 - O run remoto `43009566933` (run 205), no SHA `05331486764da025a9ab7f57af31f50a1b8625fe`, falhou em `Assemble debug APK`; `Unit tests` e `Upload APK` foram pulados. O upload condicional do relatório apareceu como sucesso com `if-no-files-found: ignore`, o que não comprova a existência de resultados. Nenhum artifact remoto foi validado nesse run.
+- O run remoto `43021759034` (run 206), no SHA `01e781d00a25a7313d70697f4c2f0366b9e7a9f3`, foi concluído com **sucesso** em 2026-11-11, incluindo build e testes no job `Build, test & release`.
+- Foram confirmados dois artifacts não expirados no run 206: `girassol-debug-apk`, 29.292.144 bytes, digest `sha256:4438c979c33b3a67fcd49b3f70c8a5936dea60a2eabefaceff0a296eda2e2feb`; e `test-report`, 42.472 bytes, digest `sha256:d2b3365ef42e1848b59bc8ed62448ccac8fa23e1ec8771fd0cf53af5964fb384`. Esses digests identificam os artifacts publicados, não o APK local descompactado.
 - O log remoto detalhado não foi obtido. Os quatro erros de compilação abaixo foram reproduzidos e corrigidos localmente, mas não se afirma que sejam comprovadamente a causa do run remoto.
 - A ampliação local do workflow contém triggers adicionais, `contents: read`, `lintDebug`, artifacts de lint e release separado com `contents: write` somente para tags. Seu envio foi recusado por falta do escopo `workflow`; a permissão não foi contornada e essa versão ainda não está no GitHub.
 - Nenhum token, credencial ou segredo foi incluído no código ou neste relatório.
@@ -163,7 +165,7 @@ Esses resultados são locais. Nenhum teste em aparelho físico ou emulador foi r
 
 ## Limitações e próximas tarefas
 
-1. Confirmar as correções em um novo run do GitHub Actions e verificar se os artifacts `girassol-debug-apk` e `test-report` foram efetivamente produzidos; depois, obter autorização com escopo `workflow` para enviar lint e permissões mínimas.
+1. Obter autorização com escopo `workflow` para enviar a ampliação com lint, artifacts de lint e permissões mínimas; até lá, manter inalterado o workflow remoto e registrar sua divergência em relação à versão local.
 2. Validar o APK em emulador e aparelho arm64, incluindo gestures, picking, OpenGL, memória e retomada de processo.
 3. Executar estresse com milhares de agentes e medir memória/tempo de tick; o limite de 4.096 da factory não é evidência de desempenho validado.
 4. Evoluir para interiores exploráveis e mais cidades sem quebrar a migração de snapshots.
