@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.labforge.app.LabForgeApp
 import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.Perf
 import dev.labforge.app.core.agent.AgentEvent
@@ -150,6 +151,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
                     maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
                     settings = cfg,
+                    worldRuntime = (app as LabForgeApp).worldRuntime,
                     onEvent = { event ->
                         viewModelScope.launch(Dispatchers.Main) {
                             if (myRun == runId) handle(event)
