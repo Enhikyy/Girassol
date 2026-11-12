@@ -34,6 +34,16 @@ class WorldCameraTest {
     }
 
     @Test
+    fun residentWinsWhenRayAlsoIntersectsBuildingSphere() {
+        val ray = WorldRay(WorldVec3(0f, 0f, 0f), WorldVec3(0f, 0f, -1f))
+        val targets = listOf(
+            WorldPickTarget("building", WorldVec3(0f, 0f, -5f), 2f),
+            WorldPickTarget("agent", WorldVec3(0f, 0f, -12f), 1f, priority = 1),
+        )
+        assertEquals("agent", WorldPicking.nearest(ray, targets))
+    }
+
+    @Test
     fun rayInsideSphereReturnsExitRatherThanNegativeEntry() {
         val ray = WorldRay(WorldVec3(0f, 0f, 0f), WorldVec3(1f, 0f, 0f))
         val distance = WorldPicking.intersectSphere(ray, WorldVec3(0f, 0f, 0f), 2f)
@@ -64,15 +74,18 @@ class WorldCameraTest {
     }
 
     @Test
-    fun pickingTargetsComeFromPersistedWorldGeometry() {
+    fun pickingTargetsComeFromRenderedPersistedGeometry() {
         val world = WorldFactory.create(seed = 91L, population = 8)
-        val targets = WorldPicking.targets(world)
-        assertEquals(world.buildings.size + world.agents.size, targets.size)
-        world.agents.forEach { agent ->
+        val renderedAgents = world.agents.take(3)
+        val targets = WorldPicking.targets(world, renderedAgents)
+        assertEquals(world.buildings.size + renderedAgents.size, targets.size)
+        assertTrue(world.agents.drop(3).none { agent -> targets.any { it.id == agent.id } })
+        renderedAgents.forEach { agent ->
             val target = targets.single { it.id == agent.id }
             assertEquals(agent.position.x, target.center.x, 0f)
             assertEquals(agent.position.z, target.center.z, 0f)
             assertTrue(target.radius > 0f)
+            assertTrue(target.priority > targets.first { it.id == world.buildings.first().id }.priority)
         }
     }
 

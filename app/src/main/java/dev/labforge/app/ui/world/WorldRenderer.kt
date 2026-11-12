@@ -3,6 +3,7 @@ package dev.labforge.app.ui.world
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import android.util.LongSparseArray
 import dev.labforge.app.core.world.ActionType
 import dev.labforge.app.core.world.AgentState
 import dev.labforge.app.core.world.BuildingKind
@@ -16,6 +17,11 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
 
+internal data class WorldRenderedFrame(
+    val world: WorldState,
+    val agents: List<AgentState>,
+)
+
 class WorldRenderer(
     private val onReady: () -> Unit,
     private val onFailure: (String) -> Unit,
@@ -27,6 +33,10 @@ class WorldRenderer(
 
     @Volatile
     var selectedId: String? = null
+
+    @Volatile
+    internal var lastRenderedFrame: WorldRenderedFrame? = null
+        private set
 
     val camera = OrbitCamera()
 
@@ -46,6 +56,21 @@ class WorldRenderer(
     private val model = FloatArray(16)
     private val mvp = FloatArray(16)
     private val highQuality = Runtime.getRuntime().availableProcessors() >= 6
+    private val agentSortBuffer = mutableListOf<AgentState>()
+    private val colorCache = LongSparseArray<FloatArray>()
+    private var lastAgentWorld: WorldState? = null
+    private var lastAgentTargetX = Float.NaN
+    private var lastAgentTargetZ = Float.NaN
+    private var lastVisibleAgents: List<AgentState> = emptyList()
+    private var agentSortX = 0f
+    private var agentSortZ = 0f
+    private val agentDistanceComparator = Comparator<AgentState> { first, second ->
+        val firstDx = first.position.x - agentSortX
+        val firstDz = first.position.z - agentSortZ
+        val secondDx = second.position.x - agentSortX
+        val secondDz = second.position.z - agentSortZ
+        compareValues(firstDx * firstDx + firstDz * firstDz, secondDx * secondDx + secondDz * secondDz)
+    }
 
     override fun onSurfaceCreated(unused: GL10?, config: EGLConfig?) {
         failed = false
@@ -125,7 +150,7 @@ class WorldRenderer(
 
         drawEnvironment(activeBox, activeCylinder, activeSphere, state, daylight)
         drawBuildings(activeBox, activeCylinder, activeSphere, state, daylight)
-        drawAgents(activeBox, activeCylinder, activeSphere, state)
+        drawAgents(activeBox, activeCylinder, activeSphere, state, cameraSnapshot)
         drawIntegration(activeBox, activeCylinder, state)
         GLES30.glBindVertexArray(0)
 
@@ -144,7 +169,7 @@ class WorldRenderer(
             lastFpsFrame = frame
         } else if (now - lastFpsTime > 2_000_000_000L) {
             val fps = ((frame - lastFpsFrame) * 1_000_000_000.0 / (now - lastFpsTime)).toInt()
-            onFrameStats(fps, minOf(state.agents.size, if (highQuality) 96 else 64))
+            onFrameStats(fps, lastRenderedFrame?.agents?.size ?: 0)
             lastFpsTime = now
             lastFpsFrame = frame
         }
@@ -179,7 +204,7 @@ class WorldRenderer(
             val width = building.footprintX * 1.05f
             val depth = building.footprintZ * 1.05f
             draw(box, building.position.x + 1.2f, 0.018f, building.position.z + 1.1f,
-                width, 0.02f, depth, floatArrayOf(0.008f, 0.012f, 0.015f, 0.34f), 0f)
+                width, 0.02f, depth, BUILDING_SHADOW, 0f)
         }
         GLES30.glDepthMask(true)
         GLES30.glDisable(GLES30.GL_BLEND)
@@ -243,23 +268,46 @@ class WorldRenderer(
         draw(sphere, p.x, 3.35f, p.z, 0.85f, 0.85f, 0.45f, color(0xFF70532BL), 0.1f)
     }
 
-    private fun drawAgents(box: GLMesh, cylinder: GLMesh, sphere: GLMesh, state: WorldState) {
-        val visibleLimit = if (highQuality) 96 else 64
-        val agents = state.agents.sortedBy { agent ->
-            val dx = agent.position.x - camera.targetX
-            val dz = agent.position.z - camera.targetZ
-            dx * dx + dz * dz
-        }.take(visibleLimit)
+    private fun drawAgents(
+        box: GLMesh,
+        cylinder: GLMesh,
+        sphere: GLMesh,
+        state: WorldState,
+        cameraSnapshot: OrbitCameraSnapshot,
+    ) {
+        val agents = selectRenderedAgents(state, cameraSnapshot)
+        if (lastRenderedFrame?.world !== state || lastRenderedFrame?.agents !== agents) {
+            lastRenderedFrame = WorldRenderedFrame(state, agents)
+        }
         GLES30.glEnable(GLES30.GL_BLEND)
         GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA)
         GLES30.glDepthMask(false)
         agents.forEach { agent ->
             draw(cylinder, agent.position.x + 0.25f, 0.025f, agent.position.z + 0.2f,
-                0.7f, 0.025f, 0.7f, floatArrayOf(0.005f, 0.008f, 0.01f, 0.38f), 0f)
+                0.7f, 0.025f, 0.7f, AGENT_SHADOW, 0f)
         }
         GLES30.glDepthMask(true)
         GLES30.glDisable(GLES30.GL_BLEND)
         agents.forEachIndexed { index, agent -> drawAgent(box, cylinder, sphere, agent, state, index) }
+    }
+
+    private fun selectRenderedAgents(state: WorldState, camera: OrbitCameraSnapshot): List<AgentState> {
+        if (lastAgentWorld === state && lastAgentTargetX == camera.targetX && lastAgentTargetZ == camera.targetZ) {
+            return lastVisibleAgents
+        }
+        val visibleLimit = if (highQuality) 96 else 64
+        agentSortX = camera.targetX
+        agentSortZ = camera.targetZ
+        agentSortBuffer.clear()
+        agentSortBuffer.addAll(state.agents)
+        agentSortBuffer.sortWith(agentDistanceComparator)
+        val selected = ArrayList<AgentState>(minOf(visibleLimit, agentSortBuffer.size))
+        for (index in 0 until minOf(visibleLimit, agentSortBuffer.size)) selected.add(agentSortBuffer[index])
+        lastAgentWorld = state
+        lastAgentTargetX = camera.targetX
+        lastAgentTargetZ = camera.targetZ
+        lastVisibleAgents = selected
+        return selected
     }
 
     private fun drawAgent(box: GLMesh, cylinder: GLMesh, sphere: GLMesh, agent: AgentState, state: WorldState, index: Int) {
@@ -324,17 +372,25 @@ class WorldRenderer(
         shader?.draw(mesh, model, mvp, rgba, glow)
     }
 
-    companion object {
-        private val NIGHT_SKY = floatArrayOf(0.018f, 0.026f, 0.045f)
-        private val DAY_SKY = floatArrayOf(0.34f, 0.46f, 0.52f)
-        private val skinTones = listOf(0xFF6E4632L, 0xFF8B5D43L, 0xFFAD7957L, 0xFFD1A17BL, 0xFFE0BFA2L)
-
-        private fun color(value: Long, alpha: Float = 1f) = floatArrayOf(
+    private fun color(value: Long, alpha: Float = 1f): FloatArray {
+        val key = (value and 0xFFFF_FFFFL) or (alpha.toRawBits().toLong() shl 32)
+        colorCache.get(key)?.let { return it }
+        val rgba = floatArrayOf(
             ((value shr 16) and 0xFF) / 255f,
             ((value shr 8) and 0xFF) / 255f,
             (value and 0xFF) / 255f,
             alpha,
         )
+        colorCache.put(key, rgba)
+        return rgba
+    }
+
+    companion object {
+        private val NIGHT_SKY = floatArrayOf(0.018f, 0.026f, 0.045f)
+        private val DAY_SKY = floatArrayOf(0.34f, 0.46f, 0.52f)
+        private val AGENT_SHADOW = floatArrayOf(0.005f, 0.008f, 0.01f, 0.38f)
+        private val BUILDING_SHADOW = floatArrayOf(0.008f, 0.012f, 0.015f, 0.34f)
+        private val skinTones = listOf(0xFF6E4632L, 0xFF8B5D43L, 0xFFAD7957L, 0xFFD1A17BL, 0xFFE0BFA2L)
 
         private fun blendColor(a: FloatArray, b: FloatArray, fraction: Float): FloatArray {
             val t = fraction.coerceIn(0f, 1f)

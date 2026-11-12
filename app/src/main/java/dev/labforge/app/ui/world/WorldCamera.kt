@@ -1,5 +1,6 @@
 package dev.labforge.app.ui.world
 
+import dev.labforge.app.core.world.AgentState
 import dev.labforge.app.core.world.Vector2State
 import dev.labforge.app.core.world.WorldState
 import kotlin.math.cos
@@ -13,7 +14,7 @@ data class WorldVec3(val x: Float, val y: Float, val z: Float) {
     operator fun times(value: Float) = WorldVec3(x * value, y * value, z * value)
     fun length(): Float = sqrt(x * x + y * y + z * z)
     fun normalized(): WorldVec3 = length().takeIf { it > 0.00001f }?.let { this * (1f / it) } ?: WorldVec3(0f, 0f, -1f)
-    fun cross(other: WorldVec3) = WorldVec3(
+    fun cross(other: WorldVec3): WorldVec3 = WorldVec3(
         y * other.z - z * other.y,
         z * other.x - x * other.z,
         x * other.y - y * other.x,
@@ -22,7 +23,12 @@ data class WorldVec3(val x: Float, val y: Float, val z: Float) {
 }
 
 data class WorldRay(val origin: WorldVec3, val direction: WorldVec3)
-data class WorldPickTarget(val id: String, val center: WorldVec3, val radius: Float)
+data class WorldPickTarget(
+    val id: String,
+    val center: WorldVec3,
+    val radius: Float,
+    val priority: Int = 0,
+)
 
 class OrbitCamera {
     var targetX = 0f
@@ -129,10 +135,21 @@ object WorldPicking {
         return WorldRay(eye, direction)
     }
 
-    fun nearest(ray: WorldRay, targets: List<WorldPickTarget>): String? = targets.mapNotNull { target ->
-        val distance = intersectSphere(ray, target.center, target.radius)
-        if (distance == null) null else target.id to distance
-    }.minByOrNull { it.second }?.first
+    fun nearest(ray: WorldRay, targets: List<WorldPickTarget>): String? {
+        var nearestTarget: WorldPickTarget? = null
+        var nearestDistance = Float.POSITIVE_INFINITY
+        targets.forEach { target ->
+            val distance = intersectSphere(ray, target.center, target.radius) ?: return@forEach
+            val current = nearestTarget
+            if (current == null || target.priority > current.priority ||
+                (target.priority == current.priority && distance < nearestDistance)
+            ) {
+                nearestTarget = target
+                nearestDistance = distance
+            }
+        }
+        return nearestTarget?.id
+    }
 
     fun intersectSphere(ray: WorldRay, center: WorldVec3, radius: Float): Float? {
         val oc = ray.origin - center
@@ -150,7 +167,7 @@ object WorldPicking {
         }
     }
 
-    fun targets(world: WorldState): List<WorldPickTarget> = buildList {
+    fun targets(world: WorldState, renderedAgents: List<AgentState>): List<WorldPickTarget> = buildList {
         world.buildings.forEach { building ->
             add(WorldPickTarget(
                 id = building.id,
@@ -158,11 +175,12 @@ object WorldPicking {
                 radius = maxOf(building.footprintX, building.footprintZ, building.height * 0.45f) * 0.72f,
             ))
         }
-        world.agents.take(160).forEach { agent ->
+        renderedAgents.forEach { agent ->
             add(WorldPickTarget(
                 id = agent.id,
                 center = WorldVec3(agent.position.x, agent.appearance.height * 0.8f, agent.position.z),
                 radius = 1.05f,
+                priority = 1,
             ))
         }
     }

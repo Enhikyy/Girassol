@@ -110,10 +110,13 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
         if (busy) return
         busy = true
         viewModelScope.launch {
-            runtime.applyHappening(type, description)
-                .onSuccess { notice = "Acontecimento aplicado à simulação." }
-                .onFailure { notice = it.message ?: "Não foi possível aplicar o acontecimento." }
-            busy = false
+            try {
+                runtime.applyHappening(type, description)
+                    .onSuccess { notice = "Acontecimento aplicado à simulação." }
+                    .onFailure { notice = it.message ?: "Não foi possível aplicar o acontecimento." }
+            } finally {
+                busy = false
+            }
         }
     }
 
@@ -121,14 +124,17 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
         if (busy) return
         busy = true
         viewModelScope.launch {
-            runtime.foundCompany(name, strategy)
-                .onSuccess { world ->
-                    val company = world.companies.last()
-                    selectCompany(company.id)
-                    notice = "${company.name} foi fundada com capital real da reserva."
-                }
-                .onFailure { notice = it.message ?: "Não foi possível fundar a empresa." }
-            busy = false
+            try {
+                runtime.foundCompany(name, strategy)
+                    .onSuccess { world ->
+                        val company = world.companies.last()
+                        selectCompany(company.id)
+                        notice = "${company.name} foi fundada com capital real da reserva."
+                    }
+                    .onFailure { notice = it.message ?: "Não foi possível fundar a empresa." }
+            } finally {
+                busy = false
+            }
         }
     }
 
@@ -186,10 +192,12 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
     fun stopDialogue() {
         dialogueJob?.cancel()
         dialogue = dialogue.map { it.copy(pending = false) }
-        busy = false
+        // O finally do job liberará busy; outra operação pode ser a proprietária desse estado.
     }
 
     fun clearNotice() { notice = null }
+
+    fun acknowledgeRecoveryWarning() = runtime.acknowledgeRecoveryWarning()
 
     fun save() = runtime.requestSave()
 

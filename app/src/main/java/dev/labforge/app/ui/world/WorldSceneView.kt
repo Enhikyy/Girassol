@@ -108,8 +108,9 @@ class WorldSceneView(context: Context) : GLSurfaceView(context) {
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 hadTwoPointers = false
-                lastX = event.x
-                lastY = event.y
+                val remaining = if (event.actionIndex == 0) 1 else 0
+                lastX = event.getX(remaining)
+                lastY = event.getY(remaining)
             }
             MotionEvent.ACTION_UP -> {
                 performClick()
@@ -131,9 +132,12 @@ class WorldSceneView(context: Context) : GLSurfaceView(context) {
     }
 
     private fun pick(x: Float, y: Float) {
-        val world = sceneRenderer.world ?: return
+        val rendered = sceneRenderer.lastRenderedFrame ?: return
         val ray = WorldPicking.ray(sceneRenderer.camera.snapshot(), x, y, width, height)
-        val selected = WorldPicking.nearest(ray, WorldPicking.targets(world)) ?: return
+        val selected = WorldPicking.nearest(
+            ray,
+            WorldPicking.targets(rendered.world, rendered.agents),
+        ) ?: return
         onEntitySelected(selected)
     }
 
