@@ -13,6 +13,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+data class SleepCompletionToast(val id: Long, val title: String, val message: String)
+
 class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
 
     var initialized by mutableStateOf(false)
@@ -31,8 +33,13 @@ class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var testingTool by mutableStateOf(false)
         private set
+    var consolidating by mutableStateOf(false)
+        private set
+    var completionToast by mutableStateOf<SleepCompletionToast?>(null)
+        private set
 
     private var streamJob: Job? = null
+    private var toastSequence = 0L
 
     init {
         viewModelScope.launch {
@@ -114,14 +121,26 @@ class LlamatikViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun consolidate() {
-        if (!initialized) return
+        if (!initialized || consolidating) return
+        consolidating = true
         viewModelScope.launch {
             status = "consolidando memória…"
-            val msg = runCatching { LlamatikRuntime.consolidate() }
-                .getOrElse { "falha: ${it.message}" }
+            val result = runCatching { LlamatikRuntime.consolidate() }
             memoryCount = LlamatikRuntime.memorySize()
-            status = msg
+            result.onSuccess { message ->
+                status = message
+                completionToast = SleepCompletionToast(
+                    id = ++toastSequence,
+                    title = "Ciclo de Modo Sono concluído",
+                    message = message,
+                )
+            }.onFailure { status = "falha: ${it.message}" }
+            consolidating = false
         }
+    }
+
+    fun dismissCompletionToast(id: Long) {
+        if (completionToast?.id == id) completionToast = null
     }
 
     fun clearOutput() {

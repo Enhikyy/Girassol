@@ -6,6 +6,7 @@ import dev.labforge.app.core.native.NativeCallback
 import dev.labforge.app.service.GirassolService
 import dev.labforge.app.service.MemoryBooster
 import dev.labforge.app.service.MemoryGuard
+import dev.labforge.app.core.train.TrainingCheckpointStore
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,7 @@ data class JobState(
     val output: String? = null,
     val startedAt: Long = 0L,
     val finishedAt: Long = 0L,
+    val finalLoss: Float? = null,
 )
 
 /**
@@ -125,16 +127,26 @@ object JobEngine {
         return (((epoch - 1).coerceAtLeast(0) + ratio) / epochs).coerceIn(0.02f, 0.99f)
     }
 
-    private fun finish(success: Boolean, summary: String, output: File?) {
+    private fun finish(success: Boolean, summary: String, output: File?, finalLoss: Float? = null) {
+        val finishedAt = System.currentTimeMillis()
+        val kind = _state.value.kind
+        val cleanLoss = finalLoss?.takeIf { loss -> loss.isFinite() && loss >= 0f }
+        val ctx = appContext
+        // Persist before publishing `done`: the ViewModel refreshes its checkpoint
+        // list from that signal and must never observe a partially written history.
+        if (ctx != null && success && output != null && (kind == "lora" || kind == "full")) {
+            runCatching { TrainingCheckpointStore(ctx).record(kind, output, finishedAt, cleanLoss) }
+                .onFailure { append("[checkpoint] falha ao registrar histórico: ${it.message}") }
+        }
         _state.update {
             it.copy(
                 running = false, done = true, success = success, progress = 1f,
-                summary = summary, finishedAt = System.currentTimeMillis(),
+                summary = summary, finishedAt = finishedAt,
                 output = output?.absolutePath ?: it.output,
+                finalLoss = cleanLoss,
             )
         }
         current = null
-        val ctx = appContext
         if (ctx != null) GirassolService.stop(ctx)
     }
 
@@ -237,7 +249,7 @@ object JobEngine {
             val summary = if (r.ok) {
                 "Adaptador LoRA salvo · ${r.tensors} tensores · loss %.4f".format(r.loss)
             } else r.error ?: "falha no treino LoRA"
-            finish(r.ok, summary, output.takeIf { r.ok })
+            finish(r.ok, summary, output.takeIf { r.ok }, r.loss.toFloat())
         }
     }
 
@@ -293,7 +305,7 @@ object JobEngine {
             val summary = if (r.ok) {
                 "Modelo treinado · loss final %.4f · ${r.sequences} sequências".format(r.loss)
             } else r.error ?: "falha no treino"
-            finish(r.ok, summary, output.takeIf { r.ok })
+            finish(r.ok, summary, output.takeIf { r.ok }, r.loss.toFloat())
         }
     }
 }

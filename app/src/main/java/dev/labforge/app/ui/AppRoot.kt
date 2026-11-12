@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SmartToy
@@ -71,13 +72,16 @@ import dev.labforge.app.ui.screens.LlamatikScreen
 import dev.labforge.app.ui.screens.ModelDetailScreen
 import dev.labforge.app.ui.screens.ModelsScreen
 import dev.labforge.app.ui.screens.SettingsScreen
+import dev.labforge.app.ui.screens.WorldScreen
 import dev.labforge.app.ui.theme.Lab
 import dev.labforge.app.vm.AgentViewModel
 import dev.labforge.app.vm.CodexViewModel
 import dev.labforge.app.vm.LabViewModel
+import dev.labforge.app.vm.WorldViewModel
 
 object Routes {
     const val HOME = "home"
+    const val WORLD = "world"
     const val MODELS = "models"
     const val MODEL = "model"
     const val LAB = "lab"
@@ -91,6 +95,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab(Routes.HOME, "Início", Icons.Rounded.Home),
+    Tab(Routes.WORLD, "Mundo", Icons.Rounded.Public),
     Tab(Routes.MODELS, "Modelos", Icons.Rounded.Widgets),
     Tab(Routes.LAB, "Lab", Icons.Rounded.Science),
     Tab(Routes.AGENT, "Agentes", Icons.Rounded.SmartToy),
@@ -102,6 +107,7 @@ fun AppRoot() {
     val vm: LabViewModel = viewModel()
     val agentVm: AgentViewModel = viewModel()
     val codexVm: CodexViewModel = viewModel()
+    val worldVm: WorldViewModel = viewModel()
 
     var route by rememberSaveable { mutableStateOf(Routes.HOME) }
     var arg by rememberSaveable { mutableStateOf("") }
@@ -153,6 +159,7 @@ fun AppRoot() {
                 ) { (current, _) ->
                     when (current) {
                         Routes.HOME -> HomeScreen(vm, agentVm, { r -> go(r) }) { labTab = it; go(Routes.LAB) }
+                        Routes.WORLD -> WorldScreen(worldVm)
                         Routes.MODELS -> ModelsScreen(vm) { p -> go(Routes.MODEL, p) }
                         Routes.MODEL -> ModelDetailScreen(vm, arg, onBack = { go(Routes.MODELS) }) {
                             labTab = it

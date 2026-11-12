@@ -50,6 +50,7 @@ import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.GradientButton
 import dev.labforge.app.ui.components.LabField
 import dev.labforge.app.ui.components.LineChart
+import dev.labforge.app.ui.components.LoraMergingTimeline
 import dev.labforge.app.ui.components.Pill
 import dev.labforge.app.ui.components.SectionHeader
 import dev.labforge.app.ui.components.Segmented
@@ -416,6 +417,11 @@ fun TrainPane(vm: LabViewModel) {
                     ),
                 )
             }
+        }
+
+        if (mode == 0) {
+            Spacer(Modifier.height(16.dp))
+            LoraMergingTimeline(vm.trainingCheckpoints)
         }
 
         if (vm.lossHistory.isNotEmpty()) {

@@ -1,5 +1,7 @@
 package dev.labforge.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Send
@@ -43,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +71,12 @@ import dev.labforge.app.ui.theme.Lab
 import dev.labforge.app.vm.AgentMessage
 import dev.labforge.app.vm.AgentViewModel
 import dev.labforge.app.vm.LabViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Unit = {}) {
@@ -122,6 +133,26 @@ fun AgentScreen(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Un
 private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () -> Unit) {
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var exportJson by remember { mutableStateOf<String?>(null) }
+    var exportStatus by remember { mutableStateOf<String?>(null) }
+    var exportFailed by remember { mutableStateOf(false) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val json = exportJson
+        exportJson = null
+        if (uri == null || json == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "w")?.bufferedWriter()?.use { it.write(json) }
+                        ?: error("O destino não abriu um fluxo de escrita.")
+                }
+            }
+            exportFailed = result.isFailure
+            exportStatus = if (result.isSuccess) "Sessão exportada em JSON." else "Falha ao exportar: ${result.exceptionOrNull()?.message}"
+        }
+    }
 
     LaunchedEffect(agentVm.messages.size) {
         if (agentVm.messages.isNotEmpty()) {
@@ -235,6 +266,44 @@ private fun ChatPane(agentVm: AgentViewModel, vm: LabViewModel, onOpenCodex: () 
                     modifier = Modifier.size(20.dp),
                 )
             }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 14.dp, bottom = 8.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(Lab.Surface.copy(alpha = 0.72f))
+                .clickable(enabled = agentVm.messages.isNotEmpty()) {
+                    exportJson = agentVm.exportSessionJson()
+                    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                    exportStatus = null
+                    exportLauncher.launch("girassol-sessao-$stamp.json")
+                }
+                .padding(horizontal = 11.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.FileDownload,
+                "Exportar sessão",
+                tint = if (agentVm.messages.isEmpty()) Lab.Outline else Lab.Cyan,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "Exportar sessão + trace visível",
+                color = if (agentVm.messages.isEmpty()) Lab.Outline else Lab.Text,
+                fontSize = 10.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text("${agentVm.messages.size} eventos · JSON", color = Lab.Muted, fontSize = 9.sp)
+        }
+        exportStatus?.let {
+            Text(
+                it,
+                color = if (exportFailed) Lab.Red else Lab.Green,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 7.dp),
+            )
         }
     }
 }
