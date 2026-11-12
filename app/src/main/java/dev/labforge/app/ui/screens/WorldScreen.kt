@@ -193,6 +193,10 @@ fun WorldScreen(vm: WorldViewModel) {
                 Spacer(Modifier.height(6.dp))
                 WorldStatusChip("${status.compensatedMinutes} min simulados na retomada", Lab.Cyan)
             }
+            status.recoveryWarning?.let {
+                Spacer(Modifier.height(6.dp))
+                WorldStatusChip(it, Lab.Amber, onDismiss = vm::acknowledgeRecoveryWarning)
+            }
             status.warning?.let {
                 Spacer(Modifier.height(6.dp))
                 WorldStatusChip(it, Lab.Red)
@@ -220,6 +224,7 @@ fun WorldScreen(vm: WorldViewModel) {
 
         when {
             panel != null -> WorldPanelSheet(
+                modifier = Modifier.align(Alignment.BottomCenter),
                 panel = panel!!,
                 state = state,
                 onClose = { panel = null },
@@ -230,6 +235,7 @@ fun WorldScreen(vm: WorldViewModel) {
                 onParameters = vm::setParameters,
             )
             vm.selectedId != null -> SelectionSheet(
+                modifier = Modifier.align(Alignment.BottomCenter),
                 vm = vm,
                 state = state,
                 onClose = vm::clearSelection,
@@ -318,14 +324,23 @@ private fun WorldTopBar(
 }
 
 @Composable
-private fun WorldStatusChip(text: String, color: Color) {
+private fun WorldStatusChip(text: String, color: Color, onDismiss: (() -> Unit)? = null) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lab.Surface.copy(alpha = 0.94f)).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(6.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(7.dp))
-        Text(text, color = Lab.Text, fontSize = 10.sp, maxLines = 2)
+        Text(text, modifier = Modifier.weight(1f), color = Lab.Text, fontSize = 10.sp, maxLines = 3)
+        if (onDismiss != null) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                Icons.Rounded.Close,
+                contentDescription = "Dispensar aviso de recuperação",
+                tint = Lab.Muted,
+                modifier = Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onDismiss).padding(6.dp),
+            )
+        }
     }
 }
 
@@ -366,6 +381,7 @@ private fun DockItem(label: String, icon: androidx.compose.ui.graphics.vector.Im
 
 @Composable
 private fun WorldPanelSheet(
+    modifier: Modifier,
     panel: WorldPanel,
     state: WorldState,
     onClose: () -> Unit,
@@ -383,7 +399,7 @@ private fun WorldPanelSheet(
         WorldPanel.EVENTS -> "Memória do mundo"
     }
     Column(
-        Modifier.fillMaxWidth().fillMaxHeight(0.74f).clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
+        modifier.fillMaxWidth().fillMaxHeight(0.74f).clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
             .background(Lab.BgElev).border(1.dp, Lab.Outline, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
             .padding(18.dp),
     ) {
@@ -608,6 +624,7 @@ private fun EconomyStat(label: String, value: String, modifier: Modifier) {
 
 @Composable
 private fun SelectionSheet(
+    modifier: Modifier,
     vm: WorldViewModel,
     state: WorldState,
     onClose: () -> Unit,
@@ -623,7 +640,7 @@ private fun SelectionSheet(
         null -> null
     } ?: "Elemento selecionado"
     Column(
-        Modifier.fillMaxWidth().fillMaxHeight(0.59f).clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
+        modifier.fillMaxWidth().fillMaxHeight(0.59f).clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
             .background(Lab.BgElev).border(1.dp, Lab.Outline, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
             .padding(18.dp).verticalScroll(rememberScrollState()),
     ) {
