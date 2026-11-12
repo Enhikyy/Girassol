@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.Instant
 
 data class AgentMessage(
     val id: Long,
@@ -204,6 +205,10 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             is AgentEvent.Usage -> {
                 promptTokens += event.prompt
                 completionTokens += event.completion
+                elapsedMs = System.currentTimeMillis() - startedAt
+                if (completionTokens > 0 && elapsedMs > 0) {
+                    tokensPerSecond = completionTokens / (elapsedMs / 1000.0)
+                }
             }
             is AgentEvent.Thought -> {
                 val streamedId = thinkId
@@ -312,6 +317,23 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         messages = messages.map { if (it.pending) it.copy(pending = false, text = "cancelado") else it }
     }
 
+    /** Exports only the visible session and applies conservative credential redaction. */
+    fun exportSessionJson(exportedAt: Instant = Instant.now()): String {
+        flushStream()
+        return AgentSessionExport.create(
+            messages = messages,
+            running = running,
+            status = status,
+            startedAt = startedAt,
+            elapsedMs = elapsedMs,
+            promptTokens = promptTokens,
+            completionTokens = completionTokens,
+            localPromptTokens = localPromptTokens,
+            tokensPerSecond = tokensPerSecond,
+            exportedAt = exportedAt,
+        )
+    }
+
     fun newSession() {
         stop()
         messages = emptyList()
@@ -321,6 +343,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         localPromptTokens = 0
         elapsedMs = 0
         tokensPerSecond = 0.0
+        startedAt = 0L
         thinkId = null
         draftId = null
         thinkBuf.setLength(0)
