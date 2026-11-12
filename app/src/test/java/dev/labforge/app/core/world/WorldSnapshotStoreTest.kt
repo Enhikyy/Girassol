@@ -85,6 +85,26 @@ class WorldSnapshotStoreTest {
     }
 
     @Test
+    fun economyWithNoActiveCompaniesRemainsFiniteAndPersistable() {
+        val store = WorldSnapshotStore(folder.root)
+        val initial = WorldFactory.create(seed = 91L, population = 24)
+        val engine = WorldEngine(initial.copy(
+            elapsedMinutes = 1_400L,
+            agents = initial.agents.map { it.copy(lastUpdatedMinute = 1_400L) },
+            companies = initial.companies.map { it.copy(cash = -30_000.0) },
+        ))
+        engine.step(60)
+
+        assertTrue(engine.state.companies.all { it.bankrupt })
+        val metric = engine.state.economyHistory.last()
+        assertEquals(0, metric.companies)
+        assertEquals(0f, metric.technology)
+        assertTrue(metric.technology.isFinite())
+        store.save(engine.state)
+        assertEquals(engine.state, store.load(seed = 99L, nowWallClockMs = 20L).state)
+    }
+
+    @Test
     fun checksumIsStable() {
         assertEquals(
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",

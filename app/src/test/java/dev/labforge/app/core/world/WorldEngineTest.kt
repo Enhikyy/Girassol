@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -98,9 +99,14 @@ class WorldEngineTest {
         )
         val engine = WorldEngine(movedToEndOfDay)
         val failedCompanyId = initial.companies.first().id
-        val releasedIds = initial.agents.filter { it.employerId == failedCompanyId }.map { it.id }.toSet()
+        val releasedAgents = initial.agents.filter { it.employerId == failedCompanyId }
+        val releasedIds = releasedAgents.map { it.id }.toSet()
         engine.step(60)
         assertTrue(engine.state.companies.first().bankrupt)
+        releasedAgents.forEach { before ->
+            val after = engine.state.agent(before.id)!!
+            assertEquals(before.wallet + before.salaryPerDay, after.wallet, 0.0001)
+        }
         val finalEmployers = releasedIds.associateWith { id -> engine.state.agent(id)?.employerId }
         assertTrue("Vínculos finais: $finalEmployers", finalEmployers.values.all { it != failedCompanyId })
         assertTrue(finalEmployers.values.filterNotNull().all { employerId ->
@@ -141,6 +147,35 @@ class WorldEngineTest {
         engine.syncJob("lora", "Treino real", 1f, false, "Adaptador salvo", 99L)
         assertEquals("Adaptador salvo", engine.state.integration.lastJobSummary)
         assertTrue(engine.state.events.any { it.kind == WorldEventKind.INTEGRATION && it.description.contains("Adaptador salvo") })
+    }
+
+    @Test
+    fun staleJobCompletionsCannotRewriteHistoryOrRewardTechnology() {
+        val engine = WorldEngine(WorldFactory.create(seed = 5L, population = 16))
+        engine.syncJob("lora", "Treino novo", 1f, false, "Concluído", 100L)
+        val completed = engine.state
+        val technology = completed.building("building_data")!!.technology
+
+        engine.syncJob("lora", "Treino antigo", 1f, false, "Desatualizado", 99L)
+        assertEquals(completed.integration, engine.state.integration)
+        assertEquals(completed.events, engine.state.events)
+        assertEquals(technology, engine.state.building("building_data")!!.technology)
+
+        engine.syncJob("lora", "Treino duplicado", 1f, false, "Duplicado", 100L)
+        assertEquals(completed.integration, engine.state.integration)
+        assertEquals(completed.events, engine.state.events)
+        assertEquals(technology, engine.state.building("building_data")!!.technology)
+    }
+
+    @Test
+    fun schemaValidationRejectsVersionsWithoutAnExplicitReader() {
+        val world = WorldFactory.create(seed = 5L, population = 8)
+        listOf(-1, 0, WORLD_SCHEMA_VERSION + 1).forEach { version ->
+            assertThrows(IllegalArgumentException::class.java) {
+                WorldEngine.validate(world.copy(schemaVersion = version))
+            }
+        }
+        WorldEngine.validate(world)
     }
 
     @Test

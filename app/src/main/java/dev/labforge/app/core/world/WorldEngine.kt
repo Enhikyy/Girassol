@@ -261,12 +261,12 @@ class WorldEngine(initialState: WorldState) {
     @Synchronized
     fun syncJob(kind: String, title: String, progress: Float, running: Boolean, summary: String, finishedAt: Long): WorldState {
         val previous = state.integration
-        val isNewCompletion = finishedAt > 0L && finishedAt != previous.lastJobFinishedAt
+        val isNewCompletion = finishedAt > 0L && finishedAt > previous.lastJobFinishedAt
         var next = state.copy(integration = previous.copy(
             activeJobKind = if (running) kind else "",
             activeJobTitle = if (running) title else "",
             activeJobProgress = if (running) progress.coerceIn(0f, 1f) else 0f,
-            lastJobSummary = if (finishedAt > 0L) summary.take(500) else previous.lastJobSummary,
+            lastJobSummary = if (isNewCompletion) summary.take(500) else previous.lastJobSummary,
             lastJobFinishedAt = maxOf(previous.lastJobFinishedAt, finishedAt),
         ))
         if (isNewCompletion) {
@@ -601,7 +601,11 @@ class WorldEngine(initialState: WorldState) {
             val company = companies.firstOrNull { it.id == agent.employerId }
             when {
                 company == null && agent.employerId != null -> agent.copy(employerId = null)
-                company?.bankrupt == true -> agent.copy(employerId = null, needs = agent.needs.copy(stress = (agent.needs.stress + 12f).coerceAtMost(100f)))
+                company?.bankrupt == true -> agent.copy(
+                    employerId = null,
+                    wallet = agent.wallet + agent.salaryPerDay,
+                    needs = agent.needs.copy(stress = (agent.needs.stress + 12f).coerceAtMost(100f)),
+                )
                 company != null -> agent.copy(wallet = agent.wallet + agent.salaryPerDay)
                 else -> agent
             }
@@ -642,15 +646,16 @@ class WorldEngine(initialState: WorldState) {
             company.copy(metrics = company.metrics.dropLast(1) + withShare)
         }
         val daily = dailyMetrics.values.toList()
+        val activeCompanies = companies.filterNot { it.bankrupt }
         val economy = EconomyDayMetric(
             day = day,
             revenue = daily.sumOf { it.revenue },
             expenses = daily.sumOf { it.expenses },
             profit = daily.sumOf { it.profit },
             productivity = if (daily.isEmpty()) 0f else daily.map { it.productivity }.average().toFloat(),
-            employees = agents.count { agent -> companies.any { it.id == agent.employerId && !it.bankrupt } },
-            companies = companies.count { !it.bankrupt },
-            technology = if (companies.isEmpty()) 0f else companies.filterNot { it.bankrupt }.map { it.technology }.average().toFloat(),
+            employees = agents.count { agent -> activeCompanies.any { it.id == agent.employerId } },
+            companies = activeCompanies.size,
+            technology = if (activeCompanies.isEmpty()) 0f else activeCompanies.map { it.technology }.average().toFloat(),
         )
         return world.copy(
             companies = companies,
@@ -684,7 +689,9 @@ class WorldEngine(initialState: WorldState) {
         val PLAYBACK_SPEEDS = setOf(1, 4, 16)
 
         fun validate(world: WorldState) {
-            require(world.schemaVersion <= WORLD_SCHEMA_VERSION) { "Snapshot de uma versão futura não suportada." }
+            require(world.schemaVersion == WORLD_SCHEMA_VERSION) {
+                "Versão de snapshot não suportada: ${world.schemaVersion}."
+            }
             require(world.agents.map { it.id }.distinct().size == world.agents.size) { "IDs de habitantes duplicados." }
             require(world.companies.map { it.id }.distinct().size == world.companies.size) { "IDs de empresas duplicados." }
             require(world.buildings.map { it.id }.distinct().size == world.buildings.size) { "IDs de edifícios duplicados." }
