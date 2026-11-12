@@ -62,6 +62,8 @@ import dev.labforge.app.ui.Routes
 import dev.labforge.app.ui.components.AnimatedNumber
 import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.GradientButton
+import dev.labforge.app.ui.components.PerformanceGauge
+import dev.labforge.app.ui.components.PerformanceMonitorDetails
 import dev.labforge.app.ui.components.Pill
 import dev.labforge.app.ui.components.ProgressRing
 import dev.labforge.app.ui.components.PulsingDot
@@ -90,6 +92,7 @@ fun HomeScreen(
     var availableGb by remember { mutableStateOf(MemoryGuard.availableGb(ctx)) }
     var boosting by remember { mutableStateOf(false) }
     var boostResult by remember { mutableStateOf<MemoryBooster.Result?>(null) }
+    var showPerformance by remember { mutableStateOf(false) }
 
     LaunchedEffect(vm.models) { availableGb = MemoryGuard.availableGb(ctx) }
 
@@ -111,6 +114,18 @@ fun HomeScreen(
                 Text("Girassol", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
                 Text("pesquisa · dados · LoRA · agentes", fontSize = 11.sp, color = Lab.Muted)
             }
+            Box(
+                Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(Lab.Surface)
+                    .border(1.dp, Lab.Cyan.copy(alpha = 0.14f), RoundedCornerShape(15.dp))
+                    .clickable { showPerformance = !showPerformance },
+                contentAlignment = Alignment.Center,
+            ) {
+                PerformanceGauge(agentVm.tokensPerSecond, agentVm.running, size = 46.dp)
+            }
+            Spacer(Modifier.width(6.dp))
             Row(
                 Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -135,6 +150,11 @@ fun HomeScreen(
             ) {
                 Icon(Icons.Rounded.Settings, "Ajustes", tint = Lab.Muted, modifier = Modifier.size(17.dp))
             }
+        }
+
+        if (showPerformance) {
+            Spacer(Modifier.height(10.dp))
+            PerformanceMonitorDetails(agentVm.tokensPerSecond, agentVm.running)
         }
 
         Spacer(Modifier.height(18.dp))
