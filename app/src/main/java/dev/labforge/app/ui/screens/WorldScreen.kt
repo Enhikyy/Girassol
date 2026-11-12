@@ -1,5 +1,10 @@
 package dev.labforge.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,7 +91,10 @@ import dev.labforge.app.core.world.company
 import dev.labforge.app.core.world.day
 import dev.labforge.app.core.world.displayName
 import dev.labforge.app.core.world.minuteOfDay
+import dev.labforge.app.ui.components.PremiumToast
 import dev.labforge.app.ui.theme.Lab
+import dev.labforge.app.ui.world.AgentActivityLog
+import dev.labforge.app.ui.world.CinematicSceneTransition
 import dev.labforge.app.ui.world.WorldSceneView
 import dev.labforge.app.vm.WorldDialogueMessage
 import dev.labforge.app.vm.WorldSelectionKind
@@ -95,7 +103,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.min
 
-private enum class WorldPanel { RESIDENTS, COMPANIES, PLACES, ECONOMY, EVENTS }
+private enum class WorldPanel { RESIDENTS, COMPANIES, PLACES, ECONOMY, ACTIVITY, EVENTS }
 
 @Composable
 fun WorldScreen(vm: WorldViewModel) {
@@ -249,6 +257,30 @@ fun WorldScreen(vm: WorldViewModel) {
             )
         }
 
+        vm.sceneTransition?.let { transition ->
+            CinematicSceneTransition(transition, onFinished = vm::dismissSceneTransition)
+        }
+
+        AnimatedVisibility(
+            visible = vm.completionToast != null,
+            modifier = Modifier.align(Alignment.TopCenter).padding(horizontal = 18.dp, vertical = 132.dp),
+            enter = fadeIn() + scaleIn(initialScale = 0.94f),
+            exit = fadeOut() + scaleOut(targetScale = 0.96f),
+        ) {
+            vm.completionToast?.let { toast ->
+                PremiumToast(
+                    title = toast.title,
+                    message = toast.message,
+                    accent = Lab.Cyan,
+                    onDismiss = { vm.dismissCompletionToast(toast.id) },
+                )
+                LaunchedEffect(toast.id) {
+                    delay(4_500)
+                    vm.dismissCompletionToast(toast.id)
+                }
+            }
+        }
+
         vm.notice?.let { message ->
             Text(
                 message,
@@ -364,6 +396,7 @@ private fun WorldBottomDock(modifier: Modifier, onPanel: (WorldPanel) -> Unit) {
         DockItem("Empresas", Icons.Rounded.Business, Modifier.weight(1f)) { onPanel(WorldPanel.COMPANIES) }
         DockItem("Locais", Icons.Rounded.Apartment, Modifier.weight(1f)) { onPanel(WorldPanel.PLACES) }
         DockItem("Economia", Icons.Rounded.Timeline, Modifier.weight(1f)) { onPanel(WorldPanel.ECONOMY) }
+        DockItem("Ações", Icons.Rounded.History, Modifier.weight(1f)) { onPanel(WorldPanel.ACTIVITY) }
     }
 }
 
@@ -396,6 +429,7 @@ private fun WorldPanelSheet(
         WorldPanel.COMPANIES -> "Empresas e produção"
         WorldPanel.PLACES -> "Ambientes da cidade"
         WorldPanel.ECONOMY -> "Economia simulada"
+        WorldPanel.ACTIVITY -> "AgentActivityLog"
         WorldPanel.EVENTS -> "Memória do mundo"
     }
     Column(
@@ -409,6 +443,7 @@ private fun WorldPanelSheet(
             WorldPanel.COMPANIES -> CompaniesPanel(state, onCompany, onFoundCompany)
             WorldPanel.PLACES -> PlacesPanel(state, onBuilding)
             WorldPanel.ECONOMY -> EconomyPanel(state, onParameters)
+            WorldPanel.ACTIVITY -> AgentActivityLog(state, Modifier.fillMaxSize(), onAgent)
             WorldPanel.EVENTS -> EventsPanel(state)
         }
     }
