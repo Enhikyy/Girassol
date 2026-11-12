@@ -14,7 +14,7 @@ data class WorldVec3(val x: Float, val y: Float, val z: Float) {
     operator fun times(value: Float) = WorldVec3(x * value, y * value, z * value)
     fun length(): Float = sqrt(x * x + y * y + z * z)
     fun normalized(): WorldVec3 = length().takeIf { it > 0.00001f }?.let { this * (1f / it) } ?: WorldVec3(0f, 0f, -1f)
-    fun cross(other: WorldVec3): WorldVec3 = WorldVec3(
+    fun cross(other: WorldVec3) = WorldVec3(
         y * other.z - z * other.y,
         z * other.x - x * other.z,
         x * other.y - y * other.x,
