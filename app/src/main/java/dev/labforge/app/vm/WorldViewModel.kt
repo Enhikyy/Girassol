@@ -10,10 +10,15 @@ import dev.labforge.app.LabForgeApp
 import dev.labforge.app.core.agent.LlmClient
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.world.ActionType
+import dev.labforge.app.core.world.AgentState
 import dev.labforge.app.core.world.CompanyStrategy
 import dev.labforge.app.core.world.HappeningType
+import dev.labforge.app.core.world.WorldActivityTracker
+import dev.labforge.app.core.world.WorldFocusTransition
 import dev.labforge.app.core.world.WorldState
+import dev.labforge.app.core.world.cinematicFocusTransition
 import dev.labforge.app.core.world.agent
+import dev.labforge.app.core.world.building
 import dev.labforge.app.core.world.company
 import dev.labforge.app.core.world.day
 import dev.labforge.app.core.world.displayName
@@ -32,6 +37,22 @@ data class WorldDialogueMessage(
     val text: String,
     val fromUser: Boolean,
     val pending: Boolean = false,
+)
+
+data class WorldSceneTransition(
+    val id: Long,
+    val agentId: String,
+    val from: ActionType,
+    val to: ActionType,
+    val fromLocation: String,
+    val targetLocation: String,
+)
+
+data class WorldCompletionToast(
+    val id: Long,
+    val agentId: String,
+    val title: String,
+    val message: String,
 )
 
 class WorldViewModel(app: Application) : AndroidViewModel(app) {
@@ -56,8 +77,22 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var dialogue by mutableStateOf<List<WorldDialogueMessage>>(emptyList())
         private set
+    var sceneTransition by mutableStateOf<WorldSceneTransition?>(null)
+        private set
+    var completionToast by mutableStateOf<WorldCompletionToast?>(null)
+        private set
 
     private var dialogueJob: Job? = null
+    private val activityTracker = WorldActivityTracker()
+    private var previousSelectedAgent: AgentState? = null
+    private var sceneTransitionSequence = 0L
+    private var toastSequence = 0L
+
+    init {
+        viewModelScope.launch {
+            world.collect { state -> observeActivityAndFocus(state) }
+        }
+    }
 
     fun selectAgent(id: String?) {
         selectedId = id
@@ -193,6 +228,57 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
         dialogueJob?.cancel()
         dialogue = dialogue.map { it.copy(pending = false) }
         // O finally do job liberará busy; outra operação pode ser a proprietária desse estado.
+    }
+
+    fun dismissSceneTransition(id: Long) {
+        if (sceneTransition?.id == id) sceneTransition = null
+    }
+
+    fun dismissCompletionToast(id: Long) {
+        if (completionToast?.id == id) completionToast = null
+    }
+
+    private fun observeActivityAndFocus(state: WorldState) {
+        val selected = selectedId
+            ?.takeIf { selectionKind == WorldSelectionKind.AGENT }
+            ?.let { state.agent(it) }
+        if (status.value.loading) {
+            activityTracker.reset()
+            previousSelectedAgent = selected
+            return
+        }
+        if (selected == null) {
+            previousSelectedAgent = null
+        } else {
+            val transition = cinematicFocusTransition(previousSelectedAgent, selected)
+            previousSelectedAgent = selected
+            if (transition != null) showFocusTransition(state, transition)
+        }
+
+        activityTracker.observe(state).forEach { completion ->
+            val location = completion.record.buildingId?.let { state.building(it)?.name } ?: "Universidade"
+            completionToast = WorldCompletionToast(
+                id = ++toastSequence,
+                agentId = completion.agentId,
+                title = "Sessão de estudo concluída",
+                message = "${completion.agentName} · ${completion.record.durationMinutes} min · $location",
+            )
+        }
+    }
+
+    private fun showFocusTransition(state: WorldState, transition: WorldFocusTransition) {
+        val from = transition.fromBuildingId?.let { state.building(it)?.name } ?: "Biblioteca"
+        val target = transition.targetBuildingId?.let { state.building(it)?.name }
+            ?: if (transition.to == ActionType.SLEEP) "Residência" else "Escritório"
+        sceneTransition = WorldSceneTransition(
+            id = ++sceneTransitionSequence,
+            agentId = transition.agentId,
+            from = transition.from,
+            to = transition.to,
+            fromLocation = from,
+            targetLocation = target,
+        )
+        focusOn(transition.targetBuildingId ?: transition.agentId)
     }
 
     fun clearNotice() { notice = null }
