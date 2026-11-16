@@ -12,7 +12,7 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * Android-native subset of Agent Reach: public web, GitHub and Reddit search,
+ * Android-native subset of Agent Reach: public web, GitHub, Reddit, X, LinkedIn and Instagram search,
  * plus universal public-page reading through Jina Reader. It never imports browser
  * cookies or performs writes/social actions.
  */
@@ -65,6 +65,7 @@ object AgentReachNative {
         }
         require(uri.userInfo.isNullOrBlank()) { "URLs com credenciais embutidas são bloqueadas" }
         val host = uri.host?.lowercase()?.trimEnd('.') ?: error("host inválido")
+        require(host.contains(".") || host.contains(":")) { "hosts locais de rótulo único são bloqueados" }
         require(host !in setOf("localhost", "localhost.localdomain") &&
             !host.endsWith(".localhost") && !host.endsWith(".local") && !host.endsWith(".internal")) {
             "endereços locais/internos são bloqueados"
