@@ -18,6 +18,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import dev.labforge.app.core.native.LlamaBridge
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,6 +43,9 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
     var candidate by remember { mutableStateOf("0.6") }
     var samples by remember { mutableStateOf("5") }
     var holdout by remember { mutableStateOf("3") }
+    var nativeCheck by remember { mutableStateOf<String?>(null) }
+    var checkingNative by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Spacer(Modifier.height(18.dp))
     SectionHeader("Laboratório evolutivo", "skills versionadas · replay · validação")
@@ -161,5 +169,37 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
                 fontSize = 10.sp,
             )
         }
+        Spacer(Modifier.height(16.dp))
+        Text("Backend C++/NDK · arquiteturas experimentais", color = Lab.Text, fontSize = 13.sp)
+        Text(
+            "RDT: refinamento recorrente com gate · Modus_X: estado recorrente + memória associativa delta-rule · " +
+                "Lunaris: top-k experts + IRL + mediador e fusão. Kernels nativos compilados separadamente do runtime GGUF.",
+            color = Lab.Muted,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                checkingNative = true
+                scope.launch {
+                    nativeCheck = withContext(Dispatchers.IO) { LlamaBridge.rsiKernelSelfTest() }
+                    checkingNative = false
+                }
+            },
+            enabled = !checkingNative && LlamaBridge.isAvailable,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (checkingNative) "Testando kernels…" else "Testar kernels C++/NDK") }
+        nativeCheck?.let { result ->
+            Text(result, color = if (result.contains("\"ok\":true")) Lab.Green else Lab.Amber, fontSize = 11.sp)
+        }
+        Text(
+            "Importante: os kernels são operações de camada/estado e ainda não substituem o decoder completo do llama.cpp. " +
+                "Os checkpoints treinados específicos destas arquiteturas não foram publicados pelos respectivos projetos; " +
+                "não são criados pesos aleatórios nem apresentados como modelos prontos.",
+            color = Lab.Muted,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+        )
     }
 }
