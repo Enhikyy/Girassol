@@ -291,14 +291,14 @@ class ResearchWebTool(ws: File, private val keys: dev.labforge.app.core.research
 
 class AgentReachSearchTool(ws: File) : AgentTool(ws) {
     override val name = "agent_reach_search"
-    override val description = "Pesquisa somente leitura em fontes públicas via Agent Reach nativo: web/Jina, GitHub e Reddit."
+    override val description = "Pesquisa somente leitura em fontes públicas via Agent Reach nativo: web/Jina, GitHub, Reddit e pesquisa pública em X, LinkedIn e Instagram."
     override fun parameters() = schema(JSONObject().apply {
         put("query", prop("string", "Consulta de pesquisa"))
         put("providers", prop("string", "Provedores separados por vírgula: web,github,reddit (padrão: todos)"))
     }, listOf("query"))
     override suspend fun execute(args: JSONObject): ToolResult = runCatching {
-        val providers = args.optString("providers", "web,github,reddit")
-            .split(",").map { it.trim().lowercase() }.filter { it in setOf("web", "github", "reddit") }.toSet()
+        val providers = args.optString("providers", "web,github,reddit,x,linkedin,instagram")
+            .split(",").map { it.trim().lowercase() }.filter { it in setOf("web", "github", "reddit", "x", "linkedin", "instagram") }.toSet()
         require(providers.isNotEmpty()) { "nenhum provedor válido" }
         val results = dev.labforge.app.core.research.AgentReachNative.search(args.getString("query"), providers)
         ToolResult(results.isNotEmpty(), results.joinToString("\n\n") {
