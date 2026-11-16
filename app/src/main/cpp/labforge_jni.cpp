@@ -962,7 +962,8 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeBackendInfo(JNIEnv * env, jobject) {
-    llama_backend_init();
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    if (!g_backend_initialized) { llama_backend_init(); g_backend_initialized = true; }
     std::string json = "{\"gpu_offload\":";
     json += llama_supports_gpu_offload() ? "true" : "false";
     json += ",\"device_count\":" + std::to_string(ggml_backend_dev_count());
