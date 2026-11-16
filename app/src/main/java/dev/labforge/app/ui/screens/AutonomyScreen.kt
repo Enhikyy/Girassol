@@ -294,6 +294,8 @@ fun AutonomyScreen(onBack: () -> Unit) {
             }
         }
 
+        RsiResearchPanel(vm)
+
         Spacer(Modifier.height(18.dp))
         SectionHeader("Diário de ações", "evidência local, sem telemetria") {
             Text(
