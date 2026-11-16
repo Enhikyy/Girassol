@@ -27,7 +27,7 @@ object AgentReachNative {
 
     data class Result(val provider: String, val title: String, val url: String, val text: String)
 
-    suspend fun search(query: String, providers: Set<String> = setOf("web", "github", "reddit")): List<Result> =
+    suspend fun search(query: String, providers: Set<String> = setOf("web", "github", "reddit", "x", "linkedin", "instagram")): List<Result> =
         withContext(Dispatchers.IO) {
             require(query.trim().length >= 2) { "consulta muito curta" }
             val results = ArrayList<Result>()
@@ -37,6 +37,9 @@ object AgentReachNative {
                         "web" -> results += searchWeb(query)
                         "github" -> results += searchGitHub(query)
                         "reddit" -> results += searchReddit(query)
+                        "x" -> results += searchWeb("site:x.com " + query).map { it.copy(provider = "X · público") }
+                        "linkedin" -> results += searchWeb("site:linkedin.com " + query).map { it.copy(provider = "LinkedIn · público") }
+                        "instagram" -> results += searchWeb("site:instagram.com " + query).map { it.copy(provider = "Instagram · público") }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
