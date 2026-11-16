@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.labforge.app.ui.theme.Lab
+import dev.labforge.app.ui.theme.DesignTokens
 import kotlin.math.max
 import kotlin.math.min
 
@@ -108,7 +109,7 @@ fun GlassCard(
     padding: Int = 16,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(DesignTokens.cardRadius)
     val interaction = remember { MutableInteractionSource() }
     Column(
         modifier
