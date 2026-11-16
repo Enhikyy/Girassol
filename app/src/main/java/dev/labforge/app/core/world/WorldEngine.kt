@@ -28,7 +28,7 @@ class WorldEngine(initialState: WorldState, private val soulProvider: (String) -
 
     @Synchronized
     fun lowestConfidenceAgent(): String? = state.agents.asSequence()
-        .filter { it.action == null }
+        .filter { !pendingSystem2Overrides.containsKey(it.id) }
         .map { it.id to cognitiveEngine.decideFast(CognitiveInput(it, state, state.elapsedMinutes, soulProvider(it.id))) }
         .filter { cognitiveEngine.shouldEscalate(it.second) }
         .minByOrNull { it.second.confidence }?.first
@@ -36,15 +36,15 @@ class WorldEngine(initialState: WorldState, private val soulProvider: (String) -
     suspend fun requestSystem2(agentId: String, reasoner: System2Reasoner): CognitiveDecision? {
         val input = synchronized(this) {
             val agent = state.agent(agentId) ?: return null
-            if (agent.action != null) return null
             CognitiveInput(agent, state, state.elapsedMinutes, soulProvider(agent.id))
         }
         val decision = cognitiveEngine.decide(input, reasoner)
         if (decision.escalated) synchronized(this) {
             val current = state.agent(agentId)
-            if (current != null && current.action == null && current.lastUpdatedMinute == input.agent.lastUpdatedMinute) {
-                pendingSystem2Overrides[agentId] = decision
-            }
+            val before = input.agent.action
+            val after = current?.action
+            val sameAction = before?.type == after?.type && before?.startedMinute == after?.startedMinute
+            if (current != null && sameAction) pendingSystem2Overrides[agentId] = decision
         }
         return decision
     }
