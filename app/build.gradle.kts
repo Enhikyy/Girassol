@@ -77,7 +77,7 @@ val buildNativeArm64 by tasks.registering(Exec::class) {
         file("src/main/cpp/rsi_kernels.cpp"),
         file("src/main/cpp/rsi_kernels.h"),
     )
-    inputs.property("llamaCppRevision", "f7591a6")
+    inputs.property("llamaCppRevision", "f7591a6a01f9273de03331732bdc0b39721168be")
     outputs.files(fileTree("src/main/jniLibs/arm64-v8a") { include("*.so") })
     commandLine("bash", rootProject.file("scripts/build-native.sh").absolutePath)
 }
