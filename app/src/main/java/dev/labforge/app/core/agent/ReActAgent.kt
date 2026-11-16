@@ -32,6 +32,8 @@ class ReActAgent(
     private val lessons: LessonStore,
     private val llm: AgentLlm,
     private val maxSteps: Int = 15,
+    private val memoryTopK: Int = 4,
+    private val repeatLimit: Int = 2,
     private val systemOverride: String? = null,
     private val settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
     private val history: List<AgentTurn> = emptyList(),
@@ -43,7 +45,7 @@ class ReActAgent(
     private var repeats = 0
 
     suspend fun run(task: String): String {
-        val relevant = lessons.search(task, 4)
+        val relevant = lessons.search(task, memoryTopK.coerceIn(1, 12))
         val notebook = if (relevant.isEmpty()) "(caderno vazio)" else relevant.joinToString("\n\n") {
             "### ${it.title}\n${it.body}"
         }
@@ -136,7 +138,7 @@ class ReActAgent(
             val signature = reply.toolCalls.joinToString("|") { it.name + it.arguments }
             if (signature == lastSignature) {
                 repeats++
-                if (repeats >= 2) {
+                if (repeats >= repeatLimit.coerceIn(1, 10)) {
                     messages.put(JSONObject().apply {
                         put("role", "user")
                         put(
