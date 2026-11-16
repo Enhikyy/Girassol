@@ -1,8 +1,5 @@
 package dev.labforge.app.core.world
 
-import dev.labforge.app.core.world.cognition.CognitiveEngine
-import dev.labforge.app.core.world.cognition.CognitiveInput
-
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -17,7 +14,6 @@ enum class AgentLod { DETAILED, SIMPLIFIED, STATISTICAL }
  * [catchUp]; there is no claim of Android background execution.
  */
 class WorldEngine(initialState: WorldState) {
-    private val cognitiveEngine = CognitiveEngine()
     var state: WorldState = initialState
         private set
 
@@ -378,7 +374,34 @@ class WorldEngine(initialState: WorldState) {
     }
 
     internal fun chooseAction(agent: AgentState, world: WorldState, nowMinute: Long, random: WorldRandom): AgentAction {
-        val type = cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute)).action
+        val needs = agent.needs
+        val minute = (nowMinute % WORLD_MINUTES_PER_DAY).toInt()
+        val routineAction = agent.routine.firstOrNull { minute >= it.startMinute && minute < it.endMinute }?.preferredAction
+        val employed = agent.employerId?.let { world.company(it) }?.takeUnless { it.bankrupt } != null
+        val scores = mutableMapOf(
+            ActionType.SLEEP to (100f - needs.energy) * 1.35f + needs.stress * 0.2f,
+            ActionType.EAT to (100f - needs.nutrition) * 1.2f,
+            ActionType.SOCIALIZE to (100f - needs.social) * (0.55f + agent.personality.extraversion * 0.7f),
+            ActionType.WORK to if (employed || agent.profession == Profession.EDUCATOR || agent.profession == Profession.ARTISAN)
+                28f + needs.motivation * 0.55f + agent.personality.conscientiousness * 28f - needs.stress * 0.32f else -100f,
+            ActionType.RESEARCH to 14f + agent.personality.openness * 30f + agent.personality.ambition * 18f +
+                (if (agent.profession == Profession.RESEARCHER) 26f else 0f) - needs.stress * 0.2f,
+            ActionType.LEARN to 20f + agent.personality.openness * 25f + agent.personality.ambition * 24f -
+                (if (agent.skills.isEmpty()) 0f else agent.skills.values.average().toFloat() * 12f),
+            ActionType.RELAX to needs.stress * 0.95f + (100f - needs.satisfaction) * 0.32f,
+            ActionType.IDLE to 5f,
+        )
+        if (needs.energy < 22f) scores[ActionType.SLEEP] = scores.getValue(ActionType.SLEEP) + 100f
+        if (needs.nutrition < 18f) scores[ActionType.EAT] = scores.getValue(ActionType.EAT) + 100f
+        routineAction?.let { preferred ->
+            if (preferred in scores) scores[preferred] = scores.getValue(preferred) +
+                if (preferred == ActionType.SLEEP || preferred == ActionType.WORK) 30f else 14f
+            if (preferred == ActionType.SLEEP) {
+                scores[ActionType.WORK] = scores.getValue(ActionType.WORK) * 0.2f
+                scores[ActionType.RESEARCH] = scores.getValue(ActionType.RESEARCH) * 0.35f
+            }
+        }
+        val type = scores.maxByOrNull { it.value + random.nextFloat() * 2f }?.key ?: ActionType.IDLE
         val workplace = agent.employerId?.let { world.company(it)?.takeUnless { company -> company.bankrupt }?.buildingId }
             ?: if (agent.profession == Profession.EDUCATOR) "building_university" else "building_square"
         val buildingId = when (type) {

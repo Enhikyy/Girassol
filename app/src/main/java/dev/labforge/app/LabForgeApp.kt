@@ -10,6 +10,7 @@ class LabForgeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         installCrashLogger()
+        runCatching { dev.labforge.app.core.world.WorldWorkScheduler.schedule(this) }
         runCatching { dev.labforge.app.integration.llamatik.LlamatikRuntime.init(this) }
         // Touch the native bridge once so failures surface in logcat early.
         runCatching { dev.labforge.app.core.native.LlamaBridge.version() }

@@ -21,6 +21,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import dev.labforge.app.core.world.cognition.SeveranceMemoryManager
+import dev.labforge.app.core.world.cognition.WorldCognitionCoordinator
 
 data class WorldRuntimeStatus(
     val loading: Boolean = true,
@@ -46,6 +48,8 @@ class WorldRuntime internal constructor(
 
     private val directory = File(app.filesDir, "world")
     private val snapshots = WorldSnapshotStore(directory)
+    private val cognitionMemory = SeveranceMemoryManager(File(directory, "cognition"))
+    private val cognitionCoordinator = WorldCognitionCoordinator(cognitionMemory)
     private val lessons = LessonStore(ModelStore(app).agentDir)
     private val mutex = Mutex()
     private val loadReady = CompletableDeferred<Unit>()
@@ -69,6 +73,7 @@ class WorldRuntime internal constructor(
                 mutex.withLock {
                     engine = WorldEngine(loaded.state)
                     val compensated = engine.catchUp(now)
+                    cognitionCoordinator.observe(engine.state)
                     val job = JobEngine.state.value
                     engine.syncJob(job.kind, job.title, job.progress, job.running, job.summary, job.finishedAt)
                     _state.value = engine.state
@@ -115,6 +120,7 @@ class WorldRuntime internal constructor(
                             detailedIds = setOfNotNull(_selectedAgentId.value),
                             visibleIds = _visibleAgentIds.value,
                         )
+                        cognitionCoordinator.observe(engine.state)
                         _state.value = engine.state
                         ticksSinceSave++
                         ticksSinceKnowledgeSync++
