@@ -2,6 +2,7 @@ package dev.labforge.app.core.world
 
 import dev.labforge.app.core.world.cognition.CognitiveEngine
 import dev.labforge.app.core.world.cognition.CognitiveInput
+import dev.labforge.app.core.world.cognition.System2Reasoner
 import dev.labforge.app.core.world.cognition.CognitiveDecision
 import dev.labforge.app.core.world.cognition.SoulProfile
 
@@ -21,8 +22,32 @@ enum class AgentLod { DETAILED, SIMPLIFIED, STATISTICAL }
 class WorldEngine(initialState: WorldState, private val soulProvider: (String) -> SoulProfile = { SoulProfile() }) {
     private val cognitiveEngine = CognitiveEngine()
     private val pendingCognitiveDecisions = mutableMapOf<String, CognitiveDecision>()
+    private val pendingSystem2Overrides = mutableMapOf<String, CognitiveDecision>()
     var state: WorldState = initialState
         private set
+
+    @Synchronized
+    fun lowestConfidenceAgent(): String? = state.agents.asSequence()
+        .filter { it.action == null }
+        .map { it.id to cognitiveEngine.decideFast(CognitiveInput(it, state, state.elapsedMinutes, soulProvider(it.id))) }
+        .filter { cognitiveEngine.shouldEscalate(it.second) }
+        .minByOrNull { it.second.confidence }?.first
+
+    suspend fun requestSystem2(agentId: String, reasoner: System2Reasoner): CognitiveDecision? {
+        val input = synchronized(this) {
+            val agent = state.agent(agentId) ?: return null
+            if (agent.action != null) return null
+            CognitiveInput(agent, state, state.elapsedMinutes, soulProvider(agent.id))
+        }
+        val decision = cognitiveEngine.decide(input, reasoner)
+        if (decision.escalated) synchronized(this) {
+            val current = state.agent(agentId)
+            if (current != null && current.action == null && current.lastUpdatedMinute == input.agent.lastUpdatedMinute) {
+                pendingSystem2Overrides[agentId] = decision
+            }
+        }
+        return decision
+    }
 
     @Synchronized
     fun replaceState(next: WorldState) {
@@ -382,7 +407,7 @@ class WorldEngine(initialState: WorldState, private val soulProvider: (String) -
     }
 
     internal fun chooseAction(agent: AgentState, world: WorldState, nowMinute: Long, random: WorldRandom): AgentAction {
-        val decision = cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute, soulProvider(agent.id)))
+        val decision = pendingSystem2Overrides.remove(agent.id) ?: cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute, soulProvider(agent.id)))
         pendingCognitiveDecisions[agent.id] = decision
         val type = decision.action
         val workplace = agent.employerId?.let { world.company(it)?.takeUnless { company -> company.bankrupt }?.buildingId }
