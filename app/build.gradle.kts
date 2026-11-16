@@ -79,6 +79,10 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("dev.chrisbanes.haze:haze:1.7.3")
+    // Native real-time 3D renderer; prefer Vulkan and fall back to OpenGL ES when needed.
+    implementation("com.google.android.filament:filament-android:1.80.1")
+    implementation("com.google.android.filament:gltfio-android:1.80.1")
+    implementation("com.google.android.filament:filament-utils-android:1.80.1")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")

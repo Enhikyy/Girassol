@@ -29,6 +29,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +54,8 @@ import dev.labforge.app.ui.components.Pill
 import dev.labforge.app.ui.components.SectionHeader
 import dev.labforge.app.ui.components.humanBytes
 import dev.labforge.app.ui.theme.Lab
+import dev.labforge.app.ui.theme.FilmTheme
+import dev.labforge.app.ui.theme.ThemeManager
 import dev.labforge.app.vm.LabViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -60,6 +63,8 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val selectedFilmTheme by ThemeManager.selected.collectAsState()
     var endpoint by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
@@ -91,6 +96,34 @@ fun SettingsScreen(vm: LabViewModel, onOpenLlamatik: () -> Unit = {}) {
         Spacer(Modifier.height(18.dp))
         Text("Ajustes", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Lab.Text)
         Text("modelo do agente, motor nativo e sandbox", fontSize = 11.sp, color = Lab.Muted)
+
+        Spacer(Modifier.height(18.dp))
+        SectionHeader("Filme / aparência", "15 emulações de película e preto OLED")
+        Spacer(Modifier.height(10.dp))
+        GlassCard {
+            FilmTheme.entries.chunked(3).forEach { rowThemes ->
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                    rowThemes.forEach { film ->
+                        val active = selectedFilmTheme == film
+                        Column(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(if (active) Lab.Violet.copy(alpha = 0.18f) else Lab.Surface)
+                                .border(1.dp, if (active) Lab.Violet.copy(alpha = 0.70f) else Lab.Outline.copy(alpha = 0.45f), RoundedCornerShape(11.dp))
+                                .clickable { ThemeManager.select(context, film) }
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(Modifier.size(12.dp).clip(RoundedCornerShape(50)).background(Color(film.palette.primary)))
+                            Spacer(Modifier.height(6.dp))
+                            Text(film.label, color = if (active) Lab.Text else Lab.Muted, fontSize = 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 2, lineHeight = 11.sp)
+                        }
+                    }
+                    repeat(3 - rowThemes.size) { Spacer(Modifier.weight(1f)) }
+                }
+                Spacer(Modifier.height(7.dp))
+            }
+        }
 
         Spacer(Modifier.height(20.dp))
         SectionHeader("Cérebro do agente", "API compatível com OpenAI")
