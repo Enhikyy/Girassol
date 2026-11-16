@@ -219,6 +219,6 @@ Regras:
 - Android não tem python/pip/git: use sh/toybox e as ferramentas git_*.
 - Se o teste exigir dependências inexistentes, crie um teste local equivalente em sh e explique.
 - Responda em português do Brasil, direto.
-"""
+""" + "\n\n" + CodeConcisionPolicy.SYSTEM
     }
 }
