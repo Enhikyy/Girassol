@@ -161,6 +161,11 @@ object LlamaBridge {
         }.getOrElse { NativeChatResult(false, 0, 0, 0, "resposta nativa inválida: $json") }
     }
 
+    fun rsiKernelSelfTest(): String =
+        if (!isAvailable) "{\"ok\":false,\"error\":\"nativo indisponível\"}"
+        else runCatching { nativeRsiKernelSelfTest() }
+            .getOrElse { "{\"ok\":false,\"error\":\"${it.message ?: "falha JNI"}\"}" }
+
     /** Native recurrent-depth hidden-state refinement kernel. */
     fun rdtRefine(input: FloatArray, anchor: FloatArray, inputWeights: FloatArray,
                    recurrentWeights: FloatArray, bias: FloatArray, gate: FloatArray, loops: Int): FloatArray =
@@ -245,6 +250,7 @@ object LlamaBridge {
         rank: Int, alpha: Float, targets: String, cb: NativeCallback?,
     ): String
 
+    private external fun nativeRsiKernelSelfTest(): String
     private external fun nativeRdtRefine(input: FloatArray, anchor: FloatArray, inputWeights: FloatArray,
         recurrentWeights: FloatArray, bias: FloatArray, gate: FloatArray, loops: Int): FloatArray
     private external fun nativeModusXStep(input: FloatArray, state: FloatArray, memory: FloatArray,
