@@ -1,5 +1,6 @@
 package dev.labforge.app.core.research
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -31,12 +32,16 @@ object AgentReachNative {
             require(query.trim().length >= 2) { "consulta muito curta" }
             val results = ArrayList<Result>()
             providers.forEach { provider ->
-                runCatching {
+                try {
                     when (provider.lowercase()) {
                         "web" -> results += searchWeb(query)
                         "github" -> results += searchGitHub(query)
                         "reddit" -> results += searchReddit(query)
                     }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Continue with other public providers when one service is rate-limited.
                 }
             }
             results.distinctBy { it.url.substringBefore("?") }.take(15)
