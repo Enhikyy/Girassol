@@ -85,7 +85,7 @@ As recomendações exigem amostras mínimas e filtragem Pareto; a troca de perfi
 - O ReAct/Codex expõe `agent_reach_search` (Jina Search, GitHub e Reddit públicos) e `agent_reach_read` (páginas públicas em Markdown via Jina Reader).
 - Não usa cookies, contas ou sessões do usuário; X, LinkedIn e Instagram só podem ser tentados como páginas públicas, sem scraping autenticado.
 - O Codex aplica a adaptação da política Ponytail para reduzir alterações desnecessárias sem sacrificar testes, segurança ou legibilidade.
-- Detalhes e limites: [docs/AGENT_REACH.md](docs/AGENT_REACH.md) e [docs/PONYTAIL.md](docs/PONYTAIL.md).
+- Detalhes e limites: [docs/AGENT_REACH.md](docs/AGENT_REACH.md), [docs/PONYTAIL.md](docs/PONYTAIL.md) e [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
 
 ## Backend nativo experimental RDT / Modus_X / Lunaris
 
