@@ -120,7 +120,7 @@ data class RsiWeightBundle(
                     .order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(floats)
                 require(floats.all { it.isFinite() }) { "tensor $name contém NaN/Inf" }
                 tensors[name] = floats
-                tensorRanges += offset to (offset + count)
+                tensorRanges.add(offset to (offset + count))
             }
             var cursor = 0L
             tensorRanges.sortedBy { it.first }.forEach { range ->
