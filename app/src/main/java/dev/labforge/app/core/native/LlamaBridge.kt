@@ -116,6 +116,19 @@ object LlamaBridge {
         if (isAvailable) runCatching { nativeReleaseModel() }
     }
 
+    /** Reports actual registered llama.cpp devices; does not guess GPU support. */
+    fun backendInfo(): BackendInfo = runCatching {
+        val json = org.json.JSONObject(nativeBackendInfo())
+        BackendInfo(
+            gpuOffload = json.optBoolean("gpu_offload", false),
+            deviceCount = json.optInt("device_count", 0),
+        )
+    }.getOrElse { BackendInfo(false, 0) }
+
+    data class BackendInfo(val gpuOffload: Boolean, val deviceCount: Int) {
+        val selectedBackend: String get() = if (gpuOffload) "GPU (llama.cpp backend)" else "CPU"
+    }
+
     /** Token count using the GGUF's own vocabulary (native, no network). */
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
@@ -161,6 +174,7 @@ object LlamaBridge {
     ): String
     private external fun nativeCancelGeneration()
     private external fun nativeReleaseModel()
+    private external fun nativeBackendInfo(): String
     private external fun nativeQuantize(
         input: String, output: String, ftype: String, imatrix: String?,
         threads: Int, cb: NativeCallback?,
