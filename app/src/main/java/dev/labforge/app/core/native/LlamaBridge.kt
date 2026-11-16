@@ -6,6 +6,7 @@ import android.util.Log
 interface NativeCallback {
     fun onLog(line: String)
     fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double)
+    fun onToken(token: String) {}
 }
 
 /**
@@ -87,6 +88,29 @@ object LlamaBridge {
         return parseLora(json)
     }
 
+    /** Runs GGUF inference in the bundled llama.cpp engine and streams native tokens. */
+    fun generate(
+        model: String,
+        prompt: String,
+        nCtx: Int = 1024,
+        nPredict: Int = 256,
+        threads: Int = 0,
+        temperature: Float = 0.7f,
+        callback: NativeCallback? = null,
+    ): String {
+        check(isAvailable) { loadError ?: "motor nativo indisponível" }
+        require(model.isNotBlank() && java.io.File(model).isFile) { "modelo GGUF não encontrado" }
+        require(prompt.isNotBlank()) { "prompt vazio" }
+        return nativeGenerate(
+            model, prompt, nCtx.coerceIn(128, 4096), nPredict.coerceIn(1, 2048),
+            threads.coerceAtLeast(0), temperature.coerceIn(0f, 2f), callback,
+        )
+    }
+
+    fun cancelGeneration() {
+        if (isAvailable) runCatching { nativeCancelGeneration() }
+    }
+
     /** Token count using the GGUF's own vocabulary (native, no network). */
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
@@ -126,6 +150,11 @@ object LlamaBridge {
     }.getOrElse { TrainResult(false, 0, 0, 0.0, "resposta nativa inválida: $json") }
 
     private external fun nativeVersion(): String
+    private external fun nativeGenerate(
+        model: String, prompt: String, nCtx: Int, nPredict: Int, threads: Int,
+        temperature: Float, cb: NativeCallback?,
+    ): String
+    private external fun nativeCancelGeneration()
     private external fun nativeQuantize(
         input: String, output: String, ftype: String, imatrix: String?,
         threads: Int, cb: NativeCallback?,
