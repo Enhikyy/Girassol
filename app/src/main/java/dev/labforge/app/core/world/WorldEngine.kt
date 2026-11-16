@@ -43,7 +43,7 @@ class WorldEngine(initialState: WorldState, private val soulProvider: (String) -
             val current = state.agent(agentId)
             val before = input.agent.action
             val after = current?.action
-            val sameAction = before?.type == after?.type && before?.startedMinute == after?.startedMinute
+            val sameAction = (before == null && after == null) || (before != null && (after == null || (before.type == after.type && before.startedMinute == after.startedMinute)))
             if (current != null && sameAction) pendingSystem2Overrides[agentId] = decision
         }
         return decision
