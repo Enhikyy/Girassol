@@ -38,7 +38,7 @@ adb install -r app-debug.apk
 
 > Requer Android 8.0+ (API 26) e **arm64-v8a**. O workflow não impõe um teto artificial ao tamanho final do APK.
 
-> **CI:** o workflow está em [`ci/android.yml`](ci/android.yml). O workflow executa build e testes; falhas nos testes bloqueiam a entrega.
+> **CI:** o workflow está em [`.github/workflows/android.yml`](.github/workflows/android.yml). Ele compila o backend C++/NDK arm64 antes do APK, executa os testes e bloqueia a entrega em caso de falha.
 
 ---
 
