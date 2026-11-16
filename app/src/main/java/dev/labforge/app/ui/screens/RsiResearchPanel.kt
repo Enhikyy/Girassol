@@ -10,6 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,6 +42,7 @@ import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.GhostButton
 import dev.labforge.app.ui.components.SectionHeader
 import dev.labforge.app.ui.theme.Lab
+import dev.labforge.app.ui.theme.DesignTokens
 import dev.labforge.app.vm.AutonomyViewModel
 
 /** Native UI for the on-device skill/replay/experiment workbench. */
@@ -231,14 +239,20 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
             enabled = !checkingNative && LlamaBridge.isAvailable,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (checkingNative) "Testando kernels…" else "Testar kernels C++/NDK") }
-        nativeCheck?.let { result ->
-            Text(result, color = if (result.contains("\"ok\":true")) Lab.Green else Lab.Amber, fontSize = 11.sp)
+        AnimatedVisibility(
+            visible = nativeCheck != null,
+            enter = fadeIn(tween(DesignTokens.motionFastMs)) +
+                slideInVertically(initialOffsetY = { it / 10 }, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+        ) {
+            nativeCheck?.let { result ->
+                Text(result, color = if (result.contains("\"ok\":true")) Lab.Green else Lab.Amber, fontSize = 11.sp)
+            }
         }
         Button(
             onClick = { weightPicker.launch(arrayOf("*/*")) },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Importar pacote de pesos .rsiw") }
-        Text(weightStatus, color = if (weightStatus.startsWith("Pacote validado")) Lab.Green else Lab.Muted, fontSize = 10.sp)
+        Text(weightStatus, modifier = Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)), color = if (weightStatus.startsWith("Pacote validado")) Lab.Green else Lab.Muted, fontSize = 10.sp)
         Text(
             "Formato RSIW exige arquitetura, dimensões, tensores FP32 e SHA-256. Não existe checkpoint gerativo oficial dessas arquiteturas disponível para importar neste momento.",
             color = Lab.Muted,
