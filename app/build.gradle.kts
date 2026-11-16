@@ -65,7 +65,7 @@ android {
     }
 }
 
-val buildNativeArm64 by tasks.registering(Exec::class) {
+val buildNativeArm64 = tasks.register<Exec>("buildNativeArm64") {
     group = "build"
     description = "Builds the arm64 llama.cpp JNI runtime and experimental RSI kernels."
     workingDir(rootProject.projectDir)
