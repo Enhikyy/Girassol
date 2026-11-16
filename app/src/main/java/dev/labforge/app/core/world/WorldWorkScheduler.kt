@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 object WorldWorkScheduler {
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<WorldCatchUpWorker>(15, TimeUnit.MINUTES)
-            .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build())
+            .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).setRequiresDeviceIdle(true).build())
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "girassol-world-catch-up", ExistingPeriodicWorkPolicy.KEEP, request)
