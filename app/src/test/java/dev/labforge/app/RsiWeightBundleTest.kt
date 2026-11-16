@@ -16,7 +16,7 @@ import java.util.zip.ZipOutputStream
 class RsiWeightBundleTest {
     private fun pack(values: FloatArray): ByteArray {
         val buffer = ByteBuffer.allocate(values.size * 4).order(ByteOrder.LITTLE_ENDIAN)
-        values.forEach(buffer::putFloat)
+        values.forEach { buffer.putFloat(it) }
         return buffer.array()
     }
 
