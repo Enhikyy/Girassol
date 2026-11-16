@@ -1,3 +1,13 @@
+## Expansão nativa — design, pesquisa e arquiteturas experimentais
+
+- Added shared Compose design tokens and an Android 13+ AGSL aurora shader with a Canvas fallback.
+- Added Agent Reach Android connectors for public Jina web search/reader, GitHub repositories and Reddit; exposed read-only tools to ReAct and the research engine.
+- Added Ponytail-inspired concise coding policy to Codex, preserving tests and safety requirements.
+- Added C++/NDK hidden-state kernels for recurrent-depth refinement, associative delta-rule memory and MoC top-k routing/mediator fusion; exposed them through JNI/Kotlin.
+- Added portable C++ kernel tests, JNI smoke test, RSIW adapter-weight importer with SHA-256 and shape validation, and native build as a Gradle preBuild dependency.
+- Official Mythic-RDT, Modus_X and Lunaris MoC generative checkpoints were not available in the upstream releases checked; no random or unrelated weights are presented as compatible checkpoints.
+- See docs/AGENT_REACH.md, docs/PONYTAIL.md and docs/NATIVE_ARCHITECTURES.md.
+
 ## Girassol RSI — primeira etapa experimental
 
 - Added local Kotlin RSI ledger for real ReAct turns: operational success, tool failures, token usage and latency.
