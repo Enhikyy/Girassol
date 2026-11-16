@@ -32,9 +32,10 @@ class ReActAgent(
     private val maxSteps: Int = 15,
     private val systemOverride: String? = null,
     private val settings: dev.labforge.app.core.settings.AppSettings = dev.labforge.app.core.settings.AppSettings(),
+    private val worldRuntime: dev.labforge.app.core.world.WorldRuntime? = null,
     private val onEvent: (AgentEvent) -> Unit,
 ) {
-    private val tools = defaultTools(workspace, lessons, settings)
+    private val tools = defaultTools(workspace, lessons, settings) + dev.labforge.app.core.world.worldTools(workspace, worldRuntime)
 
     private var lastSignature: String? = null
     private var repeats = 0
@@ -158,6 +159,7 @@ Ferramentas GitHub: github_search_repos, github_search_code, github_read_file e 
 git_clone para trazer um repo ao workspace; git_branch, git_commit, git_push, github_create_issue e github_create_pr para propor mudanças.
 Nunca faça push em main/master: crie uma branch e abra PR. Se faltar token, diga isso e continue com o que for possível.
 Você trabalha em um sandbox com acesso a arquivos, terminal (sh/toybox) e git.
+Quando disponíveis, use world_summary, world_agent e world_events para fatos reais do MUNDO; world_happening aplica somente os acontecimentos permitidos. Não invente habitantes, histórico ou resultados econômicos.
 
 Fluxo obrigatório:
 1. Consulte o caderno de estudos (memory_search) quando a tarefa lembrar um problema anterior.

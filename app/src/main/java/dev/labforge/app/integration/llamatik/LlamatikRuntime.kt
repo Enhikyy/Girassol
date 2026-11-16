@@ -300,7 +300,8 @@ object LlamatikRuntime {
     /** Sleep-cycle hook: flush memory and return a compact state summary. */
     suspend fun consolidate(): String {
         if (!initialized) return "runtime not initialized"
-        persistMemory()
+        // A completion toast must mean the file was actually persisted.
+        memory.persist()
         return "memória consolidada: ${memory.size()} mensagens"
     }
 

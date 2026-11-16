@@ -1,5 +1,10 @@
 package dev.labforge.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +33,7 @@ import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,15 +47,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.labforge.app.ui.components.ConsensusAgentVisual
+import dev.labforge.app.ui.components.ConsensusBus
 import dev.labforge.app.ui.components.Console
 import dev.labforge.app.ui.components.GlassCard
 import dev.labforge.app.ui.components.GradientButton
 import dev.labforge.app.ui.components.LabField
 import dev.labforge.app.ui.components.Pill
+import dev.labforge.app.ui.components.PremiumToast
 import dev.labforge.app.ui.components.SectionHeader
 import dev.labforge.app.ui.components.SunflowerSpinner
 import dev.labforge.app.ui.theme.Lab
 import dev.labforge.app.vm.LlamatikViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun LlamatikScreen(onBack: () -> Unit) {
@@ -82,6 +92,28 @@ fun LlamatikScreen(onBack: () -> Unit) {
             if (vm.streaming) SunflowerSpinner(28.dp, 8) else Pill(if (vm.initialized) "online" else "…", if (vm.initialized) Lab.Green else Lab.Amber)
         }
 
+        AnimatedVisibility(
+            visible = vm.completionToast != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.95f),
+            exit = fadeOut() + scaleOut(targetScale = 0.97f),
+        ) {
+            vm.completionToast?.let { toast ->
+                Column {
+                    Spacer(Modifier.height(10.dp))
+                    PremiumToast(
+                        title = toast.title,
+                        message = toast.message,
+                        accent = Lab.Pink,
+                        onDismiss = { vm.dismissCompletionToast(toast.id) },
+                    )
+                    LaunchedEffect(toast.id) {
+                        delay(4_500)
+                        vm.dismissCompletionToast(toast.id)
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(14.dp))
         GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -105,6 +137,12 @@ fun LlamatikScreen(onBack: () -> Unit) {
                 fontSize = 11.sp, color = Lab.Muted, lineHeight = 12.sp,
             )
         }
+
+        Spacer(Modifier.height(12.dp))
+        ConsensusBus(
+            agents = listOf(ConsensusAgentVisual("llamatik", "Llamatik", vm.streaming)),
+            transfers = emptyList(),
+        )
 
         Spacer(Modifier.height(16.dp))
         SectionHeader("Ferramenta REST via Retrofit", "jsonplaceholder.typicode.com · sem auth")
@@ -170,9 +208,9 @@ fun LlamatikScreen(onBack: () -> Unit) {
                     Modifier
                         .clip(RoundedCornerShape(9.dp))
                         .background(Lab.Pink.copy(alpha = 0.14f))
-                        .clickable { vm.consolidate() }
+                        .clickable(enabled = !vm.consolidating) { vm.consolidate() }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
-                ) { Text("consolidar", fontSize = 11.sp, color = Lab.Pink) }
+                ) { Text(if (vm.consolidating) "consolidando…" else "consolidar", fontSize = 11.sp, color = Lab.Pink) }
             }
             Spacer(Modifier.height(6.dp))
             Text(

@@ -2,6 +2,7 @@
 // Built on llama.cpp (MIT). JNI surface is intentionally small and stable.
 
 #include <jni.h>
+#include <vulkan/vulkan.h>
 #include <android/log.h>
 
 #include <atomic>
@@ -933,4 +934,59 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeVersion(JNIEnv * env, jobjec
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {
     g_vm = vm;
     return JNI_VERSION_1_6;
+}
+
+
+namespace {
+bool girassol_has_vk_extension(VkPhysicalDevice device, const char* name) {
+    uint32_t count = 0;
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS) return false;
+    std::vector<VkExtensionProperties> extensions(count);
+    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, extensions.data()) != VK_SUCCESS) return false;
+    for (const auto& extension : extensions) {
+        if (std::strcmp(extension.extensionName, name) == 0) return true;
+    }
+    return false;
+}
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_labforge_app_core_world_cognition_VulkanRayQueryCapabilities_nativeRayQuerySupported(JNIEnv*, jobject) {
+    VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    app.pApplicationName = "Girassol";
+    app.apiVersion = VK_API_VERSION_1_1;
+    VkInstanceCreateInfo info{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    info.pApplicationInfo = &app;
+    VkInstance instance = VK_NULL_HANDLE;
+    if (vkCreateInstance(&info, nullptr, &instance) != VK_SUCCESS) return JNI_FALSE;
+
+    uint32_t count = 0;
+    bool supported = false;
+    if (vkEnumeratePhysicalDevices(instance, &count, nullptr) == VK_SUCCESS && count > 0) {
+        std::vector<VkPhysicalDevice> devices(count);
+        if (vkEnumeratePhysicalDevices(instance, &count, devices.data()) == VK_SUCCESS) {
+            for (VkPhysicalDevice device : devices) {
+                const bool extensions =
+                    girassol_has_vk_extension(device, VK_KHR_RAY_QUERY_EXTENSION_NAME) &&
+                    girassol_has_vk_extension(device, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) &&
+                    girassol_has_vk_extension(device, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME) &&
+                    girassol_has_vk_extension(device, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+                if (!extensions) continue;
+                VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration{
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+                VkPhysicalDeviceRayQueryFeaturesKHR ray{
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+                ray.pNext = &acceleration;
+                VkPhysicalDeviceFeatures2 features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+                features.pNext = &ray;
+                vkGetPhysicalDeviceFeatures2(device, &features);
+                if (ray.rayQuery == VK_TRUE && acceleration.accelerationStructure == VK_TRUE) {
+                    supported = true;
+                    break;
+                }
+            }
+        }
+    }
+    vkDestroyInstance(instance, nullptr);
+    return supported ? JNI_TRUE : JNI_FALSE;
 }

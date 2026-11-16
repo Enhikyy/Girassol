@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.labforge.app.LabForgeApp
 import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.Perf
 import dev.labforge.app.core.agent.AgentEvent
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.Instant
 
 data class AgentMessage(
     val id: Long,
@@ -46,6 +48,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
     private val shell = ShellSession(store.workspace())
     private val git = GitRepo(store.workspace())
+    private val worldRuntime = (app as LabForgeApp).worldRuntime
 
     var messages by mutableStateOf<List<AgentMessage>>(emptyList())
         private set
@@ -150,6 +153,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     llm = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature),
                     maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
                     settings = cfg,
+                    worldRuntime = worldRuntime,
                     onEvent = { event ->
                         viewModelScope.launch(Dispatchers.Main) {
                             if (myRun == runId) handle(event)
@@ -201,6 +205,10 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
             is AgentEvent.Usage -> {
                 promptTokens += event.prompt
                 completionTokens += event.completion
+                elapsedMs = System.currentTimeMillis() - startedAt
+                if (completionTokens > 0 && elapsedMs > 0) {
+                    tokensPerSecond = completionTokens / (elapsedMs / 1000.0)
+                }
             }
             is AgentEvent.Thought -> {
                 val streamedId = thinkId
@@ -309,6 +317,23 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         messages = messages.map { if (it.pending) it.copy(pending = false, text = "cancelado") else it }
     }
 
+    /** Exports only the visible session and applies conservative credential redaction. */
+    fun exportSessionJson(exportedAt: Instant = Instant.now()): String {
+        flushStream()
+        return AgentSessionExport.create(
+            messages = messages,
+            running = running,
+            status = status,
+            startedAt = startedAt,
+            elapsedMs = elapsedMs,
+            promptTokens = promptTokens,
+            completionTokens = completionTokens,
+            localPromptTokens = localPromptTokens,
+            tokensPerSecond = tokensPerSecond,
+            exportedAt = exportedAt,
+        )
+    }
+
     fun newSession() {
         stop()
         messages = emptyList()
@@ -318,6 +343,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         localPromptTokens = 0
         elapsedMs = 0
         tokensPerSecond = 0.0
+        startedAt = 0L
         thinkId = null
         draftId = null
         thinkBuf.setLength(0)

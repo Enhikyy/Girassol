@@ -26,6 +26,8 @@ import dev.labforge.app.core.term.ShellSession
 import dev.labforge.app.core.train.ChatFormat
 import dev.labforge.app.core.train.DatasetBuilder
 import dev.labforge.app.core.train.DatasetStats
+import dev.labforge.app.core.train.TrainingCheckpoint
+import dev.labforge.app.core.train.TrainingCheckpointStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -105,6 +107,7 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
     val shell = ShellSession(store.workspace())
     val git = GitRepo(store.workspace())
     private val settingsRepo = SettingsRepository(app)
+    private val checkpointStore = TrainingCheckpointStore(app)
 
     var models by mutableStateOf<List<ModelEntry>>(emptyList())
         private set
@@ -158,6 +161,8 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var jobKind by mutableStateOf("")
         private set
+    var trainingCheckpoints by mutableStateOf<List<TrainingCheckpoint>>(emptyList())
+        private set
 
     var datasetStats by mutableStateOf<DatasetStats?>(null)
         private set
@@ -208,11 +213,13 @@ class LabViewModel(app: Application) : AndroidViewModel(app) {
         val loadedIm = store.imatrices()
         val loadedDs = store.datasets()
         val loadedOut = store.outputs()
+        val loadedCheckpoints = checkpointStore.list()
         withContext(Dispatchers.Main) {
             models = loadedModels
             imatrices = loadedIm
             datasets = loadedDs
             outputs = loadedOut
+            trainingCheckpoints = loadedCheckpoints
             if (selectedModel == null) selectedModel = loadedModels.firstOrNull()
             AppSelection.modelPath = selectedModel?.file?.absolutePath
             if (imatrixFile == null) {
