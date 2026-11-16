@@ -83,7 +83,7 @@ data class RsiWeightBundle(
             require(manifest.optString("format") == FORMAT && manifest.optInt("version") == 1) {
                 "formato RSIW não suportado"
             }
-            val sha = MessageDigest.getInstance("SHA-256").digest(payload).joinToString("") { "%02x".format(it) }
+            val sha = MessageDigest.getInstance("SHA-256").digest(payload).joinToString("") { "%02x".format(it.toInt() and 0xff) }
             require(sha.equals(manifest.optString("tensor_sha256"), ignoreCase = true)) { "SHA-256 dos tensores não confere" }
 
             val architecture = manifest.optString("architecture")
