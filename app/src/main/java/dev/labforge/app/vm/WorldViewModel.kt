@@ -17,6 +17,7 @@ import dev.labforge.app.core.world.WorldActivityTracker
 import dev.labforge.app.core.world.WorldFocusTransition
 import dev.labforge.app.core.world.WorldState
 import dev.labforge.app.core.world.cinematicFocusTransition
+import dev.labforge.app.core.world.cognition.LlmSystem2Reasoner
 import dev.labforge.app.core.world.agent
 import dev.labforge.app.core.world.building
 import dev.labforge.app.core.world.company
@@ -91,6 +92,16 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             world.collect { state -> observeActivityAndFocus(state) }
+        }
+        viewModelScope.launch {
+            settingsRepository.settings.collect { settings ->
+                val valid = settings.model.isNotBlank() &&
+                    !(settings.apiKey.isBlank() && settings.endpoint.contains("api.openai.com"))
+                runtime.installSystem2Reasoner(
+                    if (valid) LlmSystem2Reasoner(LlmClient(settings.endpoint, settings.apiKey, settings.model, settings.temperature))
+                    else null
+                )
+            }
         }
     }
 
