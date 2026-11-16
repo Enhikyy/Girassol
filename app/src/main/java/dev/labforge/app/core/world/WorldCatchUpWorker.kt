@@ -10,7 +10,8 @@ import dev.labforge.app.core.world.cognition.SeveranceMemoryManager
 class WorldCatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = runCatching {
         val now = System.currentTimeMillis()
-        val store = WorldSnapshotStore(File(applicationContext.filesDir, "world"))
+        val directory = File(applicationContext.filesDir, "world")
+        val store = WorldSnapshotStore(directory)
         val loaded = store.load(seed = 7_241_153L, nowWallClockMs = now)
         val memories = SeveranceMemoryManager(File(directory, "cognition"))
         val engine = WorldEngine(loaded.state, soulProvider = memories::soul)
