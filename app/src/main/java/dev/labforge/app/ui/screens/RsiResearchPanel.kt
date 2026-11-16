@@ -60,14 +60,28 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
                 runCatching {
                     val dir = File(context.filesDir, "labforge/rsi/weights").apply { mkdirs() }
                     val file = File(dir, "adapter-" + System.currentTimeMillis() + ".rsiw")
-                    context.contentResolver.openInputStream(uri).use { input ->
-                        requireNotNull(input) { "não foi possível abrir o arquivo" }
-                        file.outputStream().use { output -> input.copyTo(output, 8192) }
+                    try {
+                        context.contentResolver.openInputStream(uri).use { input ->
+                            requireNotNull(input) { "não foi possível abrir o arquivo" }
+                            file.outputStream().use { output ->
+                                val buffer = ByteArray(8192)
+                                var copied = 0L
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    copied += count
+                                    require(copied <= 256L * 1024L * 1024L) { "arquivo acima de 256 MiB" }
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                        }
+                        val bundle = RsiWeightBundle.load(file)
+                        "Pacote validado · " + bundle.architecture + " · hidden=" + bundle.hiddenSize +
+                            " · loops=" + bundle.reasoningSteps + " · SHA-256 OK"
+                    } catch (failure: Throwable) {
+                        file.delete()
+                        throw failure
                     }
-                    require(file.length() <= 256L * 1024L * 1024L) { "arquivo acima de 256 MiB" }
-                    val bundle = RsiWeightBundle.load(file)
-                    "Pacote validado · " + bundle.architecture + " · hidden=" + bundle.hiddenSize +
-                        " · loops=" + bundle.reasoningSteps + " · SHA-256 OK"
                 }.getOrElse { "Pacote rejeitado: " + (it.message ?: "erro de validação") }
             }
         }
