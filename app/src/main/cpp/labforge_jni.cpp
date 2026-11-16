@@ -960,6 +960,16 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
 // Native local inference (GGUF -> llama.cpp -> JNI token stream)
 // -----------------------------------------------------------------------------
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeBackendInfo(JNIEnv * env, jobject) {
+    llama_backend_init();
+    std::string json = "{\"gpu_offload\":";
+    json += llama_supports_gpu_offload() ? "true" : "false";
+    json += ",\"device_count\":" + std::to_string(ggml_backend_dev_count());
+    json += "}";
+    return new_string(env, json);
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeCancelGeneration(
         JNIEnv *, jobject) {
@@ -1014,7 +1024,8 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
     if (!g_backend_initialized) { llama_backend_init(); g_backend_initialized = true; }
     do {
         llama_model_params mp = llama_model_default_params();
-        mp.n_gpu_layers = 0; // safe CPU path; accelerator selection is a separate capability gate
+        // Only use a GPU when llama.cpp has a real registered offload backend.
+        mp.n_gpu_layers = llama_supports_gpu_offload() ? -1 : 0;
         mp.load_mode = LLAMA_LOAD_MODE_MMAP;
         mp.vocab_only = false;
 
@@ -1025,6 +1036,11 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
         }
         if (!g_cached_model) {
             g_cached_model = llama_model_load_from_file(model_path.c_str(), mp);
+            if (!g_cached_model && mp.n_gpu_layers != 0) {
+                LOGE("GPU model load failed; retrying with CPU backend");
+                mp.n_gpu_layers = 0;
+                g_cached_model = llama_model_load_from_file(model_path.c_str(), mp);
+            }
             if (g_cached_model) g_cached_model_path = model_path;
         }
         model = g_cached_model;
