@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [main, feat/girassol-2.0-autonomy]
   workflow_dispatch:
 
 permissions:
