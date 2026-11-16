@@ -9,8 +9,8 @@ import java.io.FileOutputStream
 import kotlin.math.exp
 import kotlin.math.sqrt
 
-enum class MemoryMode { INNIE, OUTIE }
-enum class MemoryTier { WORKING, EPISODIC, SEMANTIC, SOUL }
+@Serializable enum class MemoryMode { INNIE, OUTIE }
+@Serializable enum class MemoryTier { WORKING, EPISODIC, SEMANTIC, SOUL }
 @Serializable data class ScopedMemory(val id:String,val agentId:String,val mode:MemoryMode,val locationId:String?,val sourceKey:String,val text:String,val createdMinute:Long,val importance:Float,val emotionalIntensity:Float,val tier:MemoryTier,val embedding:List<Float> = emptyList())
 @Serializable data class AgentMemoryDocument(val memories:List<ScopedMemory> = emptyList(),val soul:SoulProfile=SoulProfile())
 data class MemorySearchResult(val memory:ScopedMemory,val score:Float)
