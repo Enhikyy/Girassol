@@ -61,5 +61,6 @@ class KahnemanControlLoop {
 class CognitiveEngine(private val system1:System1Cognition=System1Cognition(),private val control:KahnemanControlLoop=KahnemanControlLoop(),private val threshold:Float=.28f) {
  fun decideFast(input:CognitiveInput):CognitiveDecision {val fast=system1.decide(input);val learned=control.recall(fast.stateCode)?:return fast;return fast.copy(action=learned.action,confidence=maxOf(fast.confidence,learned.rate),reason="crystallized:"+learned.action.name.lowercase())}
  suspend fun decide(input:CognitiveInput,reasoner:System2Reasoner?,timeoutMs:Long=8000L):CognitiveDecision {val fast=decideFast(input);if(reasoner==null||fast.confidence>=threshold)return fast;val deep=withTimeoutOrNull(timeoutMs.coerceIn(250L,20000L)){reasoner.reason(input,fast)}?:return fast;return deep.copy(confidence=deep.confidence.coerceIn(0f,1f),stateCode=fast.stateCode,system=CognitiveSystem.SYSTEM_2,escalated=true)}
+ fun shouldEscalate(decision:CognitiveDecision)=decision.confidence<threshold
  fun recordOutcome(decision:CognitiveDecision,success:Boolean)=control.record(decision,success)
 }
