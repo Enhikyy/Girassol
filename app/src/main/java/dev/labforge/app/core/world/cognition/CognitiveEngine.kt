@@ -39,6 +39,11 @@ class System1Cognition {
    ActionType.RESEARCH to 14f+a.personality.openness*30f+a.personality.ambition*18f+(if(a.profession==Profession.RESEARCHER)26f else 0f)-n.stress*.2f,
    ActionType.LEARN to 20f+a.personality.openness*25f+a.personality.ambition*24f-(if(a.skills.isEmpty())0f else a.skills.values.average().toFloat()*12f),
    ActionType.RELAX to n.stress*.95f+(100f-n.satisfaction)*.32f, ActionType.IDLE to 5f)
+  val soul=input.soul.values
+  scores[ActionType.RESEARCH]=scores.getValue(ActionType.RESEARCH)+(soul["curiosity"]?:.5f)*14f
+  scores[ActionType.LEARN]=scores.getValue(ActionType.LEARN)+(soul["curiosity"]?:.5f)*10f
+  scores[ActionType.WORK]=scores.getValue(ActionType.WORK)+(soul["discipline"]?:.5f)*12f
+  scores[ActionType.SOCIALIZE]=scores.getValue(ActionType.SOCIALIZE)+(soul["sociability"]?:.5f)*14f+(soul["care"]?:.5f)*4f
   if(n.energy<22f)scores[ActionType.SLEEP]=scores.getValue(ActionType.SLEEP)+100f
   if(n.nutrition<18f)scores[ActionType.EAT]=scores.getValue(ActionType.EAT)+100f
   routine?.let{p->if(p in scores)scores[p]=scores.getValue(p)+(if(p==ActionType.SLEEP||p==ActionType.WORK)30f else 14f);if(p==ActionType.SLEEP){scores[ActionType.WORK]=scores.getValue(ActionType.WORK)*.2f;scores[ActionType.RESEARCH]=scores.getValue(ActionType.RESEARCH)*.35f}}
