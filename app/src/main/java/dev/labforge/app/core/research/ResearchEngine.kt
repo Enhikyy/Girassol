@@ -71,7 +71,7 @@ class ResearchEngine(
             async { safeSearch { FreeResearchApis.huggingFaceDatasets(clean) } },
             async { safeSearch { KeyedResearchApis.githubRepos(clean, keys.github) } },
             async { safeSearch { KeyedResearchApis.brave(clean, keys.brave) } },
-            async { safeSearch { AgentReachNative.search(clean, setOf("web", "github", "reddit")).map {
+            async { safeSearch { AgentReachNative.search(clean, setOf("web", "github", "reddit", "x", "linkedin", "instagram")).map {
                 ResearchDoc(it.title, it.url, it.text.take(1200), "Agent Reach · " + it.provider, score = 1.15)
             } } },
         )
