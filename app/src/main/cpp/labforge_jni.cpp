@@ -1019,19 +1019,19 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
         if (token_count < 0) { error = "falha ao tokenizar o prompt"; break; }
 
         const int ctx_size = std::max<int>((int)n_ctx, 128);
-        const int max_prompt = std::max(1, ctx_size - 1);
+        const int predict = std::min(std::max(1, (int)n_predict), ctx_size - 1);
+        const int max_prompt = std::max(1, ctx_size - predict);
         if (token_count > max_prompt) {
             tokens.erase(tokens.begin(), tokens.begin() + (token_count - max_prompt));
             token_count = (int32_t) tokens.size();
         }
-        const int predict = std::max(1, (int)n_predict);
         const int threads = n_threads > 0 ? n_threads :
             std::max(1, (int) std::thread::hardware_concurrency());
 
         llama_context_params cp = llama_context_default_params();
         cp.n_ctx = (uint32_t) std::max(ctx_size, token_count + 1);
-        cp.n_batch = (uint32_t) std::min(std::max(token_count, 1), 256);
-        cp.n_ubatch = cp.n_batch;
+        cp.n_batch = (uint32_t) std::max(token_count, 1);
+        cp.n_ubatch = (uint32_t) std::min(std::max(token_count, 1), 256);
         cp.n_threads = threads;
         cp.n_threads_batch = threads;
         cp.type_k = GGML_TYPE_F16;
