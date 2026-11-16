@@ -32,3 +32,18 @@ A escolha é sempre explícita. Nenhum perfil é promovido automaticamente. O pe
 3. Integrar memória episódica à seleção de experiências com evidência rastreável.
 4. Criar pipeline externo para SFT/DPO/LoRA, com benchmark antes/depois e promoção versionada do GGUF.
 5. Avaliar LM2LM/RWM somente com orçamento externo de GPU e experimentos replicáveis.
+
+
+## Segunda etapa — laboratório nativo no Android
+
+O módulo `RsiResearchLab` adiciona persistência local para:
+- **Skills versionadas:** candidatas em texto, validação estrutural, aprovação explícita e rollback para a skill aprovada anteriormente. Somente a skill aprovada é anexada ao prompt ReAct; o prompt-base, o caderno e as regras de segurança permanecem preservados.
+- **Replay:** registra hash SHA-256 da tarefa, perfil, sucesso operacional, latência, tokens e uso/falha de ferramentas. O texto original da tarefa não é copiado para o ledger RSI.
+- **Gate held-out:** registra pontuações baseline/candidato, amostras e amostras privadas de validação. Uma comparação só fica elegível para revisão quando tem pelo menos cinco amostras, três amostras holdout e ganho sobre o baseline. Isso não executa nem falsifica benchmarks: os resultados precisam vir de avaliações realmente executadas.
+- **Painel nativo:** a tela Autonomia permite criar skills, validar/aprovar, reverter, consultar replay e registrar resultados de experimentos.
+
+### Limites de implementação
+
+Esta etapa implementa nativamente no Kotlin os mecanismos de harness/skills/replay/controle de promoção. Ela **não** incorpora os pesos nem reproduz as redes neurais de Mythic-RDT, Modus_X ou Lunaris. Essas arquiteturas exigem implementações de camadas/tensores, pesos treinados compatíveis, conversão e backend de inferência específico; um controlador de loops no app não seria uma reprodução fiel. MASS/treinamento LoRA também não é executado no A22: o app não inicia treino pesado nem altera pesos automaticamente.
+
+Nenhuma skill executável, código-fonte do próprio app ou arquivo GGUF é autoalterado. A validação estrutural de skills é um gate de segurança, não um avaliador semântico de qualidade. A avaliação de qualidade exige tarefas congeladas, holdout realmente separado e resultados reproduzíveis.
