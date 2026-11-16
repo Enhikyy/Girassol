@@ -33,6 +33,11 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
     val lab = vm.state.rsiLab
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
+    var experimentName by remember { mutableStateOf("") }
+    var baseline by remember { mutableStateOf("0.5") }
+    var candidate by remember { mutableStateOf("0.6") }
+    var samples by remember { mutableStateOf("5") }
+    var holdout by remember { mutableStateOf("3") }
 
     Spacer(Modifier.height(18.dp))
     SectionHeader("Laboratório evolutivo", "skills versionadas · replay · validação")
@@ -122,5 +127,39 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
             fontSize = 11.sp,
             lineHeight = 15.sp,
         )
+        Spacer(Modifier.height(12.dp))
+        Text("Registrar avaliação held-out", color = Lab.Text, fontSize = 13.sp)
+        OutlinedTextField(experimentName, { experimentName = it.take(100) }, Modifier.fillMaxWidth(), label = { Text("Experimento") }, singleLine = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(baseline, { baseline = it }, Modifier.weight(1f), label = { Text("Baseline 0–1") }, singleLine = true)
+            OutlinedTextField(candidate, { candidate = it }, Modifier.weight(1f), label = { Text("Candidato 0–1") }, singleLine = true)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(samples, { samples = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), label = { Text("Amostras") }, singleLine = true)
+            OutlinedTextField(holdout, { holdout = it.filter(Char::isDigit).take(4) }, Modifier.weight(1f), label = { Text("Holdout") }, singleLine = true)
+        }
+        Button(
+            onClick = {
+                val b = baseline.toDoubleOrNull()
+                val c = candidate.toDoubleOrNull()
+                val s = samples.toIntOrNull()
+                val h = holdout.toIntOrNull()
+                if (b != null && c != null && s != null && h != null) {
+                    vm.recordRsiExperiment(experimentName, b, c, s, h)
+                    experimentName = ""
+                }
+            },
+            enabled = experimentName.isNotBlank() && baseline.toDoubleOrNull() in 0.0..1.0 &&
+                candidate.toDoubleOrNull() in 0.0..1.0 && (samples.toIntOrNull() ?: 0) >= 0 &&
+                (holdout.toIntOrNull() ?: 0) >= 0,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Registrar resultado medido") }
+        lab?.experiments?.take(5)?.forEach { experiment ->
+            Text(
+                "${experiment.name}: ${"%.3f".format(experiment.baselineScore)} → ${"%.3f".format(experiment.candidateScore)} · ${experiment.status}",
+                color = Lab.Muted,
+                fontSize = 10.sp,
+            )
+        }
     }
 }
