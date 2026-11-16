@@ -7,7 +7,6 @@ under 'state_dict'/'model'. --mapping is JSON: {adapter_tensor_name: checkpoint_
 import argparse
 import hashlib
 import json
-import struct
 import zipfile
 from pathlib import Path
 
