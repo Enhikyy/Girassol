@@ -56,7 +56,7 @@ data class RsiWeightBundle(
         private const val FORMAT = "girassol-rsiw"
 
         fun load(file: File): RsiWeightBundle {
-            require(file.isFile && file.length() in 1..(MAX_BUNDLE_BYTES * 2L)) { "arquivo RSIW ausente ou acima do limite" }
+            require(file.isFile && file.length() in 1L..(MAX_BUNDLE_BYTES * 2L)) { "arquivo RSIW ausente ou acima do limite" }
             val entries = HashMap<String, ByteArray>()
             var total = 0
             ZipInputStream(file.inputStream().buffered()).use { zip ->
@@ -78,6 +78,7 @@ data class RsiWeightBundle(
             }
             val manifestBytes = requireNotNull(entries["manifest.json"]) { "manifest.json ausente" }
             val payload = entries["tensors.f32"] ?: ByteArray(0)
+            require(payload.size % 4 == 0) { "payload FP32 desalinhado" }
             val manifest = JSONObject(manifestBytes.toString(Charsets.UTF_8))
             require(manifest.optString("format") == FORMAT && manifest.optInt("version") == 1) {
                 "formato RSIW não suportado"
@@ -92,7 +93,7 @@ data class RsiWeightBundle(
             val experts = manifest.optInt("experts", 0)
             val topK = manifest.optInt("top_k", 1)
             val steps = manifest.optInt("reasoning_steps", 1)
-            require(steps in 1..if (architecture == "rdt") 16 else 8) { "reasoning_steps inválido" }
+            require(steps in 1..(if (architecture == "rdt") 16 else 8)) { "reasoning_steps inválido" }
             if (architecture == "lunaris_moc") require(experts in 2..16 && topK in 1..experts) { "configuração MoC inválida" }
 
             val descriptors = manifest.optJSONObject("tensors") ?: JSONObject()
