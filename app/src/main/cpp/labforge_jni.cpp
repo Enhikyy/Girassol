@@ -7,7 +7,6 @@
 #include <atomic>
 #include <mutex>
 #include <algorithm>
-#include <mutex>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
