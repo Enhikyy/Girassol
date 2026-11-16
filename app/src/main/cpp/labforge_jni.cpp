@@ -41,6 +41,12 @@
 // JVM / callback plumbing
 // -----------------------------------------------------------------------------
 
+static std::atomic<bool> g_generation_cancel{false};
+static std::mutex g_generation_mutex;
+static llama_model * g_cached_model = nullptr;
+static std::string g_cached_model_path;
+static bool g_backend_initialized = false;
+
 static JavaVM * g_vm = nullptr;
 static jclass    g_cb_class = nullptr;
 static jmethodID g_cb_log = nullptr;
@@ -953,12 +959,6 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
 // -----------------------------------------------------------------------------
 // Native local inference (GGUF -> llama.cpp -> JNI token stream)
 // -----------------------------------------------------------------------------
-
-static std::atomic<bool> g_generation_cancel{false};
-static std::mutex g_generation_mutex;
-static llama_model * g_cached_model = nullptr;
-static std::string g_cached_model_path;
-static bool g_backend_initialized = false;
 
 extern "C" JNIEXPORT void JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeCancelGeneration(
