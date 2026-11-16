@@ -2,6 +2,7 @@ package dev.labforge.app.core.world.cognition
 
 import dev.labforge.app.core.agent.LlmClient
 import dev.labforge.app.core.world.ActionType
+import dev.labforge.app.core.world.building
 import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
