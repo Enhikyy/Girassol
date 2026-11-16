@@ -50,6 +50,26 @@ object MemoryGuard {
         return Budget(ok, avail, required, message)
     }
 
+    /**
+     * Conservative preflight for mmap-backed local inference.
+     * GGUF file size is a lower-bound proxy for resident weights; KV cache and
+     * runtime buffers are budgeted separately. This prevents predictable LMK kills,
+     * but the native loader remains the final authority.
+     */
+    fun checkInference(context: Context, modelBytes: Long, contextTokens: Int): Budget {
+        val avail = availableGb(context)
+        val modelGb = modelBytes.coerceAtLeast(0L) / 1e9
+        val kvAndRuntimeGb = 0.30 + contextTokens.coerceIn(128, 4096) * 0.00030
+        val required = modelGb * 1.08 + kvAndRuntimeGb
+        val ok = avail >= required
+        val message = if (ok) {
+            "RAM estimada suficiente: %.2f GB livres; reserva prevista %.2f GB".format(avail, required)
+        } else {
+            "Memória insuficiente para iniciar com segurança: %.2f GB livres; estimativa mínima %.2f GB. Reduza o contexto ou use um GGUF menor/mais quantizado.".format(avail, required)
+        }
+        return Budget(ok, avail, required, message)
+    }
+
     /** Best-effort memory release before a heavy allocation. */
     fun trim() {
         runCatching { Runtime.getRuntime().gc() }

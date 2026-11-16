@@ -5,6 +5,8 @@
 #include <android/log.h>
 
 #include <atomic>
+#include <mutex>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -38,6 +40,12 @@
 // -----------------------------------------------------------------------------
 // JVM / callback plumbing
 // -----------------------------------------------------------------------------
+
+static std::atomic<bool> g_generation_cancel{false};
+static std::mutex g_generation_mutex;
+static llama_model * g_cached_model = nullptr;
+static std::string g_cached_model_path;
+static bool g_backend_initialized = false;
 
 static JavaVM * g_vm = nullptr;
 static jclass    g_cb_class = nullptr;
@@ -933,4 +941,252 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeVersion(JNIEnv * env, jobjec
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {
     g_vm = vm;
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    if (g_cached_model) {
+        llama_model_free(g_cached_model);
+        g_cached_model = nullptr;
+    }
+    if (g_backend_initialized) {
+        llama_backend_free();
+        g_backend_initialized = false;
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+// Native local inference (GGUF -> llama.cpp -> JNI token stream)
+// -----------------------------------------------------------------------------
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeBackendInfo(JNIEnv * env, jobject) {
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    if (!g_backend_initialized) { llama_backend_init(); g_backend_initialized = true; }
+    std::string json = "{\"gpu_offload\":";
+    json += llama_supports_gpu_offload() ? "true" : "false";
+    json += ",\"device_count\":" + std::to_string(ggml_backend_dev_count());
+    json += "}";
+    return new_string(env, json);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeCancelGeneration(
+        JNIEnv *, jobject) {
+    g_generation_cancel.store(true, std::memory_order_relaxed);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeReleaseModel(JNIEnv *, jobject) {
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    if (g_cached_model) {
+        llama_model_free(g_cached_model);
+        g_cached_model = nullptr;
+        g_cached_model_path.clear();
+    }
+    if (g_backend_initialized) {
+        llama_backend_free();
+        g_backend_initialized = false;
+    }
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
+        JNIEnv * env, jobject,
+        jstring j_model, jstring j_prompt,
+        jint n_ctx, jint n_predict, jint n_threads,
+        jfloat temperature, jobject callback) {
+
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    g_generation_cancel.store(false, std::memory_order_relaxed);
+
+    const std::string model_path = jstr(env, j_model);
+    const std::string prompt = jstr(env, j_prompt);
+    if (model_path.empty() || prompt.empty()) {
+        return new_string(env, "ERRO: modelo ou prompt vazio");
+    }
+
+    jclass cb_class = nullptr;
+    jmethodID on_token = nullptr;
+    if (callback) {
+        cb_class = env->GetObjectClass(callback);
+        on_token = env->GetMethodID(cb_class, "onToken", "(Ljava/lang/String;)V");
+        if (!on_token && env->ExceptionCheck()) env->ExceptionClear();
+    }
+
+    std::string output;
+    std::string error;
+    llama_model * model = nullptr;
+    llama_context * ctx = nullptr;
+    llama_sampler * sampler = nullptr;
+    llama_batch batch{};
+
+    if (!g_backend_initialized) { llama_backend_init(); g_backend_initialized = true; }
+    do {
+        llama_model_params mp = llama_model_default_params();
+        // Only use a GPU when llama.cpp has a real registered offload backend.
+        mp.n_gpu_layers = llama_supports_gpu_offload() ? -1 : 0;
+        mp.load_mode = LLAMA_LOAD_MODE_MMAP;
+        mp.vocab_only = false;
+
+        if (g_cached_model && g_cached_model_path != model_path) {
+            llama_model_free(g_cached_model);
+            g_cached_model = nullptr;
+            g_cached_model_path.clear();
+        }
+        if (!g_cached_model) {
+            g_cached_model = llama_model_load_from_file(model_path.c_str(), mp);
+            if (!g_cached_model && mp.n_gpu_layers != 0) {
+                LOGE("GPU model load failed; retrying with CPU backend");
+                mp.n_gpu_layers = 0;
+                g_cached_model = llama_model_load_from_file(model_path.c_str(), mp);
+            }
+            if (g_cached_model) g_cached_model_path = model_path;
+        }
+        model = g_cached_model;
+        if (!model) { error = "não foi possível carregar o GGUF (memória, arquivo ou arquitetura incompatível)"; break; }
+
+        const llama_vocab * vocab = llama_model_get_vocab(model);
+        std::string formatted_prompt = prompt;
+        const char * chat_template = llama_model_chat_template(model, nullptr);
+        if (chat_template && chat_template[0]) {
+            llama_chat_message message = {"user", prompt.c_str()};
+            std::vector<char> formatted(prompt.size() * 4 + 1024);
+            int32_t formatted_size = llama_chat_apply_template(
+                chat_template, &message, 1, true, formatted.data(), (int32_t) formatted.size());
+            if (formatted_size > 0) {
+                if ((size_t)formatted_size >= formatted.size()) {
+                    formatted.resize((size_t)formatted_size + 1);
+                    formatted_size = llama_chat_apply_template(
+                        chat_template, &message, 1, true, formatted.data(), (int32_t) formatted.size());
+                }
+                if (formatted_size > 0 && (size_t)formatted_size < formatted.size()) {
+                    formatted_prompt.assign(formatted.data(), (size_t)formatted_size);
+                }
+            }
+        }
+        int32_t needed = -llama_tokenize(vocab, formatted_prompt.c_str(), (int32_t) formatted_prompt.size(), nullptr, 0, true, true);
+        if (needed <= 0) { error = "falha ao tokenizar o prompt"; break; }
+        std::vector<llama_token> tokens((size_t) needed);
+        int32_t token_count = llama_tokenize(vocab, formatted_prompt.c_str(), (int32_t) formatted_prompt.size(),
+                                             tokens.data(), (int32_t) tokens.size(), true, true);
+        if (token_count < 0) { error = "falha ao tokenizar o prompt"; break; }
+
+        const int ctx_size = std::max<int>((int)n_ctx, 128);
+        const int predict = std::min(std::max(1, (int)n_predict), ctx_size - 1);
+        const int max_prompt = std::max(1, ctx_size - predict);
+        if (token_count > max_prompt) {
+            tokens.erase(tokens.begin(), tokens.begin() + (token_count - max_prompt));
+            token_count = (int32_t) tokens.size();
+        }
+        const int threads = n_threads > 0 ? n_threads :
+            std::max(1, (int) std::thread::hardware_concurrency());
+
+        llama_context_params cp = llama_context_default_params();
+        cp.n_ctx = (uint32_t) std::max(ctx_size, token_count + 1);
+        cp.n_batch = (uint32_t) std::max(token_count, 1);
+        cp.n_ubatch = (uint32_t) std::min(std::max(token_count, 1), 256);
+        cp.n_threads = threads;
+        cp.n_threads_batch = threads;
+        cp.type_k = GGML_TYPE_F16;
+        cp.type_v = GGML_TYPE_F16;
+        cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_AUTO;
+        cp.no_perf = true;
+
+        ctx = llama_init_from_model(model, cp);
+        if (!ctx) { error = "não foi possível criar o contexto de inferência"; break; }
+
+        auto sp = llama_sampler_chain_default_params();
+        sp.no_perf = true;
+        sampler = llama_sampler_chain_init(sp);
+        if (!sampler) { error = "não foi possível criar o sampler"; break; }
+
+        if (temperature <= 0.001f) {
+            llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
+        } else {
+            llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+            llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90f, 1));
+            llama_sampler_chain_add(sampler, llama_sampler_init_temp((float)temperature));
+            llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+        }
+
+        batch = llama_batch_init(token_count, 0, 1);
+        if (!batch.token || !batch.pos || !batch.n_seq_id || !batch.seq_id || !batch.logits) {
+            error = "falha ao alocar batch de tokens"; break;
+        }
+        batch.n_tokens = token_count;
+        for (int32_t i = 0; i < token_count; ++i) {
+            batch.token[i] = tokens[(size_t)i];
+            batch.pos[i] = i;
+            batch.n_seq_id[i] = 1;
+            batch.seq_id[i][0] = 0;
+            batch.logits[i] = (i == token_count - 1) ? 1 : 0;
+        }
+
+        if (llama_decode(ctx, batch) != 0) {
+            error = "falha ao processar o prompt no backend CPU"; break;
+        }
+        llama_batch_free(batch);
+        batch = {};
+
+        for (int i = 0; i < predict && !g_generation_cancel.load(std::memory_order_relaxed); ++i) {
+            const llama_token id = llama_sampler_sample(sampler, ctx, -1);
+            if (llama_vocab_is_eog(vocab, id)) break;
+
+            char piece[256];
+            int32_t n = llama_token_to_piece(vocab, id, piece, sizeof(piece), 0, true);
+            if (n < 0) {
+                std::vector<char> large((size_t)(-n) + 1);
+                n = llama_token_to_piece(vocab, id, large.data(), (int32_t)large.size(), 0, true);
+                if (n > 0) {
+                    std::string token(large.data(), (size_t)n);
+                    output += token;
+                    if (callback && on_token) {
+                        jstring js = new_string(env, token);
+                        env->CallVoidMethod(callback, on_token, js);
+                        env->DeleteLocalRef(js);
+                        if (env->ExceptionCheck()) env->ExceptionClear();
+                    }
+                }
+            } else if (n > 0) {
+                std::string token(piece, (size_t)n);
+                output += token;
+                if (callback && on_token) {
+                    jstring js = new_string(env, token);
+                    env->CallVoidMethod(callback, on_token, js);
+                    env->DeleteLocalRef(js);
+                    if (env->ExceptionCheck()) env->ExceptionClear();
+                }
+            }
+
+            if (i + 1 < predict && !g_generation_cancel.load(std::memory_order_relaxed)) {
+                batch = llama_batch_init(1, 0, 1);
+                if (!batch.token || !batch.pos || !batch.n_seq_id || !batch.seq_id || !batch.logits) {
+                    error = "falha ao alocar batch de geração"; break;
+                }
+                batch.n_tokens = 1;
+                batch.token[0] = id;
+                batch.pos[0] = token_count + i;
+                batch.n_seq_id[0] = 1;
+                batch.seq_id[0][0] = 0;
+                batch.logits[0] = 1;
+                if (llama_decode(ctx, batch) != 0) {
+                    error = "falha durante a decodificação"; break;
+                }
+                llama_batch_free(batch);
+                batch = {};
+            }
+        }
+    } while (false);
+
+    if (batch.token) llama_batch_free(batch);
+    if (sampler) llama_sampler_free(sampler);
+    if (ctx) llama_free(ctx);
+    // Keep the mmap-backed model resident between chat turns. Release explicitly
+    // when changing models or when the native library is unloaded.
+
+    if (cb_class) env->DeleteLocalRef(cb_class);
+    if (!error.empty()) return new_string(env, "ERRO: " + error);
+    return new_string(env, output);
 }

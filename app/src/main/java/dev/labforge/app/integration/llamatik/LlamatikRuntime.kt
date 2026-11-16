@@ -19,10 +19,15 @@ import com.llamatik.sdk.framework.PersistentMemory
 import dev.labforge.app.core.AppSelection
 import dev.labforge.app.core.agent.LlmClient
 import dev.labforge.app.core.model.ModelStore
+import dev.labforge.app.core.native.LlamaBridge
+import dev.labforge.app.core.native.NativeCallback
+import dev.labforge.app.service.MemoryGuard
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.core.research.ResearchRepository
 import dev.labforge.app.core.settings.SettingsRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -202,6 +207,62 @@ object LlamatikRuntime {
             trySend(AgentStreamChunk.Failure("Runtime não inicializado"))
             close(); return@callbackFlow
         }
+        val localModel = AppSelection.modelPath?.let(::File)?.takeIf { it.isFile && it.extension.equals("gguf", true) }
+        if (localModel != null) {
+            val budget = MemoryGuard.checkInference(appContext, localModel.length(), 1024)
+            if (!budget.ok) {
+                trySend(AgentStreamChunk.Failure(budget.message))
+                close()
+                return@callbackFlow
+            }
+            val history = buildString {
+                append("Instruções do sistema: ").append(SYSTEM).append("\n\n")
+                memory.messages().takeLast(12).forEach { message ->
+                    append(if (message.role == ChatMessage.Role.User) "Usuário: " else "Assistente: ")
+                    append(message.content).append("\n")
+                }
+                append("Usuário: ").append(prompt)
+            }
+            val callback = object : NativeCallback {
+                override fun onLog(line: String) { }
+                override fun onEpoch(epoch: Int, step: Int, total: Int, loss: Double, lr: Double) { }
+                override fun onToken(token: String) { trySend(AgentStreamChunk.Delta(token)) }
+            }
+            val completion = currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+                if (cause != null) LlamaBridge.cancelGeneration()
+            }
+            try {
+                val answer = withContext(Dispatchers.IO) {
+                    LlamaBridge.generate(
+                        model = localModel.absolutePath,
+                        prompt = history,
+                        nCtx = 1024,
+                        nPredict = 512,
+                        threads = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1),
+                        temperature = 0.7f,
+                        callback = callback,
+                    )
+                }
+                if (answer.startsWith("ERRO:")) {
+                    trySend(AgentStreamChunk.Failure(answer.removePrefix("ERRO:").trim()))
+                } else {
+                    memory.add(ChatMessage(ChatMessage.Role.User, prompt))
+                    memory.add(ChatMessage(ChatMessage.Role.Assistant, answer))
+                    runCatching { memory.persist() }
+                    trySend(AgentStreamChunk.Done(answer))
+                }
+            } catch (cancelled: CancellationException) {
+                LlamaBridge.cancelGeneration()
+                throw cancelled
+            } catch (error: Throwable) {
+                trySend(AgentStreamChunk.Failure(error.message ?: "falha na inferência nativa"))
+            } finally {
+                completion?.dispose()
+            }
+            close()
+            return@callbackFlow
+        }
+
         try {
             val cfg = settingsRepo.settings.first()
             if (cfg.apiKey.isBlank() && cfg.endpoint.contains("openai.com")) {
