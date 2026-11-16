@@ -46,4 +46,24 @@ class SeveranceMemoryManager(private val directory:File,private val json:Json=Js
  private fun cosine(a:List<Float>,b:List<Float>):Float{if(a.isEmpty()||a.size!=b.size)return 0f;var dot=0.0;var aa=0.0;var bb=0.0;for(i in a.indices){dot+=a[i]*b[i];aa+=a[i]*a[i];bb+=b[i]*b[i]};return if(aa<=0.0||bb<=0.0)0f else (dot/sqrt(aa*bb)).toFloat().coerceIn(0f,1f)}
  companion object {private const val MAX_BYTES=2*1024*1024L;private val WORK_CONTEXTS=setOf(BuildingKind.HEADQUARTERS,BuildingKind.OFFICE,BuildingKind.RESEARCH_LAB,BuildingKind.UNIVERSITY,BuildingKind.DATA_CENTER)}
 }
-class WorldCognitionCoordinator(private val memory:SeveranceMemoryManager){fun observe(world:WorldState){world.agents.forEach{a->val r=a.activityHistory.firstOrNull()?:return@forEach;val key=r.simMinute.toString()+":"+r.action.name+":"+r.buildingId.orEmpty();memory.remember(a,world,r.action.name.lowercase()+": "+r.outcome,importance=if(r.action in setOf(ActionType.WORK,ActionType.RESEARCH,ActionType.LEARN,ActionType.SOCIALIZE)).72f else .42f,emotionalIntensity=if(a.emotion in setOf(Emotion.ANXIOUS,Emotion.FRUSTRATED,Emotion.FULFILLED)).78f else .35f,sourceKey=key)}}}
+class WorldCognitionCoordinator(private val memory:SeveranceMemoryManager) {
+ fun observe(world:WorldState) {
+  world.agents.forEach { a ->
+   val r=a.activityHistory.firstOrNull()?:return@forEach
+   val key=r.simMinute.toString()+":"+r.action.name+":"+r.buildingId.orEmpty()
+   val saved=memory.remember(a,world,r.action.name.lowercase()+": "+r.outcome,
+    importance=if(r.action in setOf(ActionType.WORK,ActionType.RESEARCH,ActionType.LEARN,ActionType.SOCIALIZE)) .72f else .42f,
+    emotionalIntensity=if(a.emotion in setOf(Emotion.ANXIOUS,Emotion.FRUSTRATED,Emotion.FULFILLED)) .78f else .35f,
+    sourceKey=key)
+   if(saved!=null) {
+    val trait=when(r.action) {
+     ActionType.WORK -> "discipline"
+     ActionType.RESEARCH,ActionType.LEARN -> "curiosity"
+     ActionType.SOCIALIZE -> "sociability"
+     else -> "care"
+    }
+    memory.updateSoul(a.id) { it.absorb(trait,true) }
+   }
+  }
+ }
+}
