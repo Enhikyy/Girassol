@@ -128,11 +128,12 @@ data class RsiWeightBundle(
                 cursor = range.second
             }
             require(cursor * 4L == payload.size.toLong()) { "payload contém dados não referenciados" }
+            val decay = manifest.optDouble("decay", 0.95).toFloat()
+            val learningRate = manifest.optDouble("learning_rate", 0.001).toFloat()
+            require(decay.isFinite() && decay in 0f..1f) { "decay inválido" }
+            require(learningRate.isFinite() && learningRate in 0f..1f) { "learning_rate inválido" }
             return RsiWeightBundle(
-                architecture, hidden, experts, topK, steps,
-                manifest.optDouble("decay", 0.95).toFloat(),
-                manifest.optDouble("learning_rate", 0.001).toFloat(),
-                tensors,
+                architecture, hidden, experts, topK, steps, decay, learningRate, tensors,
             )
         }
     }
