@@ -1,5 +1,7 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.CancellationException
+
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.integration.llamatik.LlamatikRuntime
 import kotlinx.serialization.json.Json
@@ -296,15 +298,21 @@ class AgentReachSearchTool(ws: File) : AgentTool(ws) {
         put("query", prop("string", "Consulta de pesquisa"))
         put("providers", prop("string", "Provedores: web,github,reddit,x,linkedin,instagram (públicos)"))
     }, listOf("query"))
-    override suspend fun execute(args: JSONObject): ToolResult = runCatching {
+    override suspend fun execute(args: JSONObject): ToolResult = try {
         val providers = args.optString("providers", "web,github,reddit,x,linkedin,instagram")
-            .split(",").map { it.trim().lowercase() }.filter { it in setOf("web", "github", "reddit", "x", "linkedin", "instagram") }.toSet()
+            .split(",").map { it.trim().lowercase() }.filter {
+                it in setOf("web", "github", "reddit", "x", "linkedin", "instagram")
+            }.toSet()
         require(providers.isNotEmpty()) { "nenhum provedor válido" }
         val results = dev.labforge.app.core.research.AgentReachNative.search(args.getString("query"), providers)
         ToolResult(results.isNotEmpty(), results.joinToString("\n\n") {
             "[${it.provider}] ${it.title}\n${it.text.take(700)}\n${it.url}"
         }.ifBlank { "nenhum resultado público retornado" })
-    }.getOrElse { ToolResult(false, it.message ?: "falha no Agent Reach") }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        ToolResult(false, failure.message ?: "falha no Agent Reach")
+    }
 }
 
 class AgentReachReadTool(ws: File) : AgentTool(ws) {
@@ -313,10 +321,14 @@ class AgentReachReadTool(ws: File) : AgentTool(ws) {
     override fun parameters() = schema(JSONObject().apply {
         put("url", prop("string", "URL pública a ler"))
     }, listOf("url"))
-    override suspend fun execute(args: JSONObject): ToolResult = runCatching {
+    override suspend fun execute(args: JSONObject): ToolResult = try {
         val page = dev.labforge.app.core.research.AgentReachNative.read(args.getString("url"))
         ToolResult(true, "[${page.provider}] ${page.title}\n${page.url}\n\n${page.text.take(12000)}")
-    }.getOrElse { ToolResult(false, it.message ?: "falha ao ler página") }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        ToolResult(false, failure.message ?: "falha ao ler página")
+    }
 }
 
 class ResearchSearchTool(ws: File) : AgentTool(ws) {
