@@ -21,6 +21,7 @@ import dev.labforge.app.core.agent.ReActAgent
 import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.rsi.RsiEngine
+import dev.labforge.app.core.rsi.RsiResearchLab
 import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
@@ -54,6 +55,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val lessons = LessonStore(store.agentDir)
     private val settingsRepo = SettingsRepository(app)
     private val rsi = RsiEngine(File(store.agentDir, "rsi.json"))
+    private val rsiLab = RsiResearchLab(File(store.agentDir, "rsi-lab.json"))
     private val shell = ShellSession(store.workspace())
     private val git = GitRepo(store.workspace())
 
@@ -243,6 +245,9 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     maxSteps = if (cfg.maxSteps <= 0) 0 else minOf(cfg.maxSteps, profile.maxSteps),
                     memoryTopK = profile.memoryTopK,
                     repeatLimit = profile.repeatLimit,
+                    systemOverride = rsiLab.snapshot().approvedSkill?.let { skill ->
+                        ReActAgent.CODEX_SYSTEM + "\\n\\nSkill aprovada pelo usuário (v${skill.version}):\\n" + skill.body
+                    }, 
                     settings = cfg,
                     history = conversationHistory,
                     onEvent = { event ->
@@ -278,6 +283,15 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     completionTokens = turnCompletionTokens,
                     elapsedMs = elapsedMs,
                     failure = turnFailure.ifBlank { if (turnHadFinal) "" else "sem resposta final" },
+                )
+                rsiLab.recordReplay(
+                    task = task,
+                    profileId = selectedProfileId,
+                    success = turnHadFinal && turnFailure.isBlank(),
+                    latencyMs = elapsedMs,
+                    tokens = turnPromptTokens + turnCompletionTokens,
+                    toolCalls = turnToolCalls,
+                    toolFailures = turnToolFailures,
                 )
             }
             running = false
