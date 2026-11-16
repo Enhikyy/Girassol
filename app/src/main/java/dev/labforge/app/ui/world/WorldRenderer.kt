@@ -4,6 +4,8 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.LongSparseArray
+import android.util.Log
+import dev.labforge.app.core.world.cognition.VulkanRayQueryCapabilities
 import dev.labforge.app.core.world.ActionType
 import dev.labforge.app.core.world.AgentState
 import dev.labforge.app.core.world.BuildingKind
@@ -74,6 +76,8 @@ class WorldRenderer(
 
     override fun onSurfaceCreated(unused: GL10?, config: EGLConfig?) {
         failed = false
+        val rayQuery = VulkanRayQueryCapabilities.detect()
+        Log.i("WorldRenderer", "Ray-query capability: ${rayQuery.supported}; ${rayQuery.reason}")
         try {
             shader = WorldShader()
             box = GLMesh.box()
