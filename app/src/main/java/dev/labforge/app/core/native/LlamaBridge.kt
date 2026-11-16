@@ -162,9 +162,9 @@ object LlamaBridge {
     }
 
     fun rsiKernelSelfTest(): String =
-        if (!isAvailable) "{\"ok\":false,\"error\":\"nativo indisponível\"}"
+        if (!isAvailable) "{\\"ok\\":false,\\"error\\":\\"nativo indisponível\\"}"
         else runCatching { nativeRsiKernelSelfTest() }
-            .getOrElse { "{\"ok\":false,\"error\":\"${it.message ?: "falha JNI"}\"}" }
+            .getOrElse { "{\\"ok\\":false,\\"error\\":\\"falha JNI\\"}" }
 
     /** Native recurrent-depth hidden-state refinement kernel. */
     fun rdtRefine(input: FloatArray, anchor: FloatArray, inputWeights: FloatArray,
