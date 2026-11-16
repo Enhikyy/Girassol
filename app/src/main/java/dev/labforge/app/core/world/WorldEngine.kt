@@ -2,6 +2,7 @@ package dev.labforge.app.core.world
 
 import dev.labforge.app.core.world.cognition.CognitiveEngine
 import dev.labforge.app.core.world.cognition.CognitiveInput
+import dev.labforge.app.core.world.cognition.SoulProfile
 
 import kotlin.math.cos
 import kotlin.math.max
@@ -16,7 +17,7 @@ enum class AgentLod { DETAILED, SIMPLIFIED, STATISTICAL }
  * Deterministic, UI-independent world simulation. Time only moves through [step] or
  * [catchUp]; there is no claim of Android background execution.
  */
-class WorldEngine(initialState: WorldState) {
+class WorldEngine(initialState: WorldState, private val soulProvider: (String) -> SoulProfile = { SoulProfile() }) {
     private val cognitiveEngine = CognitiveEngine()
     var state: WorldState = initialState
         private set
@@ -378,7 +379,7 @@ class WorldEngine(initialState: WorldState) {
     }
 
     internal fun chooseAction(agent: AgentState, world: WorldState, nowMinute: Long, random: WorldRandom): AgentAction {
-        val type = cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute)).action
+        val type = cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute, soulProvider(agent.id))).action
         val workplace = agent.employerId?.let { world.company(it)?.takeUnless { company -> company.bankrupt }?.buildingId }
             ?: if (agent.profession == Profession.EDUCATOR) "building_university" else "building_square"
         val buildingId = when (type) {
