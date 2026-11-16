@@ -80,6 +80,20 @@ O painel **Autonomia → Girassol RSI** registra execuções reais do agente ReA
 
 As recomendações exigem amostras mínimas e filtragem Pareto; a troca de perfil é manual. Sucesso operacional não equivale a correção factual. Esta etapa evolui parâmetros do harness, não modifica pesos GGUF nem executa fine-tuning autônomo. Consulte [docs/RSI.md](docs/RSI.md).
 
+## Agent Reach e Codex enxuto
+
+- O ReAct/Codex expõe `agent_reach_search` (Jina Search, GitHub e Reddit públicos) e `agent_reach_read` (páginas públicas em Markdown via Jina Reader).
+- Não usa cookies, contas ou sessões do usuário; X, LinkedIn e Instagram só podem ser tentados como páginas públicas, sem scraping autenticado.
+- O Codex aplica a adaptação da política Ponytail para reduzir alterações desnecessárias sem sacrificar testes, segurança ou legibilidade.
+- Detalhes e limites: [docs/AGENT_REACH.md](docs/AGENT_REACH.md) e [docs/PONYTAIL.md](docs/PONYTAIL.md).
+
+## Backend nativo experimental RDT / Modus_X / Lunaris
+
+- CMake compila os kernels C++ no `liblabforge.so`; o Gradle chama o build NDK arm64 no `preBuild`, evitando APKs que contenham JNI desatualizada.
+- JNI expõe refinamento recorrente RDT, estado/memória associativa delta-rule e roteamento MoC top-k com mediador/fusão.
+- O painel RSI testa os kernels nativos e importa pacotes de adaptadores `.rsiw` com validação SHA-256 e dimensões.
+- Estes são kernels de estado oculto, ainda não decoders gerativos completos inseridos no grafo llama.cpp. Não há checkpoints gerativos oficiais verificados para estas arquiteturas; consulte [docs/NATIVE_ARCHITECTURES.md](docs/NATIVE_ARCHITECTURES.md).
+
 ## Stack de pesquisa por referência
 
 O catálogo GitHub-first associa tópicos aos READMEs permissivamente licenciados de labml, LLaMA Factory, MuonClip, Kimi Linear/KDA, Flash Linear Attention, lau-agent-dream, ZenBrain e UI-Voyager. A pesquisa ingere documentação e extrai ideias; ela não instala os runtimes Python, CUDA, Triton ou vLLM desses projetos no telefone.
