@@ -6,6 +6,8 @@
 
 #include <atomic>
 #include <mutex>
+#include <algorithm>
+#include <mutex>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -992,10 +994,28 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
         if (!model) { error = "não foi possível carregar o GGUF (memória, arquivo ou arquitetura incompatível)"; break; }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
-        int32_t needed = -llama_tokenize(vocab, prompt.c_str(), (int32_t) prompt.size(), nullptr, 0, true, true);
+        std::string formatted_prompt = prompt;
+        const char * chat_template = llama_model_chat_template(model, nullptr);
+        if (chat_template && chat_template[0]) {
+            llama_chat_message message = {"user", prompt.c_str()};
+            std::vector<char> formatted(prompt.size() * 4 + 1024);
+            int32_t formatted_size = llama_chat_apply_template(
+                chat_template, &message, 1, true, formatted.data(), (int32_t) formatted.size());
+            if (formatted_size > 0) {
+                if ((size_t)formatted_size >= formatted.size()) {
+                    formatted.resize((size_t)formatted_size + 1);
+                    formatted_size = llama_chat_apply_template(
+                        chat_template, &message, 1, true, formatted.data(), (int32_t) formatted.size());
+                }
+                if (formatted_size > 0 && (size_t)formatted_size < formatted.size()) {
+                    formatted_prompt.assign(formatted.data(), (size_t)formatted_size);
+                }
+            }
+        }
+        int32_t needed = -llama_tokenize(vocab, formatted_prompt.c_str(), (int32_t) formatted_prompt.size(), nullptr, 0, true, true);
         if (needed <= 0) { error = "falha ao tokenizar o prompt"; break; }
         std::vector<llama_token> tokens((size_t) needed);
-        int32_t token_count = llama_tokenize(vocab, prompt.c_str(), (int32_t) prompt.size(),
+        int32_t token_count = llama_tokenize(vocab, formatted_prompt.c_str(), (int32_t) formatted_prompt.size(),
                                              tokens.data(), (int32_t) tokens.size(), true, true);
         if (token_count < 0) { error = "falha ao tokenizar o prompt"; break; }
 
