@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-REV="${LLAMA_REV:-f7591a6}"
+REV="${LLAMA_REV:-f7591a6a01f9273de03331732bdc0b39721168be}"
 DEST="app/src/main/cpp/llama.cpp"
 
 if [ -f "$DEST/CMakeLists.txt" ]; then
