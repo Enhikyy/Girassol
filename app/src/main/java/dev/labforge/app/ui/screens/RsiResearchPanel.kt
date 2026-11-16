@@ -11,6 +11,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
+import dev.labforge.app.core.rsi.RsiWeightBundle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +50,28 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
     var holdout by remember { mutableStateOf("3") }
     var nativeCheck by remember { mutableStateOf<String?>(null) }
     var checkingNative by remember { mutableStateOf(false) }
+    var weightStatus by remember { mutableStateOf("Nenhum pacote de pesos importado") }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val weightPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            weightStatus = "Validando pacote…"
+            weightStatus = withContext(Dispatchers.IO) {
+                runCatching {
+                    val dir = File(context.filesDir, "labforge/rsi/weights").apply { mkdirs() }
+                    val file = File(dir, "adapter-" + System.currentTimeMillis() + ".rsiw")
+                    context.contentResolver.openInputStream(uri).use { input ->
+                        requireNotNull(input) { "não foi possível abrir o arquivo" }
+                        file.outputStream().use { output -> input.copyTo(output, 8192) }
+                    }
+                    require(file.length() <= 256L * 1024L * 1024L) { "arquivo acima de 256 MiB" }
+                    val bundle = RsiWeightBundle.load(file)
+                    "Pacote validado · " + bundle.architecture + " · hidden=" + bundle.hiddenSize +
+                        " · loops=" + bundle.reasoningSteps + " · SHA-256 OK"
+                }.getOrElse { "Pacote rejeitado: " + (it.message ?: "erro de validação") }
+            }
+        }
+    }
 
     Spacer(Modifier.height(18.dp))
     SectionHeader("Laboratório evolutivo", "skills versionadas · replay · validação")
@@ -193,6 +219,17 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
         nativeCheck?.let { result ->
             Text(result, color = if (result.contains("\"ok\":true")) Lab.Green else Lab.Amber, fontSize = 11.sp)
         }
+        Button(
+            onClick = { weightPicker.launch(arrayOf("*/*")) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Importar pacote de pesos .rsiw") }
+        Text(weightStatus, color = if (weightStatus.startsWith("Pacote validado")) Lab.Green else Lab.Muted, fontSize = 10.sp)
+        Text(
+            "Formato RSIW exige arquitetura, dimensões, tensores FP32 e SHA-256. Não existe checkpoint gerativo oficial dessas arquiteturas disponível para importar neste momento.",
+            color = Lab.Muted,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+        )
         Text(
             "Importante: os kernels são operações de camada/estado e ainda não substituem o decoder completo do llama.cpp. " +
                 "Os checkpoints treinados específicos destas arquiteturas não foram publicados pelos respectivos projetos; " +
