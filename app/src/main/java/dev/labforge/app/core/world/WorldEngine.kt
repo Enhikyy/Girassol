@@ -2,6 +2,7 @@ package dev.labforge.app.core.world
 
 import dev.labforge.app.core.world.cognition.CognitiveEngine
 import dev.labforge.app.core.world.cognition.CognitiveInput
+import dev.labforge.app.core.world.cognition.CognitiveDecision
 import dev.labforge.app.core.world.cognition.SoulProfile
 
 import kotlin.math.cos
@@ -19,6 +20,7 @@ enum class AgentLod { DETAILED, SIMPLIFIED, STATISTICAL }
  */
 class WorldEngine(initialState: WorldState, private val soulProvider: (String) -> SoulProfile = { SoulProfile() }) {
     private val cognitiveEngine = CognitiveEngine()
+    private val pendingCognitiveDecisions = mutableMapOf<String, CognitiveDecision>()
     var state: WorldState = initialState
         private set
 
@@ -346,6 +348,7 @@ class WorldEngine(initialState: WorldState, private val soulProvider: (String) -
             agent = if (left > 0) {
                 agent.copy(action = current.copy(remainingMinutes = left))
             } else {
+                pendingCognitiveDecisions.remove(agent.id)?.let { cognitiveEngine.recordOutcome(it, success = true) }
                 var completed = agent.copy(action = null).withActivity(ActivityRecord(
                     simMinute = nowMinute,
                     action = current.type,
@@ -379,7 +382,9 @@ class WorldEngine(initialState: WorldState, private val soulProvider: (String) -
     }
 
     internal fun chooseAction(agent: AgentState, world: WorldState, nowMinute: Long, random: WorldRandom): AgentAction {
-        val type = cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute, soulProvider(agent.id))).action
+        val decision = cognitiveEngine.decideFast(CognitiveInput(agent, world, nowMinute, soulProvider(agent.id)))
+        pendingCognitiveDecisions[agent.id] = decision
+        val type = decision.action
         val workplace = agent.employerId?.let { world.company(it)?.takeUnless { company -> company.bankrupt }?.buildingId }
             ?: if (agent.profession == Profession.EDUCATOR) "building_university" else "building_square"
         val buildingId = when (type) {
