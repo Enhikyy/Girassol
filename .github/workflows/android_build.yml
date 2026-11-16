@@ -41,8 +41,7 @@ jobs:
       - name: Install Android platform, build tools and native toolchain
         run: |
           sdkmanager --install \
-            "platforms;android-37.0" \
-            "build-tools;37.0.0" \
+            "platforms;android-37" \
             "platform-tools" \
             "ndk;26.1.10909125" \
             "cmake;3.22.1"
