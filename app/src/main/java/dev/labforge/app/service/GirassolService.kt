@@ -14,6 +14,15 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dev.labforge.app.MainActivity
 import dev.labforge.app.R
+import dev.labforge.app.core.world.WorldRuntime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Keeps the process alive (and visible) while a native job runs. Quantization and
@@ -23,6 +32,8 @@ import dev.labforge.app.R
 class GirassolService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var worldJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -30,8 +41,20 @@ class GirassolService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent == null && !dev.labforge.app.core.job.JobEngine.isRunning) {
-            stopSelf()
+        when (intent?.action) {
+            ACTION_STOP_WORLD -> {
+                WorldRuntime.setEnabled(this, false)
+                worldJob?.cancel()
+                worldJob = null
+                if (!dev.labforge.app.core.job.JobEngine.isRunning) {
+                    stopSelf(startId)
+                    return START_NOT_STICKY
+                }
+            }
+            ACTION_START_WORLD -> WorldRuntime.setEnabled(this, true)
+        }
+        if (intent == null && !dev.labforge.app.core.job.JobEngine.isRunning && !WorldRuntime.isEnabled(this)) {
+            stopSelf(startId)
             return START_NOT_STICKY
         }
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Trabalhando no seu modelo"
@@ -39,6 +62,7 @@ class GirassolService : Service() {
         return try {
             startForeground(NOTIFICATION_ID, buildNotification(title, detail))
             acquireWakeLock()
+            if (WorldRuntime.isEnabled(this)) startWorldLoop()
             START_STICKY
         } catch (t: Throwable) {
             // Some OEMs deny dataSync FGS even in foreground; never take the app down for this.
@@ -57,7 +81,28 @@ class GirassolService : Service() {
         }
     }
 
+    private fun startWorldLoop() {
+        if (worldJob?.isActive == true) return
+        WorldRuntime.initialize(applicationContext)
+        worldJob = serviceScope.launch {
+            while (isActive && WorldRuntime.isEnabled(applicationContext)) {
+                WorldRuntime.advance(applicationContext)
+                delay(1_000L)
+            }
+        }
+    }
+
+    override fun onTimeout(startId: Int, foregroundServiceType: Int) {
+        // Android 15+ enforces the dataSync foreground-service quota; persist and stop cleanly.
+        WorldRuntime.flush(applicationContext)
+        stopSelf(startId)
+    }
+
     override fun onDestroy() {
+        worldJob?.cancel()
+        worldJob = null
+        serviceScope.cancel()
+        WorldRuntime.flush(applicationContext)
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
         super.onDestroy()
@@ -101,6 +146,8 @@ class GirassolService : Service() {
         private const val NOTIFICATION_ID = 4407
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_DETAIL = "detail"
+        private const val ACTION_START_WORLD = "dev.labforge.app.action.START_WORLD"
+        private const val ACTION_STOP_WORLD = "dev.labforge.app.action.STOP_WORLD"
 
         fun start(context: Context, title: String, detail: String = "Você pode sair do app; o processo continua."): Boolean {
             val intent = Intent(context, GirassolService::class.java)
@@ -111,6 +158,20 @@ class GirassolService : Service() {
 
         fun stop(context: Context) {
             runCatching { context.stopService(Intent(context, GirassolService::class.java)) }
+        }
+
+        fun startWorld(context: Context) {
+            WorldRuntime.setEnabled(context, true)
+            val intent = Intent(context, GirassolService::class.java).setAction(ACTION_START_WORLD)
+                .putExtra(EXTRA_TITLE, "Mundo do Girassol ativo")
+                .putExtra(EXTRA_DETAIL, "A simulação lógica continua em segundo plano.")
+            runCatching { ContextCompat.startForegroundService(context, intent) }
+        }
+
+        fun stopWorld(context: Context) {
+            WorldRuntime.setEnabled(context, false)
+            val intent = Intent(context, GirassolService::class.java).setAction(ACTION_STOP_WORLD)
+            runCatching { context.startService(intent) }
         }
     }
 }
