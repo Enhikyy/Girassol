@@ -246,7 +246,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     memoryTopK = profile.memoryTopK,
                     repeatLimit = profile.repeatLimit,
                     systemOverride = rsiLab.snapshot().approvedSkill?.let { skill ->
-                        ReActAgent.CODEX_SYSTEM + "\\n\\nSkill aprovada pelo usuário (v${skill.version}):\\n" + skill.body
+                        "Skill aprovada pelo usuário (v${skill.version}):\n" + skill.body
                     }, 
                     settings = cfg,
                     history = conversationHistory,
