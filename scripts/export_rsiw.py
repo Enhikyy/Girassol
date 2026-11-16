@@ -22,7 +22,7 @@ EXPECTED = {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--mapping", type=Path, help="JSON mapping from RSIW tensor names to state_dict keys")
     parser.add_argument("--architecture", choices=EXPECTED, required=True)
     parser.add_argument("--hidden-size", type=int, required=True)
@@ -41,16 +41,20 @@ def main():
     if args.architecture == "lunaris_moc" and not (2 <= args.experts <= 16 and 1 <= args.top_k <= args.experts):
         raise SystemExit("experts/top-k inválidos")
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-    if isinstance(checkpoint, dict):
-        state = checkpoint.get("state_dict", checkpoint.get("model", checkpoint))
-    else:
-        raise SystemExit("checkpoint deve conter um state_dict")
-    if not isinstance(state, dict):
-        raise SystemExit("state_dict inválido")
+    required = EXPECTED[args.architecture]
+    if required and (args.checkpoint is None or args.mapping is None):
+        raise SystemExit("RDT/Lunaris MoC exigem --checkpoint e --mapping")
+    state = {}
+    if args.checkpoint is not None:
+        checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+        if isinstance(checkpoint, dict):
+            state = checkpoint.get("state_dict", checkpoint.get("model", checkpoint))
+        else:
+            raise SystemExit("checkpoint deve conter um state_dict")
+        if not isinstance(state, dict):
+            raise SystemExit("state_dict inválido")
 
     mapping = json.loads(args.mapping.read_text()) if args.mapping else {}
-    required = EXPECTED[args.architecture]
     if required and set(mapping) != set(required):
         raise SystemExit("mapping deve conter exatamente: " + ", ".join(required))
 
