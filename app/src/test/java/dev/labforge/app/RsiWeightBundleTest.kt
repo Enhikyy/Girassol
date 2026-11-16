@@ -21,7 +21,7 @@ class RsiWeightBundleTest {
     }
 
     private fun sha(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
-        .digest(bytes).joinToString("") { "%02x".format(it) }
+        .digest(bytes).joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun writeBundle(payload: ByteArray, manifest: JSONObject): File {
         val file = File.createTempFile("girassol-rsi", ".rsiw")
