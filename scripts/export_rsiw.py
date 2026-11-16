@@ -78,12 +78,12 @@ def main():
         tensor = state[key].detach().to(device="cpu", dtype=torch.float32).contiguous()
         if tuple(tensor.shape) != shapes[name]:
             raise SystemExit(f"{name}: shape {tuple(tensor.shape)} != {shapes[name]}")
-        values = tensor.reshape(-1).tolist()
-        if any(not torch.isfinite(torch.tensor(v)) for v in values):
+        if not torch.isfinite(tensor).all().item():
             raise SystemExit(f"{name}: tensor contém NaN/Inf")
+        raw = tensor.numpy().astype("<f4", copy=False).tobytes(order="C")
         offset = len(payload) // 4
-        payload.extend(struct.pack("<" + "f" * len(values), *values))
-        descriptors[name] = {"offset": offset, "count": len(values)}
+        payload.extend(raw)
+        descriptors[name] = {"offset": offset, "count": tensor.numel()}
 
     digest = hashlib.sha256(payload).hexdigest()
     manifest = {
