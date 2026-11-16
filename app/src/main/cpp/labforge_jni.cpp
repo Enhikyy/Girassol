@@ -937,6 +937,18 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {
     return JNI_VERSION_1_6;
 }
 
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    if (g_cached_model) {
+        llama_model_free(g_cached_model);
+        g_cached_model = nullptr;
+    }
+    if (g_backend_initialized) {
+        llama_backend_free();
+        g_backend_initialized = false;
+    }
+}
+
 
 // -----------------------------------------------------------------------------
 // Native local inference (GGUF -> llama.cpp -> JNI token stream)
@@ -944,11 +956,28 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {
 
 static std::atomic<bool> g_generation_cancel{false};
 static std::mutex g_generation_mutex;
+static llama_model * g_cached_model = nullptr;
+static std::string g_cached_model_path;
+static bool g_backend_initialized = false;
 
 extern "C" JNIEXPORT void JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeCancelGeneration(
         JNIEnv *, jobject) {
     g_generation_cancel.store(true, std::memory_order_relaxed);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeReleaseModel(JNIEnv *, jobject) {
+    std::lock_guard<std::mutex> guard(g_generation_mutex);
+    if (g_cached_model) {
+        llama_model_free(g_cached_model);
+        g_cached_model = nullptr;
+        g_cached_model_path.clear();
+    }
+    if (g_backend_initialized) {
+        llama_backend_free();
+        g_backend_initialized = false;
+    }
 }
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -982,14 +1011,23 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
     llama_sampler * sampler = nullptr;
     llama_batch batch{};
 
-    llama_backend_init();
+    if (!g_backend_initialized) { llama_backend_init(); g_backend_initialized = true; }
     do {
         llama_model_params mp = llama_model_default_params();
         mp.n_gpu_layers = 0; // safe CPU path; accelerator selection is a separate capability gate
         mp.load_mode = LLAMA_LOAD_MODE_MMAP;
         mp.vocab_only = false;
 
-        model = llama_model_load_from_file(model_path.c_str(), mp);
+        if (g_cached_model && g_cached_model_path != model_path) {
+            llama_model_free(g_cached_model);
+            g_cached_model = nullptr;
+            g_cached_model_path.clear();
+        }
+        if (!g_cached_model) {
+            g_cached_model = llama_model_load_from_file(model_path.c_str(), mp);
+            if (g_cached_model) g_cached_model_path = model_path;
+        }
+        model = g_cached_model;
         if (!model) { error = "não foi possível carregar o GGUF (memória, arquivo ou arquitetura incompatível)"; break; }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
@@ -1128,8 +1166,8 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerate(
     if (batch.token) llama_batch_free(batch);
     if (sampler) llama_sampler_free(sampler);
     if (ctx) llama_free(ctx);
-    if (model) llama_model_free(model);
-    llama_backend_free();
+    // Keep the mmap-backed model resident between chat turns. Release explicitly
+    // when changing models or when the native library is unloaded.
 
     if (cb_class) env->DeleteLocalRef(cb_class);
     if (!error.empty()) return new_string(env, "ERRO: " + error);
