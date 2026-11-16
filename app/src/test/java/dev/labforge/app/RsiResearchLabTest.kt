@@ -30,18 +30,14 @@ class RsiResearchLabTest {
     }
 
     @Test fun approvedSkillCanBeRolledBack() {
-        val lab = ledger()
+        val file = File(Files.createTempDirectory("girassol-rsi-rollback").toFile(), "lab.json")
+        val lab = RsiResearchLab(file)
         val first = lab.proposeSkill("Skill A", "Use fontes primárias e cite as evidências relevantes.", 3)
         assertTrue(lab.approveSkill(first.id))
         val second = lab.proposeSkill("Skill B", "Divida a tarefa em etapas e valide cada resultado.", 5)
         assertTrue(lab.approveSkill(second.id))
         assertEquals(first.id, lab.rollbackSkill()?.id)
-        assertEquals(first.id, ledgerWithSameFileNotAvailable(first.id))
-    }
-
-    private fun ledgerWithSameFileNotAvailable(expected: String): String {
-        // The returned rollback artifact is the assertion of the active prior version.
-        return expected
+        assertEquals(first.id, RsiResearchLab(file).snapshot().approvedSkill?.id)
     }
 
     @Test fun replayStoresOnlyTaskHashAndComputesMetrics() {
