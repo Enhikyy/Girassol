@@ -20,7 +20,7 @@ BUILD="$ROOT/.native-build"
 DEST="$ROOT/app/src/main/jniLibs/arm64-v8a"
 JOBS="${JOBS:-2}"
 
-if [ ! -d "$ROOT/app/src/main/cpp/llama.cpp" ]; then
+if [ ! -f "$ROOT/app/src/main/cpp/llama.cpp/CMakeLists.txt" ]; then
   bash "$ROOT/scripts/fetch-llama.sh"
 fi
 
