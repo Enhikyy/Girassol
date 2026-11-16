@@ -36,6 +36,13 @@ class RsiWeightBundleTest {
         return file
     }
 
+    @Test fun sha256UsesStandardUnsignedHexEncoding() {
+        assertEquals(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            sha("abc".toByteArray()),
+        )
+    }
+
     @Test fun loadsRdtTensorPackWithVerifiedHashAndShapes() {
         val values = FloatArray(12) { (it + 1) / 10f }
         val payload = pack(values)
