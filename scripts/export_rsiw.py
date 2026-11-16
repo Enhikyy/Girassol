@@ -10,7 +10,6 @@ import json
 import zipfile
 from pathlib import Path
 
-import torch
 
 EXPECTED = {
     "rdt": ("input_weights", "recurrent_weights", "bias", "gate"),
@@ -44,6 +43,8 @@ def main():
     required = EXPECTED[args.architecture]
     if required and (args.checkpoint is None or args.mapping is None):
         raise SystemExit("RDT/Lunaris MoC exigem --checkpoint e --mapping")
+    if required:
+        import torch
     state = {}
     if args.checkpoint is not None:
         checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
