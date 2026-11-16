@@ -10,7 +10,7 @@ import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 
 /**
- * Signed-by-hash tensor bundle for native RSI hidden-state adapters.
+ * Hash-verified tensor bundle for native RSI hidden-state adapters.
  * This is an adapter weight pack, not a complete tokenizer/decoder language model.
  */
 data class RsiWeightBundle(
