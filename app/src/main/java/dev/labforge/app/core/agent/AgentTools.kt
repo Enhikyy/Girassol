@@ -1,5 +1,7 @@
 package dev.labforge.app.core.agent
 
+import kotlinx.coroutines.CancellationException
+
 import dev.labforge.app.core.research.ResearchEngine
 import dev.labforge.app.integration.llamatik.LlamatikRuntime
 import kotlinx.serialization.json.Json
@@ -289,6 +291,46 @@ class ResearchWebTool(ws: File, private val keys: dev.labforge.app.core.research
     }
 }
 
+class AgentReachSearchTool(ws: File) : AgentTool(ws) {
+    override val name = "agent_reach_search"
+    override val description = "Pesquisa somente leitura em fontes públicas via Agent Reach nativo: web/Jina, GitHub, Reddit e pesquisa pública em X, LinkedIn e Instagram."
+    override fun parameters() = schema(JSONObject().apply {
+        put("query", prop("string", "Consulta de pesquisa"))
+        put("providers", prop("string", "Provedores: web,github,reddit,x,linkedin,instagram (públicos)"))
+    }, listOf("query"))
+    override suspend fun execute(args: JSONObject): ToolResult = try {
+        val providers = args.optString("providers", "web,github,reddit,x,linkedin,instagram")
+            .split(",").map { it.trim().lowercase() }.filter {
+                it in setOf("web", "github", "reddit", "x", "linkedin", "instagram")
+            }.toSet()
+        require(providers.isNotEmpty()) { "nenhum provedor válido" }
+        val results = dev.labforge.app.core.research.AgentReachNative.search(args.getString("query"), providers)
+        ToolResult(results.isNotEmpty(), results.joinToString("\n\n") {
+            "[${it.provider}] ${it.title}\n${it.text.take(700)}\n${it.url}"
+        }.ifBlank { "nenhum resultado público retornado" })
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        ToolResult(false, failure.message ?: "falha no Agent Reach")
+    }
+}
+
+class AgentReachReadTool(ws: File) : AgentTool(ws) {
+    override val name = "agent_reach_read"
+    override val description = "Lê uma página HTTP/HTTPS pública como Markdown via Jina Reader; bloqueia URLs locais e não usa cookies."
+    override fun parameters() = schema(JSONObject().apply {
+        put("url", prop("string", "URL pública a ler"))
+    }, listOf("url"))
+    override suspend fun execute(args: JSONObject): ToolResult = try {
+        val page = dev.labforge.app.core.research.AgentReachNative.read(args.getString("url"))
+        ToolResult(true, "[${page.provider}] ${page.title}\n${page.url}\n\n${page.text.take(12000)}")
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        ToolResult(false, failure.message ?: "falha ao ler página")
+    }
+}
+
 class ResearchSearchTool(ws: File) : AgentTool(ws) {
     override val name = "research_search"
     override val description = "Busca no material de pesquisa já salvo (RAG local BM25), sem rede."
@@ -345,6 +387,8 @@ fun defaultTools(
     MemorySaveTool(workspace, lessons),
     MemorySearchTool(workspace, lessons),
     ResearchWebTool(workspace, dev.labforge.app.core.research.ResearchKeys(settings.braveApiKey, settings.githubToken)),
+    AgentReachSearchTool(workspace),
+    AgentReachReadTool(workspace),
     ResearchSearchTool(workspace),
     LlamatikToolBridge("public_api_posts", workspace),
 ) + gitHubTools(workspace, settings.githubToken) +

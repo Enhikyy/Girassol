@@ -57,7 +57,7 @@ class ResearchEngine(
         require(clean.length >= 3) { "tema muito curto" }
 
         val curated = ResearchReferenceCatalog.researchDocs(clean)
-        onStage(Stage("Pesquisando", "GitHub prioritário · ${curated.size} referências técnicas licenciadas + APIs gratuitas" + (if (keys.github.isNotBlank()) " + GitHub Search" else "") + (if (keys.brave.isNotBlank()) " + Brave Search" else "")))
+        onStage(Stage("Pesquisando", "GitHub prioritário · Agent Reach público · ${curated.size} referências técnicas licenciadas + APIs gratuitas" + (if (keys.github.isNotBlank()) " + GitHub Search" else "") + (if (keys.brave.isNotBlank()) " + Brave Search" else "")))
         val jobs = listOf(
             async { safeSearch { FreeResearchApis.wikipedia(clean) } },
             async { safeSearch { FreeResearchApis.wikipedia(clean, "en") } },
@@ -71,6 +71,9 @@ class ResearchEngine(
             async { safeSearch { FreeResearchApis.huggingFaceDatasets(clean) } },
             async { safeSearch { KeyedResearchApis.githubRepos(clean, keys.github) } },
             async { safeSearch { KeyedResearchApis.brave(clean, keys.brave) } },
+            async { safeSearch { AgentReachNative.search(clean, setOf("web", "github", "reddit", "x", "linkedin", "instagram")).map {
+                ResearchDoc(it.title, it.url, it.text.take(1200), "Agent Reach · " + it.provider, score = 1.15)
+            } } },
         )
         var docs = jobs.awaitAll().flatten() + curated
 

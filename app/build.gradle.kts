@@ -65,6 +65,26 @@ android {
     }
 }
 
+val buildNativeArm64 = tasks.register<Exec>("buildNativeArm64") {
+    group = "build"
+    description = "Builds the arm64 llama.cpp JNI runtime and experimental RSI kernels."
+    workingDir(rootProject.projectDir)
+    inputs.files(
+        rootProject.file("scripts/build-native.sh"),
+        rootProject.file("scripts/fetch-llama.sh"),
+        file("src/main/cpp/CMakeLists.txt"),
+        file("src/main/cpp/labforge_jni.cpp"),
+        file("src/main/cpp/rsi_kernels.cpp"),
+        file("src/main/cpp/rsi_kernels.h"),
+    )
+    inputs.property("llamaCppRevision", "f7591a6a01f9273de03331732bdc0b39721168be")
+    outputs.files(fileTree("src/main/jniLibs/arm64-v8a") { include("*.so") })
+    commandLine("bash", rootProject.file("scripts/build-native.sh").absolutePath)
+}
+tasks.named("preBuild").configure {
+    dependsOn(buildNativeArm64)
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)

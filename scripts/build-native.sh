@@ -4,13 +4,27 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 NDK="${ANDROID_NDK_HOME:-${ANDROID_HOME:-$HOME/Android/Sdk}/ndk/26.1.10909125}"
-CMAKE="${CMAKE_BIN:-cmake}"
+if [ -n "${CMAKE_BIN:-}" ]; then
+  CMAKE="$CMAKE_BIN"
+elif command -v cmake >/dev/null 2>&1; then
+  CMAKE="$(command -v cmake)"
+else
+  CMAKE="${ANDROID_HOME:-$HOME/Android/Sdk}/cmake/3.22.1/bin/cmake"
+fi
+if command -v ninja >/dev/null 2>&1; then
+  NINJA="$(command -v ninja)"
+else
+  NINJA="${ANDROID_HOME:-$HOME/Android/Sdk}/cmake/3.22.1/bin/ninja"
+  export PATH="$(dirname "$NINJA"):$PATH"
+fi
+[ -x "$CMAKE" ] || { echo "CMake não encontrado: $CMAKE" >&2; exit 1; }
+[ -x "$NINJA" ] || { echo "Ninja não encontrado: $NINJA" >&2; exit 1; }
 BUILD="$ROOT/.native-build"
 DEST="$ROOT/app/src/main/jniLibs/arm64-v8a"
 JOBS="${JOBS:-2}"
 
-if [ ! -d "$ROOT/app/src/main/cpp/llama.cpp" ]; then
-  "$ROOT/scripts/fetch-llama.sh"
+if [ ! -f "$ROOT/app/src/main/cpp/llama.cpp/CMakeLists.txt" ]; then
+  bash "$ROOT/scripts/fetch-llama.sh"
 fi
 
 mkdir -p "$BUILD" "$DEST"
@@ -19,7 +33,7 @@ mkdir -p "$BUILD" "$DEST"
   -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DANDROID_STL=c++_shared
 
-ninja -C "$BUILD" -j "$JOBS"
+"$NINJA" -C "$BUILD" -j "$JOBS"
 
 cp "$BUILD"/bin/libggml-base.so "$BUILD"/bin/libggml-cpu.so "$BUILD"/bin/libggml.so \
    "$BUILD"/bin/libllama.so "$BUILD"/bin/libllama-common.so "$BUILD"/liblabforge.so "$DEST"/

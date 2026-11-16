@@ -20,6 +20,9 @@ import dev.labforge.app.core.agent.NativeLlmClient
 import dev.labforge.app.core.agent.ReActAgent
 import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.native.LlamaBridge
+import dev.labforge.app.core.rsi.RsiEngine
+import dev.labforge.app.core.rsi.RsiResearchLab
+import dev.labforge.app.core.rsi.RsiCollaborators
 import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
@@ -52,6 +55,8 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private val store = ModelStore(app)
     private val lessons = LessonStore(store.agentDir)
     private val settingsRepo = SettingsRepository(app)
+    private val rsi = RsiEngine(File(store.agentDir, "rsi.json"))
+    private val rsiLab = RsiResearchLab(File(store.agentDir, "rsi-lab.json"))
     private val shell = ShellSession(store.workspace())
     private val git = GitRepo(store.workspace())
 
@@ -122,6 +127,12 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     private var seq = 0L
     private var startedAt = 0L
+    private var turnToolCalls = 0
+    private var turnToolFailures = 0
+    private var turnPromptTokens = 0
+    private var turnCompletionTokens = 0
+    private var turnHadFinal = false
+    private var turnFailure = ""
 
     private var thinkId: Long? = null
     private var draftId: Long? = null
@@ -160,6 +171,12 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         running = true
         status = "pensando…"
         startedAt = System.currentTimeMillis()
+        turnToolCalls = 0
+        turnToolFailures = 0
+        turnPromptTokens = 0
+        turnCompletionTokens = 0
+        turnHadFinal = false
+        turnFailure = ""
         thinkId = null
         draftId = null
         thinkBuf.setLength(0)
@@ -193,8 +210,11 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         job = viewModelScope.launch {
+            var selectedProfileId = rsi.activeProfile().id
             runCatching {
                 val cfg = settingsRepo.settings.first()
+                val profile = withContext(Dispatchers.IO) { rsi.activeProfile() }
+                selectedProfileId = profile.id
                 val localModel = AppSelection.modelPath
                     ?.let(::File)
                     ?.takeIf { it.isFile && it.extension.equals("gguf", true) }
@@ -219,24 +239,75 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     backend = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
                     log("INFO", "Backend remoto OpenAI-compatible: ${LlmClient.describeNormalized(cfg.endpoint)} · modelo=${cfg.model}")
                 }
+                val collaboration = if (profile.id == "deliberate") {
+                    RsiCollaborators.prepare(task, backend, rounds = 3)
+                } else null
+                collaboration?.let {
+                    turnPromptTokens += it.promptTokens
+                    turnCompletionTokens += it.completionTokens
+                    log("RSI", "colaboração: ${it.completedRoles} papéis; tokens adicionais=${it.promptTokens + it.completionTokens}")
+                }
+                val approvedSkill = rsiLab.snapshot().approvedSkill
+                val rsiInstructions = buildList {
+                    approvedSkill?.let { add("Skill aprovada pelo usuário (v${it.version}):\n${it.body}") }
+                    collaboration?.instruction?.takeIf { it.isNotBlank() }?.let(::add)
+                }.joinToString("\n\n")
                 val agent = ReActAgent(
                     workspace = store.workspace(),
                     lessons = lessons,
                     llm = backend,
-                    maxSteps = if (cfg.maxSteps <= 0) 0 else cfg.maxSteps,
+                    maxSteps = if (cfg.maxSteps <= 0) 0 else minOf(cfg.maxSteps, profile.maxSteps),
+                    memoryTopK = profile.memoryTopK,
+                    repeatLimit = profile.repeatLimit,
+                    systemOverride = rsiInstructions.ifBlank { null },
                     settings = cfg,
                     history = conversationHistory,
-                    onEvent = { event -> viewModelScope.launch(Dispatchers.Main) { handle(event) } },
+                    onEvent = { event ->
+                        when (event) {
+                            is AgentEvent.ToolStart -> turnToolCalls++
+                            is AgentEvent.ToolEnd -> if (!event.ok) turnToolFailures++
+                            is AgentEvent.Usage -> {
+                                turnPromptTokens += event.prompt
+                                turnCompletionTokens += event.completion
+                            }
+                            is AgentEvent.Final -> turnHadFinal = event.text.isNotBlank()
+                            is AgentEvent.Failure -> turnFailure = event.message.take(500)
+                            else -> Unit
+                        }
+                        viewModelScope.launch(Dispatchers.Main) { handle(event) }
+                    },
                 )
                 agent.run(task)
             }.onFailure { error ->
+                turnFailure = (error.message ?: error.javaClass.simpleName).take(500)
                 log("ERROR", "Falha no agente: ${error.stackTraceToString().take(7000)}")
                 add(AgentMessage(++seq, AgentMessage.Role.ERROR, error.message ?: error.javaClass.simpleName))
             }
             flushStream()
+            elapsedMs = System.currentTimeMillis() - startedAt
+            withContext(Dispatchers.IO) {
+                rsi.recordRun(
+                    profileId = selectedProfileId,
+                    success = turnHadFinal && turnFailure.isBlank(),
+                    toolCalls = turnToolCalls,
+                    toolFailures = turnToolFailures,
+                    promptTokens = turnPromptTokens,
+                    completionTokens = turnCompletionTokens,
+                    elapsedMs = elapsedMs,
+                    failure = turnFailure.ifBlank { if (turnHadFinal) "" else "sem resposta final" },
+                )
+                rsiLab.recordReplay(
+                    task = task,
+                    profileId = selectedProfileId,
+                    success = turnHadFinal && turnFailure.isBlank(),
+                    latencyMs = elapsedMs,
+                    tokens = turnPromptTokens + turnCompletionTokens,
+                    toolCalls = turnToolCalls,
+                    toolFailures = turnToolFailures,
+                )
+            }
             running = false
             status = "pronto"
-            elapsedMs = System.currentTimeMillis() - startedAt
             if (completionTokens > 0 && elapsedMs > 0) {
                 tokensPerSecond = completionTokens / (elapsedMs / 1000.0)
             }

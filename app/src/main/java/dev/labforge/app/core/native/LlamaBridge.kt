@@ -161,6 +161,39 @@ object LlamaBridge {
         }.getOrElse { NativeChatResult(false, 0, 0, 0, "resposta nativa inválida: $json") }
     }
 
+    fun rsiKernelSelfTest(): String =
+        if (!isAvailable) "{\"ok\":false,\"error\":\"nativo indisponível\"}"
+        else runCatching { nativeRsiKernelSelfTest() }
+            .getOrElse { "{\"ok\":false,\"error\":\"falha JNI\"}" }
+
+    /** Native recurrent-depth hidden-state refinement kernel. */
+    fun rdtRefine(input: FloatArray, anchor: FloatArray, inputWeights: FloatArray,
+                   recurrentWeights: FloatArray, bias: FloatArray, gate: FloatArray, loops: Int): FloatArray =
+        if (!isAvailable) FloatArray(0) else runCatching {
+            nativeRdtRefine(input, anchor, inputWeights, recurrentWeights, bias, gate, loops)
+        }.getOrDefault(FloatArray(0))
+
+    data class ModusXState(val state: FloatArray, val associativeMemory: FloatArray)
+
+    /** One constant-sequence-state associative-memory update. Memory size is hiddenSize². */
+    fun modusXStep(input: FloatArray, state: FloatArray, memory: FloatArray,
+                   decay: Float, learningRate: Float): ModusXState? {
+        if (!isAvailable || input.isEmpty() || state.size != input.size || memory.size != input.size * input.size) return null
+        val result = runCatching { nativeModusXStep(input, state, memory, decay, learningRate) }.getOrNull() ?: return null
+        if (result.size != input.size + memory.size) return null
+        return ModusXState(result.copyOfRange(0, input.size), result.copyOfRange(input.size, result.size))
+    }
+
+    /** Native top-k expert routing, iterative expert refinement and mediator fusion. */
+    fun lunarisMoc(input: FloatArray, routerWeights: FloatArray, routerBias: FloatArray,
+                   expertWeights: FloatArray, expertBias: FloatArray, mediatorWeights: FloatArray,
+                   mediatorBias: FloatArray, fusionWeights: FloatArray, fusionBias: FloatArray,
+                   experts: Int, topK: Int, reasoningSteps: Int): FloatArray =
+        if (!isAvailable) FloatArray(0) else runCatching {
+            nativeLunarisMoc(input, routerWeights, routerBias, expertWeights, expertBias,
+                mediatorWeights, mediatorBias, fusionWeights, fusionBias, experts, topK, reasoningSteps)
+        }.getOrDefault(FloatArray(0))
+
     /** Token count using the GGUF's own vocabulary (native, no network). */
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
@@ -216,6 +249,15 @@ object LlamaBridge {
         epochs: Int, lr: Float, nCtx: Int, threads: Int,
         rank: Int, alpha: Float, targets: String, cb: NativeCallback?,
     ): String
+
+    private external fun nativeRsiKernelSelfTest(): String
+    private external fun nativeRdtRefine(input: FloatArray, anchor: FloatArray, inputWeights: FloatArray,
+        recurrentWeights: FloatArray, bias: FloatArray, gate: FloatArray, loops: Int): FloatArray
+    private external fun nativeModusXStep(input: FloatArray, state: FloatArray, memory: FloatArray,
+        decay: Float, learningRate: Float): FloatArray
+    private external fun nativeLunarisMoc(input: FloatArray, routerWeights: FloatArray, routerBias: FloatArray,
+        expertWeights: FloatArray, expertBias: FloatArray, mediatorWeights: FloatArray, mediatorBias: FloatArray,
+        fusionWeights: FloatArray, fusionBias: FloatArray, experts: Int, topK: Int, reasoningSteps: Int): FloatArray
 
     private external fun nativeCountTokens(model: String, text: String): Int
 

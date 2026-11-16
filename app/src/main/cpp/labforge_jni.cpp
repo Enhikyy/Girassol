@@ -23,6 +23,7 @@
 #include "ggml-backend.h"
 #include "common.h"
 #include "imatrix-loader.h"
+#include "rsi_kernels.h"
 
 // internal llama.cpp headers, needed to build a LoRA adapter from scratch
 #include "llama-adapter.h"
@@ -1468,6 +1469,104 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeGenerateLocal(
 extern "C" JNIEXPORT void JNICALL
 Java_dev_labforge_app_core_native_LlamaBridge_nativeRequestChatStop(JNIEnv *, jobject) {
     g_chat_abort = true;
+}
+
+
+static std::vector<float> read_float_array(JNIEnv * env, jfloatArray array) {
+    if (!array) return {};
+    const jsize n = env->GetArrayLength(array);
+    std::vector<float> values((size_t) n);
+    if (n > 0) env->GetFloatArrayRegion(array, 0, n, values.data());
+    return values;
+}
+
+static jfloatArray write_float_array(JNIEnv * env, const std::vector<float>& values) {
+    jfloatArray result = env->NewFloatArray((jsize) values.size());
+    if (result && !values.empty()) env->SetFloatArrayRegion(result, 0, (jsize) values.size(), values.data());
+    return result;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRdtRefine(
+        JNIEnv * env, jobject, jfloatArray j_input, jfloatArray j_anchor,
+        jfloatArray j_wi, jfloatArray j_wr, jfloatArray j_bias, jfloatArray j_gate, jint loops) {
+    std::lock_guard<std::mutex> guard(g_native_mutex);
+    auto input = read_float_array(env, j_input);
+    auto anchor = read_float_array(env, j_anchor);
+    auto wi = read_float_array(env, j_wi);
+    auto wr = read_float_array(env, j_wr);
+    auto bias = read_float_array(env, j_bias);
+    auto gate = read_float_array(env, j_gate);
+    std::vector<float> output;
+    if (!girassol::rsi::rdt_refine(input, anchor, wi, wr, bias, gate, loops, output)) return env->NewFloatArray(0);
+    return write_float_array(env, output);
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeModusXStep(
+        JNIEnv * env, jobject, jfloatArray j_input, jfloatArray j_state,
+        jfloatArray j_memory, jfloat decay, jfloat learning_rate) {
+    std::lock_guard<std::mutex> guard(g_native_mutex);
+    auto input = read_float_array(env, j_input);
+    auto state = read_float_array(env, j_state);
+    auto memory = read_float_array(env, j_memory);
+    if (!girassol::rsi::modusx_step(input, state, memory, decay, learning_rate)) return env->NewFloatArray(0);
+    state.insert(state.end(), memory.begin(), memory.end());
+    return write_float_array(env, state);
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeLunarisMoc(
+        JNIEnv * env, jobject, jfloatArray j_input, jfloatArray j_router_w, jfloatArray j_router_b,
+        jfloatArray j_expert_w, jfloatArray j_expert_b, jfloatArray j_mediator_w, jfloatArray j_mediator_b,
+        jfloatArray j_fusion_w, jfloatArray j_fusion_b, jint experts, jint top_k, jint reasoning_steps) {
+    std::lock_guard<std::mutex> guard(g_native_mutex);
+    auto input = read_float_array(env, j_input);
+    auto router_w = read_float_array(env, j_router_w);
+    auto router_b = read_float_array(env, j_router_b);
+    auto expert_w = read_float_array(env, j_expert_w);
+    auto expert_b = read_float_array(env, j_expert_b);
+    auto mediator_w = read_float_array(env, j_mediator_w);
+    auto mediator_b = read_float_array(env, j_mediator_b);
+    auto fusion_w = read_float_array(env, j_fusion_w);
+    auto fusion_b = read_float_array(env, j_fusion_b);
+    std::vector<float> output;
+    if (!girassol::rsi::lunaris_moc(input, router_w, router_b, expert_w, expert_b,
+            mediator_w, mediator_b, fusion_w, fusion_b, experts, top_k, reasoning_steps, output)) {
+        return env->NewFloatArray(0);
+    }
+    return write_float_array(env, output);
+}
+
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRsiKernelSelfTest(JNIEnv * env, jobject) {
+    std::lock_guard<std::mutex> guard(g_native_mutex);
+    bool rdt = false, modusx = false, moc = false;
+    {
+        std::vector<float> x{0.2f, -0.1f}, a{0.0f, 0.0f}, w(4, 0.0f), b(2, 0.0f), g(2, 12.0f), out;
+        rdt = girassol::rsi::rdt_refine(x, a, w, w, b, g, 3, out) &&
+              out.size() == 2 && std::abs(out[0]-x[0]) < 0.001f && std::abs(out[1]-x[1]) < 0.001f;
+    }
+    {
+        std::vector<float> x{0.2f, 0.4f}, state(2, 0.0f), memory(4, 0.0f);
+        modusx = girassol::rsi::modusx_step(x, state, memory, 0.5f, 0.1f) &&
+                 std::isfinite(state[0]) && std::isfinite(memory[0]) &&
+                 (std::abs(memory[0])+std::abs(memory[1])+std::abs(memory[2])+std::abs(memory[3]) > 0.0f);
+    }
+    {
+        const int d=2, e=2;
+        std::vector<float> x{0.1f,0.2f}, rw(e*d,0.1f), rb(e,0.0f), ew(e*d*d,0.01f), eb(e*d,0.0f);
+        std::vector<float> mw(d*d,0.01f), mb(d,0.0f), fw(d*d,0.01f), fb(d,0.0f), out;
+        moc = girassol::rsi::lunaris_moc(x,rw,rb,ew,eb,mw,mb,fw,fb,e,1,2,out) &&
+              out.size()==2 && std::isfinite(out[0]) && std::isfinite(out[1]);
+    }
+    const bool ok = rdt && modusx && moc;
+    const std::string json = std::string("{\"ok\":") + (ok ? "true" : "false") +
+        ",\"rdt\":" + (rdt ? "true" : "false") +
+        ",\"modusx\":" + (modusx ? "true" : "false") +
+        ",\"lunaris_moc\":" + (moc ? "true" : "false") + "}";
+    return utf8_to_jstring(env, json);
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {

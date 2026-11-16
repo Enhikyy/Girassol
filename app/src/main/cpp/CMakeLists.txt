@@ -27,7 +27,7 @@ set(GGML_LLAMAFILE       OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(${LLAMA_DIR} ${CMAKE_CURRENT_BINARY_DIR}/llama-build)
 
-add_library(labforge SHARED labforge_jni.cpp)
+add_library(labforge SHARED labforge_jni.cpp rsi_kernels.cpp)
 
 target_include_directories(labforge PRIVATE
     ${LLAMA_DIR}/include

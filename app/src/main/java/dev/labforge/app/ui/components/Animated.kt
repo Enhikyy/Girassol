@@ -9,6 +9,10 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.remember
+import android.os.Build
+import android.graphics.Paint
+import android.graphics.RuntimeShader
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -32,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -40,6 +46,29 @@ import androidx.compose.ui.unit.sp
 import dev.labforge.app.ui.theme.Lab
 import dev.chrisbanes.haze.hazeSource
 import kotlin.math.min
+
+private const val GIRASSOL_AURORA_AGSL = """
+uniform float2 resolution;
+uniform float time;
+half4 main(float2 p) {
+    float2 uv = p / max(resolution, float2(1.0));
+    float2 q = uv - float2(0.5, 0.5);
+    float wave = 0.5 + 0.5 * sin((uv.x * 2.8 + uv.y * 1.6 + time * 0.12) * 6.28318);
+    float g1 = exp(-dot((uv - float2(0.12 + 0.08 * sin(time), 0.20)), (uv - float2(0.12 + 0.08 * sin(time), 0.20))) * 8.0);
+    float g2 = exp(-dot((uv - float2(0.84, 0.42 + 0.08 * cos(time * 0.7))), (uv - float2(0.84, 0.42 + 0.08 * cos(time * 0.7)))) * 10.0);
+    float g3 = exp(-dot((uv - float2(0.52, 0.94)), (uv - float2(0.52, 0.94))) * 7.0);
+    half3 base = half3(0.025, 0.035, 0.020);
+    half3 gold = half3(0.72, 0.43, 0.10);
+    half3 green = half3(0.22, 0.48, 0.16);
+    half3 amber = half3(0.62, 0.28, 0.08);
+    half3 color = base + gold * (g1 * (0.12 + 0.08 * wave));
+    color += green * (g2 * 0.12);
+    color += amber * (g3 * 0.06);
+    float vignette = 1.0 - smoothstep(0.32, 0.82, length(q));
+    color *= 0.72 + 0.28 * vignette;
+    return half4(color, 1.0);
+}
+"""
 
 @Composable
 fun AnimatedAuroraBackground(content: @Composable () -> Unit) {
@@ -60,6 +89,10 @@ fun AnimatedAuroraBackground(content: @Composable () -> Unit) {
         label = "c",
     ).value
     val haze = LocalHazeState.current
+    val shader = remember {
+        if (Build.VERSION.SDK_INT >= 33) runCatching { RuntimeShader(GIRASSOL_AURORA_AGSL) }.getOrNull() else null
+    }
+    val shaderPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
     Box(Modifier.fillMaxSize()) {
         Canvas(
             Modifier
@@ -68,6 +101,15 @@ fun AnimatedAuroraBackground(content: @Composable () -> Unit) {
                 .background(Brush.verticalGradient(if (Lab.pureBlack) listOf(Color.Black, Color.Black, Color.Black) else listOf(Color(0xFF0B0E08), Lab.Bg, Color(0xFF080A06)))),
         ) {
             if (Lab.pureBlack) return@Canvas
+            if (shader != null) {
+                shader.setFloatUniform("resolution", size.width, size.height)
+                shader.setFloatUniform("time", a * 4.2f + b * 2.1f + c)
+                shaderPaint.shader = shader
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.drawRect(0f, 0f, size.width, size.height, shaderPaint)
+                }
+                return@Canvas
+            }
             val c4 = Offset(size.width * (0.20f + 0.60f * c), size.height * (0.62f + 0.10f * b))
             drawCircle(
                 brush = Brush.radialGradient(

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 
 object Lab {
     /** True black lowers OLED pixel emission; saved preference is applied by AppRoot. */
@@ -35,6 +36,21 @@ object Lab {
     val Green = Color(0xFF84D98A)
     val Amber = Color(0xFFFFD166)
     val Red = Color(0xFFFF6B6B)
+}
+
+/** Shared visual tokens: one source of truth for spacing, shapes and motion. */
+object DesignTokens {
+    val space2 = 8.dp
+    val space3 = 12.dp
+    val space4 = 16.dp
+    val space5 = 20.dp
+    val space6 = 24.dp
+    val cardRadius = 22.dp
+    val panelRadius = 28.dp
+    val controlRadius = 14.dp
+    const val motionFastMs = 160
+    const val motionStandardMs = 240
+    const val motionEmphasisMs = 420
 }
 
 private fun colorScheme() = darkColorScheme(

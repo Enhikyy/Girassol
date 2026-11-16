@@ -227,6 +227,76 @@ fun AutonomyScreen(onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(18.dp))
+        SectionHeader("Girassol RSI", "evolução mensurável do harness")
+        Spacer(Modifier.height(10.dp))
+        GlassCard {
+            val rsi = state.rsi
+            if (rsi == null) {
+                Text("Carregando métricas do RSI…", fontSize = 12.sp, color = Lab.Muted)
+            } else {
+                KeyValueRow("Perfil ativo", rsi.activeProfile.label)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    rsi.recommendation,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = if (rsi.recommendedProfileId != null) Lab.Green else Lab.Muted,
+                )
+                Spacer(Modifier.height(10.dp))
+                rsi.metrics.forEach { metric ->
+                    val active = metric.profile.id == rsi.activeProfileId
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (active) Lab.Violet.copy(alpha = 0.12f) else Lab.SurfaceHigh.copy(alpha = 0.45f))
+                            .border(1.dp, if (active) Lab.Violet.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.04f), RoundedCornerShape(12.dp))
+                            .clickable { vm.selectRsiProfile(metric.profile.id) }
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(metric.profile.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Lab.Text)
+                            Text(
+                                metric.profile.description,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
+                                color = Lab.Muted,
+                            )
+                            Text(
+                                "${metric.samples} execuções · ${(metric.successRate * 100).toInt()}% sucesso · ${metric.meanTokens.toInt()} tokens · ${metric.meanLatencyMs.toLong()} ms",
+                                fontSize = 10.sp,
+                                color = Lab.Muted,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Pill(
+                            when {
+                                active -> "ativo"
+                                metric.profile.id == rsi.recommendedProfileId -> "sugerido"
+                                else -> "testar"
+                            },
+                            when {
+                                active -> Lab.Violet
+                                metric.profile.id == rsi.recommendedProfileId -> Lab.Green
+                                else -> Lab.Muted
+                            },
+                        )
+                    }
+                    Spacer(Modifier.height(7.dp))
+                }
+                Text(
+                    "Toque em um perfil para testá-lo nas próximas conversas. A recomendação exige amostras reais; a troca nunca é automática. Sucesso operacional não comprova correção factual.",
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    color = Lab.Muted,
+                )
+            }
+        }
+
+        RsiResearchPanel(vm)
+
+        Spacer(Modifier.height(18.dp))
         SectionHeader("Diário de ações", "evidência local, sem telemetria") {
             Text(
                 "limpar",

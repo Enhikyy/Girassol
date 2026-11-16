@@ -14,6 +14,10 @@ import dev.labforge.app.core.device.ActionJournal
 import dev.labforge.app.core.device.DeviceActionRecord
 import dev.labforge.app.core.device.DeviceBridge
 import dev.labforge.app.core.settings.SettingsRepository
+import dev.labforge.app.core.rsi.RsiEngine
+import dev.labforge.app.core.rsi.RsiSnapshot
+import dev.labforge.app.core.rsi.RsiResearchLab
+import dev.labforge.app.core.rsi.RsiLabSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -33,11 +37,15 @@ data class AutonomyUiState(
     val battery: Int = -1,
     val charging: Boolean = false,
     val busy: Boolean = false,
+    val rsi: RsiSnapshot? = null,
+    val rsiLab: RsiLabSnapshot? = null,
 )
 
 class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settingsRepo = SettingsRepository(app)
+    private val rsiEngine = RsiEngine(File(app.filesDir, "labforge/agent/rsi.json"))
+    private val rsiLab = RsiResearchLab(File(app.filesDir, "labforge/agent/rsi-lab.json"))
 
     var state by mutableStateOf(AutonomyUiState())
         private set
@@ -53,6 +61,8 @@ class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
                 dev.labforge.app.core.settings.AppSettings(),
             )
             val work = SleepScheduler.status(context)
+            val rsiSnapshot = withContext(Dispatchers.IO) { rsiEngine.snapshot() }
+            val rsiLabSnapshot = withContext(Dispatchers.IO) { rsiLab.snapshot() }
             val journal = withContext(Dispatchers.IO) {
                 runCatching {
                     ActionJournal(
@@ -71,7 +81,50 @@ class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
                 ramGb = dev.labforge.app.service.MemoryGuard.availableGb(context),
                 battery = BatteryReader.percent(context),
                 charging = BatteryReader.isCharging(context),
+                rsi = rsiSnapshot,
+                rsiLab = rsiLabSnapshot,
             )
+        }
+    }
+
+    fun selectRsiProfile(profileId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (rsiEngine.setActiveProfile(profileId)) {
+                val snapshot = rsiEngine.snapshot()
+                withContext(Dispatchers.Main) { state = state.copy(rsi = snapshot) }
+            }
+        }
+    }
+
+    fun proposeRsiSkill(title: String, body: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { rsiLab.proposeSkill(title, body, state.rsi?.recentRuns?.size ?: 0) }
+            val snapshot = rsiLab.snapshot()
+            withContext(Dispatchers.Main) { state = state.copy(rsiLab = snapshot) }
+        }
+    }
+
+    fun approveRsiSkill(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            rsiLab.approveSkill(id)
+            val snapshot = rsiLab.snapshot()
+            withContext(Dispatchers.Main) { state = state.copy(rsiLab = snapshot) }
+        }
+    }
+
+    fun recordRsiExperiment(name: String, baseline: Double, candidate: Double, samples: Int, holdout: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { rsiLab.recordExperiment(name, baseline, candidate, samples, holdout) }
+            val snapshot = rsiLab.snapshot()
+            withContext(Dispatchers.Main) { state = state.copy(rsiLab = snapshot) }
+        }
+    }
+
+    fun rollbackRsiSkill() {
+        viewModelScope.launch(Dispatchers.IO) {
+            rsiLab.rollbackSkill()
+            val snapshot = rsiLab.snapshot()
+            withContext(Dispatchers.Main) { state = state.copy(rsiLab = snapshot) }
         }
     }
 
