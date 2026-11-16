@@ -43,7 +43,7 @@ def main():
     required = EXPECTED[args.architecture]
     if required and (args.checkpoint is None or args.mapping is None):
         raise SystemExit("RDT/Lunaris MoC exigem --checkpoint e --mapping")
-    if required:
+    if required or args.checkpoint is not None:
         import torch
     state = {}
     if args.checkpoint is not None:
