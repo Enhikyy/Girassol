@@ -43,6 +43,7 @@ class WorldRenderer(
     val camera = OrbitCamera()
 
     private var shader: WorldShader? = null
+    private val postProcessor = CinematicPostProcessor()
     private var box: GLMesh? = null
     private var cylinder: GLMesh? = null
     private var sphere: GLMesh? = null
@@ -79,6 +80,7 @@ class WorldRenderer(
         val rayQuery = VulkanRayQueryCapabilities.detect()
         Log.i("WorldRenderer", "Ray-query capability: ${rayQuery.supported}; ${rayQuery.reason}")
         try {
+            postProcessor.create()
             shader = WorldShader()
             box = GLMesh.box()
             cylinder = GLMesh.cylinder()
@@ -99,6 +101,7 @@ class WorldRenderer(
         this.width = width.coerceAtLeast(1)
         this.height = height.coerceAtLeast(1)
         GLES30.glViewport(0, 0, this.width, this.height)
+        postProcessor.resize(this.width, this.height)
         Matrix.perspectiveM(projection, 0, 45f, this.width.toFloat() / this.height, 0.15f, 240f)
     }
 
@@ -117,12 +120,14 @@ class WorldRenderer(
         runCatching { cylinder?.release() }
         runCatching { sphere?.release() }
         runCatching { shader?.release() }
+        runCatching { postProcessor.release() }
         box = null; cylinder = null; sphere = null; shader = null
     }
 
     private fun renderFrame() {
         val state = world ?: return
         val activeShader = shader ?: return
+        postProcessor.beginFrame()
         val activeBox = box ?: return
         val activeCylinder = cylinder ?: return
         val activeSphere = sphere ?: return
@@ -157,6 +162,7 @@ class WorldRenderer(
         drawAgents(activeBox, activeCylinder, activeSphere, state, cameraSnapshot)
         drawIntegration(activeBox, activeCylinder, state)
         GLES30.glBindVertexArray(0)
+        postProcessor.endFrame()
 
         frame++
         if (frame % 45L == 0L) {
