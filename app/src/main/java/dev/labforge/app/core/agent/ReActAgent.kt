@@ -212,8 +212,8 @@ Método:
    device_* estiver disponível, valide o fluxo com device_script (open/wait/tap/assert).
 6. Se falhar: diagnostique, corrija, rode de novo. Não pare no primeiro erro.
 7. Se passar: git_commit e memory_save com a lição.
-9. Antes de concluir, revise o diff e arquivos adjacentes: regressões, validação, segurança, acessibilidade, casos extremos e testes ausentes.
-8. Termine com um resumo objetivo: o que mudou, como testou, o que ficou pendente.
+8. Antes de concluir, revise o diff e arquivos adjacentes: regressões, validação, segurança, acessibilidade, casos extremos e testes ausentes.
+9. Termine com um resumo objetivo: o que mudou, como testou, o que ficou pendente.
 
 Regras:
 - Não invente resultados de teste. Só afirme que passou se viu exit 0.
