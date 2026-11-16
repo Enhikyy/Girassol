@@ -88,7 +88,7 @@ class RsiEngine(private val file: File) {
         elapsedMs: Long,
         failure: String = "",
         at: Long = System.currentTimeMillis(),
-    ) = synchronized(GLOBAL_LOCK) {
+    ): Unit = synchronized(GLOBAL_LOCK) {
         load()
         if (RsiEngine.DEFAULT_PROFILES.none { it.id == profileId }) return@synchronized
         val record = AgentRunRecord(
