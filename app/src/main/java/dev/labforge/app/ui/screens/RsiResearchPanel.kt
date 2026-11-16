@@ -149,8 +149,8 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
                     experimentName = ""
                 }
             },
-            enabled = experimentName.isNotBlank() && baseline.toDoubleOrNull() in 0.0..1.0 &&
-                candidate.toDoubleOrNull() in 0.0..1.0 && (samples.toIntOrNull() ?: 0) >= 0 &&
+            enabled = experimentName.isNotBlank() && (baseline.toDoubleOrNull() ?: -1.0) in 0.0..1.0 &&
+                (candidate.toDoubleOrNull() ?: -1.0) in 0.0..1.0 && (samples.toIntOrNull() ?: 0) >= 0 &&
                 (holdout.toIntOrNull() ?: 0) >= 0,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Registrar resultado medido") }
