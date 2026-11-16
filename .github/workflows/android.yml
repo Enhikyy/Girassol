@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/girassol-rsi-core]
     tags: ["v*"]
   pull_request:
     branches: [main]
