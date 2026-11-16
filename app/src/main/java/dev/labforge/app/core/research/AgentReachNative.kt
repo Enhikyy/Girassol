@@ -1,6 +1,9 @@
 package dev.labforge.app.core.research
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -30,24 +33,27 @@ object AgentReachNative {
     suspend fun search(query: String, providers: Set<String> = setOf("web", "github", "reddit", "x", "linkedin", "instagram")): List<Result> =
         withContext(Dispatchers.IO) {
             require(query.trim().length >= 2) { "consulta muito curta" }
-            val results = ArrayList<Result>()
-            providers.forEach { provider ->
-                try {
-                    when (provider.lowercase()) {
-                        "web" -> results += searchWeb(query)
-                        "github" -> results += searchGitHub(query)
-                        "reddit" -> results += searchReddit(query)
-                        "x" -> results += searchWeb("site:x.com " + query).map { it.copy(provider = "X · público") }
-                        "linkedin" -> results += searchWeb("site:linkedin.com " + query).map { it.copy(provider = "LinkedIn · público") }
-                        "instagram" -> results += searchWeb("site:instagram.com " + query).map { it.copy(provider = "Instagram · público") }
+            coroutineScope {
+                providers.map { provider ->
+                    async {
+                        try {
+                            when (provider.lowercase()) {
+                                "web" -> searchWeb(query)
+                                "github" -> searchGitHub(query)
+                                "reddit" -> searchReddit(query)
+                                "x" -> searchWeb("site:x.com " + query).map { it.copy(provider = "X · público") }
+                                "linkedin" -> searchWeb("site:linkedin.com " + query).map { it.copy(provider = "LinkedIn · público") }
+                                "instagram" -> searchWeb("site:instagram.com " + query).map { it.copy(provider = "Instagram · público") }
+                                else -> emptyList()
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
                     }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // Continue with other public providers when one service is rate-limited.
-                }
+                }.awaitAll().flatten().distinctBy { it.url.substringBefore("?") }.take(15)
             }
-            results.distinctBy { it.url.substringBefore("?") }.take(15)
         }
 
     suspend fun read(rawUrl: String): Result = withContext(Dispatchers.IO) {
