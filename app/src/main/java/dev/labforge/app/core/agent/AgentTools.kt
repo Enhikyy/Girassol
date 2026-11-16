@@ -301,8 +301,8 @@ class AgentReachSearchTool(ws: File) : AgentTool(ws) {
             .split(",").map { it.trim().lowercase() }.filter { it in setOf("web", "github", "reddit") }.toSet()
         require(providers.isNotEmpty()) { "nenhum provedor válido" }
         val results = dev.labforge.app.core.research.AgentReachNative.search(args.getString("query"), providers)
-        ToolResult(results.isNotEmpty(), results.joinToString("\\n\\n") {
-            "[${it.provider}] ${it.title}\\n${it.text.take(700)}\\n${it.url}"
+        ToolResult(results.isNotEmpty(), results.joinToString("\n\n") {
+            "[${it.provider}] ${it.title}\n${it.text.take(700)}\n${it.url}"
         }.ifBlank { "nenhum resultado público retornado" })
     }.getOrElse { ToolResult(false, it.message ?: "falha no Agent Reach") }
 }
@@ -315,7 +315,7 @@ class AgentReachReadTool(ws: File) : AgentTool(ws) {
     }, listOf("url"))
     override suspend fun execute(args: JSONObject): ToolResult = runCatching {
         val page = dev.labforge.app.core.research.AgentReachNative.read(args.getString("url"))
-        ToolResult(true, "[${page.provider}] ${page.title}\\n${page.url}\\n\\n${page.text.take(12000)}")
+        ToolResult(true, "[${page.provider}] ${page.title}\n${page.url}\n\n${page.text.take(12000)}")
     }.getOrElse { ToolResult(false, it.message ?: "falha ao ler página") }
 }
 
