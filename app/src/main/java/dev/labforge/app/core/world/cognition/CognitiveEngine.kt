@@ -1,6 +1,7 @@
 package dev.labforge.app.core.world.cognition
 import dev.labforge.app.core.world.*
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
 import kotlin.math.abs
 import kotlin.math.pow
 
@@ -17,6 +18,7 @@ data class BalancedTernaryState(val axes:List<Int>) {
   }
  }
 }
+@Serializable
 data class SoulProfile(val values:Map<String,Float> = mapOf("care" to .5f,"curiosity" to .5f,"discipline" to .5f,"sociability" to .5f),val experiences:Long=0) {
  fun absorb(key:String,success:Boolean):SoulProfile { val k=key.takeIf{values.containsKey(it)}?:"care"; return copy(values=values+(k to ((values[k]?:.5f)+(if(success).015f else -.01f)).coerceIn(0f,1f)),experiences=experiences+1) }
 }
