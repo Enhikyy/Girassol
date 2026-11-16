@@ -254,7 +254,7 @@ internal class CinematicPostProcessor {
                 film += haloColor + vec3(flare * 0.28, flare * 0.19, flare * 0.12);
 
                 vec2 centered = vUv * 2.0 - 1.0;
-                float vignette = smoothstep(1.45, 0.35, dot(centered * vec2(0.82, 1.0), centered * vec2(0.82, 1.0)));
+                float vignette = 1.0 - smoothstep(0.35, 1.45, dot(centered * vec2(0.82, 1.0), centered * vec2(0.82, 1.0)));
                 film *= mix(0.82, 1.0, vignette);
                 film = film / (film + vec3(0.22));
                 film = pow(max(film, vec3(0.0)), vec3(0.94));
