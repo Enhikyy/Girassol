@@ -111,6 +111,11 @@ object LlamaBridge {
         if (isAvailable) runCatching { nativeCancelGeneration() }
     }
 
+    /** Releases the cached mmap-backed model after the user switches models. */
+    fun releaseModel() {
+        if (isAvailable) runCatching { nativeReleaseModel() }
+    }
+
     /** Token count using the GGUF's own vocabulary (native, no network). */
     fun countTokens(model: String, text: String): Int {
         if (!isAvailable || model.isBlank() || text.isBlank()) return 0
@@ -155,6 +160,7 @@ object LlamaBridge {
         temperature: Float, cb: NativeCallback?,
     ): String
     private external fun nativeCancelGeneration()
+    private external fun nativeReleaseModel()
     private external fun nativeQuantize(
         input: String, output: String, ftype: String, imatrix: String?,
         threads: Int, cb: NativeCallback?,
