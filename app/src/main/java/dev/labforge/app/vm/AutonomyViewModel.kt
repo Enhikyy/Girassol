@@ -112,6 +112,14 @@ class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun recordRsiExperiment(name: String, baseline: Double, candidate: Double, samples: Int, holdout: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { rsiLab.recordExperiment(name, baseline, candidate, samples, holdout) }
+            val snapshot = rsiLab.snapshot()
+            withContext(Dispatchers.Main) { state = state.copy(rsiLab = snapshot) }
+        }
+    }
+
     fun rollbackRsiSkill() {
         viewModelScope.launch(Dispatchers.IO) {
             rsiLab.rollbackSkill()
