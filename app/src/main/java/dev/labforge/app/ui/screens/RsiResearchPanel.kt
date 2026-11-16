@@ -61,8 +61,9 @@ fun RsiResearchPanel(vm: AutonomyViewModel) {
                     val dir = File(context.filesDir, "labforge/rsi/weights").apply { mkdirs() }
                     val file = File(dir, "adapter-" + System.currentTimeMillis() + ".rsiw")
                     try {
-                        context.contentResolver.openInputStream(uri).use { input ->
-                            requireNotNull(input) { "não foi possível abrir o arquivo" }
+                        val source = context.contentResolver.openInputStream(uri)
+                            ?: error("não foi possível abrir o arquivo")
+                        source.use { input ->
                             file.outputStream().use { output ->
                                 val buffer = ByteArray(8192)
                                 var copied = 0L
