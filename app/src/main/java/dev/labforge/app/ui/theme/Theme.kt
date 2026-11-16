@@ -1,53 +1,42 @@
 package dev.labforge.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 object Lab {
-    val Bg = Color(0xFF070805)
-    val BgElev = Color(0xFF0C0E09)
-    val Surface = Color(0xFF13160F)
-    val SurfaceHigh = Color(0xFF1C2015)
-    val Outline = Color(0xFF3A4028)
-    val Text = Color(0xFFFBF6E7)
-    val Muted = Color(0xFFB4B89F)
-    val OnPrimary = Color(0xFF1A1405)
-    val Field = Color(0xFF0F110B)
-    val Violet = Color(0xFFF2C14E)
-    val VioletDeep = Color(0xFFC6922A)
-    val Indigo = Color(0xFFE6A93C)
-    val Cyan = Color(0xFFA9D96B)
-    val Pink = Color(0xFFFF9D5C)
-    val Green = Color(0xFF84D98A)
-    val Amber = Color(0xFFFFD166)
-    val Red = Color(0xFFFF6B6B)
+    private val active = mutableStateOf(FilmTheme.PORTRA_400.palette)
+    internal fun apply(palette: FilmPalette) { active.value = palette }
+    val Bg get() = Color(active.value.background)
+    val BgElev get() = Color(active.value.backgroundElevated)
+    val Surface get() = Color(active.value.surface)
+    val SurfaceHigh get() = Color(active.value.surfaceHigh)
+    val Outline get() = Color(active.value.outline)
+    val Text get() = Color(active.value.text)
+    val Muted get() = Color(active.value.muted)
+    val OnPrimary get() = Color(active.value.onPrimary)
+    val Field get() = Color(active.value.field)
+    val Violet get() = Color(active.value.primary)
+    val VioletDeep get() = Color(active.value.primaryDeep)
+    val Indigo get() = Color(active.value.indigo)
+    val Cyan get() = Color(active.value.cyan)
+    val Pink get() = Color(active.value.pink)
+    val Green get() = Color(active.value.green)
+    val Amber get() = Color(active.value.amber)
+    val Red get() = Color(active.value.red)
 }
-
-private val scheme = darkColorScheme(
-    primary = Lab.Violet,
-    onPrimary = Lab.OnPrimary,
-    primaryContainer = Lab.VioletDeep,
-    onPrimaryContainer = Lab.OnPrimary,
-    secondary = Lab.Cyan,
-    onSecondary = Color(0xFF16200A),
-    tertiary = Lab.Pink,
-    background = Lab.Bg,
-    onBackground = Lab.Text,
-    surface = Lab.Surface,
-    onSurface = Lab.Text,
-    surfaceVariant = Lab.SurfaceHigh,
-    onSurfaceVariant = Lab.Muted,
-    outline = Lab.Outline,
-    error = Lab.Red,
-)
 
 private val typography = Typography(
     displayLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 34.sp, letterSpacing = (-1).sp),
@@ -66,7 +55,27 @@ private val typography = Typography(
 
 @Composable
 fun LabForgeTheme(content: @Composable () -> Unit) {
-    @Suppress("UNUSED_EXPRESSION")
-    isSystemInDarkTheme()
+    val context = LocalContext.current
+    LaunchedEffect(context) { ThemeManager.initialize(context) }
+    val selected by ThemeManager.selected.collectAsState()
+    val palette = selected.palette
+    SideEffect { Lab.apply(palette) }
+    val scheme = darkColorScheme(
+        primary = Color(palette.primary),
+        onPrimary = Color(palette.onPrimary),
+        primaryContainer = Color(palette.primaryDeep),
+        onPrimaryContainer = Color(palette.text),
+        secondary = Color(palette.cyan),
+        onSecondary = Color(palette.background),
+        tertiary = Color(palette.pink),
+        background = Color(palette.background),
+        onBackground = Color(palette.text),
+        surface = Color(palette.surface),
+        onSurface = Color(palette.text),
+        surfaceVariant = Color(palette.surfaceHigh),
+        onSurfaceVariant = Color(palette.muted),
+        outline = Color(palette.outline),
+        error = Color(palette.red),
+    )
     MaterialTheme(colorScheme = scheme, typography = typography, content = content)
 }
