@@ -14,6 +14,8 @@ import dev.labforge.app.core.device.ActionJournal
 import dev.labforge.app.core.device.DeviceActionRecord
 import dev.labforge.app.core.device.DeviceBridge
 import dev.labforge.app.core.settings.SettingsRepository
+import dev.labforge.app.core.rsi.RsiEngine
+import dev.labforge.app.core.rsi.RsiSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -33,11 +35,13 @@ data class AutonomyUiState(
     val battery: Int = -1,
     val charging: Boolean = false,
     val busy: Boolean = false,
+    val rsi: RsiSnapshot? = null,
 )
 
 class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settingsRepo = SettingsRepository(app)
+    private val rsiEngine = RsiEngine(File(app.filesDir, "labforge/agent/rsi.json"))
 
     var state by mutableStateOf(AutonomyUiState())
         private set
@@ -53,6 +57,7 @@ class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
                 dev.labforge.app.core.settings.AppSettings(),
             )
             val work = SleepScheduler.status(context)
+            val rsiSnapshot = withContext(Dispatchers.IO) { rsiEngine.snapshot() }
             val journal = withContext(Dispatchers.IO) {
                 runCatching {
                     ActionJournal(
@@ -71,7 +76,17 @@ class AutonomyViewModel(app: Application) : AndroidViewModel(app) {
                 ramGb = dev.labforge.app.service.MemoryGuard.availableGb(context),
                 battery = BatteryReader.percent(context),
                 charging = BatteryReader.isCharging(context),
+                rsi = rsiSnapshot,
             )
+        }
+    }
+
+    fun selectRsiProfile(profileId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (rsiEngine.setActiveProfile(profileId)) {
+                val snapshot = rsiEngine.snapshot()
+                withContext(Dispatchers.Main) { state = state.copy(rsi = snapshot) }
+            }
         }
     }
 
