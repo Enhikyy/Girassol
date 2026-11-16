@@ -62,16 +62,19 @@ class RsiEngine(private val file: File) {
     init { load() }
 
     @Synchronized
-    fun activeProfile(): HarnessProfile =
+    fun activeProfile(): HarnessProfile = synchronized(GLOBAL_LOCK) {
+        load()
         RsiEngine.DEFAULT_PROFILES.firstOrNull { it.id == activeProfileId }
             ?: RsiEngine.DEFAULT_PROFILES.first()
+    }
 
     @Synchronized
-    fun setActiveProfile(profileId: String): Boolean {
-        if (RsiEngine.DEFAULT_PROFILES.none { it.id == profileId }) return false
+    fun setActiveProfile(profileId: String): Boolean = synchronized(GLOBAL_LOCK) {
+        load()
+        if (RsiEngine.DEFAULT_PROFILES.none { it.id == profileId }) return@synchronized false
         activeProfileId = profileId
         persist()
-        return true
+        true
     }
 
     @Synchronized
@@ -85,8 +88,9 @@ class RsiEngine(private val file: File) {
         elapsedMs: Long,
         failure: String = "",
         at: Long = System.currentTimeMillis(),
-    ) {
-        if (RsiEngine.DEFAULT_PROFILES.none { it.id == profileId }) return
+    ) = synchronized(GLOBAL_LOCK) {
+        load()
+        if (RsiEngine.DEFAULT_PROFILES.none { it.id == profileId }) return@synchronized
         val record = AgentRunRecord(
             id = UUID.randomUUID().toString(),
             profileId = profileId,
@@ -104,7 +108,8 @@ class RsiEngine(private val file: File) {
     }
 
     @Synchronized
-    fun snapshot(now: Long = System.currentTimeMillis()): RsiSnapshot {
+    fun snapshot(now: Long = System.currentTimeMillis()): RsiSnapshot = synchronized(GLOBAL_LOCK) {
+        load()
         val metrics = RsiEngine.DEFAULT_PROFILES.map { profile ->
             val samples = runs.filter { it.profileId == profile.id }
             val count = samples.size
@@ -127,7 +132,18 @@ class RsiEngine(private val file: File) {
                 candidate.meanLatencyMs <= baseline.meanLatencyMs * MAX_LATENCY_MULTIPLIER &&
                 candidate.toolFailureRate <= baseline.toolFailureRate + MAX_TOOL_FAILURE_REGRESSION
         }
-        val recommended = eligible.maxWithOrNull(
+        val pareto = eligible.filter { candidate ->
+            eligible.none { other ->
+                other.profile.id != candidate.profile.id &&
+                    other.successRate >= candidate.successRate &&
+                    other.meanTokens <= candidate.meanTokens &&
+                    other.meanLatencyMs <= candidate.meanLatencyMs &&
+                    (other.successRate > candidate.successRate ||
+                        other.meanTokens < candidate.meanTokens ||
+                        other.meanLatencyMs < candidate.meanLatencyMs)
+            }
+        }
+        val recommended = pareto.maxWithOrNull(
             compareBy<ProfileMetrics> { it.successRate }
                 .thenBy { -it.meanTokens }
                 .thenBy { -it.meanLatencyMs },
@@ -140,7 +156,7 @@ class RsiEngine(private val file: File) {
             else ->
                 recommended.profile.label + " atende aos critérios preliminares; a troca continua manual."
         }
-        return RsiSnapshot(
+        RsiSnapshot(
             activeProfileId = activeProfileId,
             metrics = metrics,
             recentRuns = runs.takeLast(12).asReversed(),
@@ -152,12 +168,13 @@ class RsiEngine(private val file: File) {
 
     /** Explicit promotion only. The caller must request it; no background auto-switch occurs. */
     @Synchronized
-    fun promote(profileId: String): Boolean {
+    fun promote(profileId: String): Boolean = synchronized(GLOBAL_LOCK) {
+        load()
         val snap = snapshot()
-        if (snap.recommendedProfileId != profileId) return false
+        if (snap.recommendedProfileId != profileId) return@synchronized false
         activeProfileId = profileId
         persist()
-        return true
+        true
     }
 
     private fun load() {
@@ -225,6 +242,8 @@ class RsiEngine(private val file: File) {
         private const val MAX_TOKEN_MULTIPLIER = 1.15
         private const val MAX_LATENCY_MULTIPLIER = 1.20
         private const val MAX_TOOL_FAILURE_REGRESSION = 0.05
+
+        private val GLOBAL_LOCK = Any()
 
         val DEFAULT_PROFILES = listOf(
             HarnessProfile(
