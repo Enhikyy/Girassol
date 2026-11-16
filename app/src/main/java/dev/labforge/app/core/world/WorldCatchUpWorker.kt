@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import java.io.File
+import dev.labforge.app.core.world.cognition.SeveranceMemoryManager
 
 /** Best-effort recovery after process death; Android controls when this worker runs. */
 class WorldCatchUpWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
