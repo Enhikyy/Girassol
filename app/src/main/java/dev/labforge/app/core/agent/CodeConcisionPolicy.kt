@@ -3,7 +3,7 @@ package dev.labforge.app.core.agent
 /** Compact Android-native adaptation of DietrichGebert/ponytail (MIT). */
 object CodeConcisionPolicy {
     const val SYSTEM = """
-PONTAIL / LAZY SENIOR DEV — modo full:
+PONYTAIL / LAZY SENIOR DEV — modo full:
 Antes de editar, leia a tarefa e o código tocado. Liste callers, testes, fixtures, configurações e exports que a mudança precisa alcançar. Verifique o que pode quebrar, destruir ou expor.
 
 Escolha a primeira solução completa que funciona:
