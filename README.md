@@ -74,6 +74,12 @@ A inferência local e a base congelada do LoRA usam mapeamento de arquivo `LLAMA
 
 O autoestudo mantém uma árvore de habilidades local, com pré-requisitos, revisão espaçada inspirada no algoritmo SM-2, histórico de experiências e consolidação offline idempotente de falhas e padrões recorrentes. O resultado do treino LoRA é registrado como evidência positiva ou como falha a revisar. A memória é local, limitada por quantidade e não substitui validação factual das fontes.
 
+## Girassol RSI (experimental)
+
+O painel **Autonomia → Girassol RSI** registra execuções reais do agente ReAct e compara os perfis Base, Eficiente e Deliberativo. Mede sucesso operacional, chamadas/falhas de ferramentas, tokens e latência. O histórico fica em `files/labforge/agent/rsi.json`.
+
+As recomendações exigem amostras mínimas e filtragem Pareto; a troca de perfil é manual. Sucesso operacional não equivale a correção factual. Esta etapa evolui parâmetros do harness, não modifica pesos GGUF nem executa fine-tuning autônomo. Consulte [docs/RSI.md](docs/RSI.md).
+
 ## Stack de pesquisa por referência
 
 O catálogo GitHub-first associa tópicos aos READMEs permissivamente licenciados de labml, LLaMA Factory, MuonClip, Kimi Linear/KDA, Flash Linear Attention, lau-agent-dream, ZenBrain e UI-Voyager. A pesquisa ingere documentação e extrai ideias; ela não instala os runtimes Python, CUDA, Triton ou vLLM desses projetos no telefone.
