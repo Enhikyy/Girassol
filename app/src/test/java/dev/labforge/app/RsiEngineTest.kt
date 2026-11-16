@@ -50,6 +50,14 @@ class RsiEngineTest {
         assertNull(engine.snapshot().recommendedProfileId)
     }
 
+    @Test fun separateViewModelsShareThePersistedActiveProfile() {
+        val file = File(Files.createTempDirectory("girassol-rsi-shared").toFile(), "rsi.json")
+        val agentSide = RsiEngine(file)
+        val autonomySide = RsiEngine(file)
+        assertTrue(autonomySide.setActiveProfile("deliberate"))
+        assertEquals("deliberate", agentSide.activeProfile().id)
+    }
+
     @Test fun runHistoryIsReloadedAndMetricsAreComputed() {
         val file = File(Files.createTempDirectory("girassol-rsi-reload").toFile(), "rsi.json")
         val engine = RsiEngine(file)
