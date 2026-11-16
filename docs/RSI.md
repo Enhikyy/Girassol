@@ -44,6 +44,15 @@ O módulo `RsiResearchLab` adiciona persistência local para:
 
 ### Limites de implementação
 
-Esta etapa implementa nativamente no Kotlin os mecanismos de harness/skills/replay/controle de promoção. Ela **não** incorpora os pesos nem reproduz as redes neurais de Mythic-RDT, Modus_X ou Lunaris. Essas arquiteturas exigem implementações de camadas/tensores, pesos treinados compatíveis, conversão e backend de inferência específico; um controlador de loops no app não seria uma reprodução fiel. MASS/treinamento LoRA também não é executado no A22: o app não inicia treino pesado nem altera pesos automaticamente.
+A expansão nativa acrescenta kernels C++/NDK para operações de estado oculto inspiradas nas arquiteturas:
+- RDT: refinamento recorrente com gate e âncora.
+- Modus_X: estado recorrente e memória associativa matricial com atualização delta-rule.
+- Lunaris MoC: roteamento top-k, refinamento iterativo de especialistas, mediador e fusão.
+
+Os kernels são compilados em `liblabforge.so`, expostos por JNI/Kotlin e testados por C++ host + smoke test no painel. O formato `.rsiw` importa adapters FP32 com verificação SHA-256 e dimensões; `scripts/export_rsiw.py` empacota tensores de checkpoints PyTorch treinados.
+
+**Limite atual:** estes blocos operam sobre vetores/estados ocultos fornecidos. O decoder GGUF atual ainda não expõe o ponto de inserção necessário para executar esses adapters dentro do grafo completo de geração. Portanto, não são apresentados como modelos gerativos completos nem como substitutos diretos do llama.cpp. Os repositórios oficiais consultados não fornecem checkpoints gerativos prontos compatíveis com esse runtime; nenhum peso aleatório é apresentado como modelo treinado. MASS/treino LoRA em larga escala continua fora do A22 e requer GPU externa.
+
+O backend também inclui Agent Reach em modo somente leitura (web/Jina, GitHub e Reddit públicos) e política Ponytail para o Codex; veja `docs/AGENT_REACH.md` e `docs/PONYTAIL.md`. O shader AGSL e tokens Compose são descritos no README.
 
 Nenhuma skill executável, código-fonte do próprio app ou arquivo GGUF é autoalterado. A validação estrutural de skills é um gate de segurança, não um avaliador semântico de qualidade. A avaliação de qualidade exige tarefas congeladas, holdout realmente separado e resultados reproduzíveis.
