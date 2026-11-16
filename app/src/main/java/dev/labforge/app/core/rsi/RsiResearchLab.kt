@@ -64,6 +64,7 @@ class RsiResearchLab(private val file: File) {
     private var skills = emptyList<RsiSkill>()
     private var replays = emptyList<RsiReplay>()
     private var experiments = emptyList<RsiExperiment>()
+    private var previousApprovedId: String? = null
 
     init { synchronized(lock) { load() } }
 
@@ -153,6 +154,7 @@ class RsiResearchLab(private val file: File) {
         load()
         val validation = validateSkill(id)
         if (!validation.valid) return@synchronized false
+        previousApprovedId = skills.lastOrNull { it.approved }?.id
         skills = skills.map { it.copy(approved = it.id == id) }
         persist()
         true
@@ -160,9 +162,10 @@ class RsiResearchLab(private val file: File) {
 
     fun rollbackSkill(): RsiSkill? = synchronized(lock) {
         load()
-        val approved = skills.filter { it.approved }
-        if (approved.size < 2) return@synchronized approved.lastOrNull()
-        val previous = approved[approved.lastIndex - 1]
+        val previousId = previousApprovedId ?: return@synchronized skills.lastOrNull { it.approved }
+        val previous = skills.firstOrNull { it.id == previousId } ?: return@synchronized null
+        val currentId = skills.lastOrNull { it.approved }?.id
+        previousApprovedId = currentId
         skills = skills.map { it.copy(approved = it.id == previous.id) }
         persist()
         previous
@@ -200,6 +203,7 @@ class RsiResearchLab(private val file: File) {
         runCatching {
             if (!file.isFile) return
             val root = JSONObject(file.readText())
+            previousApprovedId = root.optString("previousApprovedId").takeIf { it.isNotBlank() && it != "null" }
             skills = root.optJSONArray("skills").toObjects { o ->
                 RsiSkill(o.optString("id"), o.optString("title"), o.optString("body"),
                     o.optInt("version", 1), o.optBoolean("approved"), o.optLong("createdAt"),
@@ -222,6 +226,7 @@ class RsiResearchLab(private val file: File) {
         file.parentFile?.mkdirs()
         val root = JSONObject().apply {
             put("version", 1)
+            put("previousApprovedId", previousApprovedId ?: JSONObject.NULL)
             put("skills", JSONArray().apply { skills.forEach { s -> put(JSONObject().apply {
                 put("id", s.id); put("title", s.title); put("body", s.body); put("version", s.version)
                 put("approved", s.approved); put("createdAt", s.createdAt); put("evidenceCount", s.evidenceCount)
