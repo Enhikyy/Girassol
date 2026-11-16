@@ -22,6 +22,7 @@ import dev.labforge.app.core.model.ModelStore
 import dev.labforge.app.core.native.LlamaBridge
 import dev.labforge.app.core.rsi.RsiEngine
 import dev.labforge.app.core.rsi.RsiResearchLab
+import dev.labforge.app.core.rsi.RsiCollaborators
 import dev.labforge.app.core.log.AppLog
 import dev.labforge.app.core.settings.SettingsRepository
 import dev.labforge.app.core.term.GitRepo
@@ -238,6 +239,19 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     backend = LlmClient(cfg.endpoint, cfg.apiKey, cfg.model, cfg.temperature)
                     log("INFO", "Backend remoto OpenAI-compatible: ${LlmClient.describeNormalized(cfg.endpoint)} · modelo=${cfg.model}")
                 }
+                val collaboration = if (profile.id == "deliberate") {
+                    RsiCollaborators.prepare(task, backend, rounds = 3)
+                } else null
+                collaboration?.let {
+                    turnPromptTokens += it.promptTokens
+                    turnCompletionTokens += it.completionTokens
+                    log("RSI", "colaboração: ${it.completedRoles} papéis; tokens adicionais=${it.promptTokens + it.completionTokens}")
+                }
+                val approvedSkill = rsiLab.snapshot().approvedSkill
+                val rsiInstructions = buildList {
+                    approvedSkill?.let { add("Skill aprovada pelo usuário (v${it.version}):\n${it.body}") }
+                    collaboration?.instruction?.takeIf { it.isNotBlank() }?.let(::add)
+                }.joinToString("\n\n")
                 val agent = ReActAgent(
                     workspace = store.workspace(),
                     lessons = lessons,
@@ -245,9 +259,7 @@ class AgentViewModel(app: Application) : AndroidViewModel(app) {
                     maxSteps = if (cfg.maxSteps <= 0) 0 else minOf(cfg.maxSteps, profile.maxSteps),
                     memoryTopK = profile.memoryTopK,
                     repeatLimit = profile.repeatLimit,
-                    systemOverride = rsiLab.snapshot().approvedSkill?.let { skill ->
-                        "Skill aprovada pelo usuário (v${skill.version}):\n" + skill.body
-                    }, 
+                    systemOverride = rsiInstructions.ifBlank { null },
                     settings = cfg,
                     history = conversationHistory,
                     onEvent = { event ->
