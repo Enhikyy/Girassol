@@ -58,7 +58,7 @@ As versões acima refletem a configuração existente no módulo, que foi preser
 
 ## Pipeline de integração contínua
 
-O workflow `.github/workflows/android_build.yml` executa em push de branches, pull requests para `main` e execução manual. Instala JDK 21, Android SDK 37, NDK e CMake; executa `assembleDebug` e `testDebugUnitTest`; publica o APK debug e o relatório JUnit como artifacts.
+O workflow `.github/workflows/android_build.yml` executa em pull requests para `main` e por acionamento manual. O workflow `.github/workflows/android.yml` preserva o build em push para `main`, tags `v*` e a publicação de releases. O pipeline de QA instala JDK 21, Android SDK 37, NDK e CMake; executa `assembleDebug` e `testDebugUnitTest`; publica o APK debug e o relatório JUnit como artifacts.
 
 ## Limites operacionais
 
