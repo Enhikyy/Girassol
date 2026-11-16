@@ -54,7 +54,7 @@ class WorldRuntime internal constructor(
     private val mutex = Mutex()
     private val loadReady = CompletableDeferred<Unit>()
     private var pausedSaveJob: Job? = null
-    private var engine = WorldEngine(WorldFactory.create(nowWallClockMs = System.currentTimeMillis()))
+    private var engine = WorldEngine(WorldFactory.create(nowWallClockMs = System.currentTimeMillis()), soulProvider = cognitionMemory::soul)
     private var ticksSinceSave = 0
     private var ticksSinceKnowledgeSync = 0
 
@@ -71,7 +71,7 @@ class WorldRuntime internal constructor(
                 val now = System.currentTimeMillis()
                 val loaded = withContext(ioDispatcher) { snapshots.load(seed = 7_241_153L, nowWallClockMs = now) }
                 mutex.withLock {
-                    engine = WorldEngine(loaded.state)
+                    engine = WorldEngine(loaded.state, soulProvider = cognitionMemory::soul)
                     val compensated = engine.catchUp(now)
                     cognitionCoordinator.observe(engine.state)
                     val job = JobEngine.state.value
