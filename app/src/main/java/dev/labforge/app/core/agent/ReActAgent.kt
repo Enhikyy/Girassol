@@ -53,7 +53,7 @@ class ReActAgent(
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "system")
-                put("content", systemOverride ?: systemPrompt(notebook))
+                put("content", systemPrompt(notebook) + systemOverride?.takeIf { it.isNotBlank() }?.let { "\n\n$it" }.orEmpty())
             })
             history.takeLast(12).forEach { turn ->
                 if (turn.role == "user" || turn.role == "assistant") {
