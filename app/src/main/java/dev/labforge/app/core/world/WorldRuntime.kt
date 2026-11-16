@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import dev.labforge.app.core.world.cognition.ScopedMemory
 import dev.labforge.app.core.world.cognition.SeveranceMemoryManager
 import dev.labforge.app.core.world.cognition.WorldCognitionCoordinator
 import dev.labforge.app.core.world.cognition.System2Reasoner
@@ -150,6 +151,12 @@ class WorldRuntime internal constructor(
     }
 
     fun installSystem2Reasoner(reasoner: System2Reasoner?) { system2Reasoner = reasoner }
+
+    fun recallAgentMemories(agentId: String, limit: Int = 8): List<ScopedMemory> {
+        val snapshot = _state.value
+        val agent = snapshot.agent(agentId) ?: return emptyList()
+        return cognitionMemory.recall(agent, snapshot, query = "", limit = limit).map { it.memory }
+    }
 
     fun setVisibleAgents(ids: Set<String>) {
         _visibleAgentIds.value = ids.take(160).toSet()
