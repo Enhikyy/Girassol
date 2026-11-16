@@ -17,6 +17,7 @@ class AgentReachNativeTest {
             "http://192.168.1.10/",
             "http://10.0.0.5/",
             "http://service.internal/",
+            "http://router/",
             "http://user:password@example.com/",
             "file:///etc/passwd",
             "https://example.com:8443/",
