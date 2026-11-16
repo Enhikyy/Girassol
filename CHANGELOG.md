@@ -1,4 +1,4 @@
-## 2.1.0 — Girassol RSI (experimental)
+## Girassol RSI — primeira etapa experimental
 
 - Added local Kotlin RSI ledger for real ReAct turns: operational success, tool failures, token usage and latency.
 - Added Base, Efficient and Deliberative harness profiles; profile selection is manual and shared across app screens.
