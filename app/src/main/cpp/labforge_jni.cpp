@@ -1538,6 +1538,37 @@ Java_dev_labforge_app_core_native_LlamaBridge_nativeLunarisMoc(
     return write_float_array(env, output);
 }
 
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_labforge_app_core_native_LlamaBridge_nativeRsiKernelSelfTest(JNIEnv * env, jobject) {
+    std::lock_guard<std::mutex> guard(g_native_mutex);
+    bool rdt = false, modusx = false, moc = false;
+    {
+        std::vector<float> x{0.2f, -0.1f}, a{0.0f, 0.0f}, w(4, 0.0f), b(2, 0.0f), g(2, 12.0f), out;
+        rdt = girassol::rsi::rdt_refine(x, a, w, w, b, g, 3, out) &&
+              out.size() == 2 && std::abs(out[0]-x[0]) < 0.001f && std::abs(out[1]-x[1]) < 0.001f;
+    }
+    {
+        std::vector<float> x{0.2f, 0.4f}, state(2, 0.0f), memory(4, 0.0f);
+        modusx = girassol::rsi::modusx_step(x, state, memory, 0.5f, 0.1f) &&
+                 std::isfinite(state[0]) && std::isfinite(memory[0]) &&
+                 (std::abs(memory[0])+std::abs(memory[1])+std::abs(memory[2])+std::abs(memory[3]) > 0.0f);
+    }
+    {
+        const int d=2, e=2;
+        std::vector<float> x{0.1f,0.2f}, rw(e*d,0.1f), rb(e,0.0f), ew(e*d*d,0.01f), eb(e*d,0.0f);
+        std::vector<float> mw(d*d,0.01f), mb(d,0.0f), fw(d*d,0.01f), fb(d,0.0f), out;
+        moc = girassol::rsi::lunaris_moc(x,rw,rb,ew,eb,mw,mb,fw,fb,e,1,2,out) &&
+              out.size()==2 && std::isfinite(out[0]) && std::isfinite(out[1]);
+    }
+    const bool ok = rdt && modusx && moc;
+    const std::string json = std::string("{\"ok\":") + (ok ? "true" : "false") +
+        ",\"rdt\":" + (rdt ? "true" : "false") +
+        ",\"modusx\":" + (modusx ? "true" : "false") +
+        ",\"lunaris_moc\":" + (moc ? "true" : "false") + "}";
+    return utf8_to_jstring(env, json);
+}
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM * vm, void *) {
     g_vm = vm;
     return JNI_VERSION_1_6;
