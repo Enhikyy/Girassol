@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import dev.labforge.app.core.world.cognition.SeveranceMemoryManager
 import dev.labforge.app.core.world.cognition.WorldCognitionCoordinator
+import dev.labforge.app.core.world.cognition.System2Reasoner
 
 data class WorldRuntimeStatus(
     val loading: Boolean = true,
@@ -54,6 +55,9 @@ class WorldRuntime internal constructor(
     private val mutex = Mutex()
     private val loadReady = CompletableDeferred<Unit>()
     private var pausedSaveJob: Job? = null
+    @Volatile private var system2Reasoner: System2Reasoner? = null
+    private var system2Job: Job? = null
+    private var lastSystem2At = 0L
     private var engine = WorldEngine(WorldFactory.create(nowWallClockMs = System.currentTimeMillis()), soulProvider = cognitionMemory::soul)
     private var ticksSinceSave = 0
     private var ticksSinceKnowledgeSync = 0
@@ -126,6 +130,15 @@ class WorldRuntime internal constructor(
                         ticksSinceKnowledgeSync++
                     }
                 }
+                val reasoner = system2Reasoner
+                val reasoningNow = System.currentTimeMillis()
+                if (reasoner != null && system2Job?.isActive != true && reasoningNow - lastSystem2At >= 60_000L) {
+                    val candidate = mutex.withLock { engine.lowestConfidenceAgent() }
+                    if (candidate != null) {
+                        lastSystem2At = reasoningNow
+                        system2Job = scope.launch { runCatching { engine.requestSystem2(candidate, reasoner) } }
+                    }
+                }
                 if (ticksSinceKnowledgeSync >= 15) {
                     val all = withContext(ioDispatcher) { lessons.all() }
                     mutate { it.syncKnowledge(all.size, all.firstOrNull()?.title.orEmpty()) }
@@ -135,6 +148,8 @@ class WorldRuntime internal constructor(
             }
         }
     }
+
+    fun installSystem2Reasoner(reasoner: System2Reasoner?) { system2Reasoner = reasoner }
 
     fun setVisibleAgents(ids: Set<String>) {
         _visibleAgentIds.value = ids.take(160).toSet()
