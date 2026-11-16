@@ -310,8 +310,9 @@ class WorldViewModel(app: Application) : AndroidViewModel(app) {
         val relations = agent.relationships.entries.sortedByDescending { it.value }.take(5).joinToString("\n") { (id, affinity) ->
             "- ${world.agent(id)?.name ?: id}: afinidade ${"%.2f".format(affinity)}"
         }.ifBlank { "- Ainda não há vínculos registrados." }
-        val memories = agent.memories.take(8).joinToString("\n") { "- [dia ${it.simMinute / 1_440}] ${it.text}" }
-            .ifBlank { "- Sem memórias anteriores." }
+        val memories = runtime.recallAgentMemories(agentId, limit = 8).joinToString("\n") {
+            "- [${it.mode}/${it.tier} · dia ${it.createdMinute / 1_440}] ${it.text}"
+        }.ifBlank { "- Sem memórias nesta persona/contexto." }
         return """
 Você é ${agent.name}, um habitante autônomo do mundo persistente Aurora, dentro do Girassol.
 Responda em português, em primeira pessoa, com até 180 palavras. Não apresente respostas como ferramentas reais fora da conversa.
