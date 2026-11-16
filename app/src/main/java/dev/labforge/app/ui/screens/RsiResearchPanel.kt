@@ -1,0 +1,126 @@
+package dev.labforge.app.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.labforge.app.ui.components.GlassCard
+import dev.labforge.app.ui.components.GhostButton
+import dev.labforge.app.ui.components.SectionHeader
+import dev.labforge.app.ui.theme.Lab
+import dev.labforge.app.vm.AutonomyViewModel
+
+/** Native UI for the on-device skill/replay/experiment workbench. */
+@Composable
+fun RsiResearchPanel(vm: AutonomyViewModel) {
+    val lab = vm.state.rsiLab
+    var title by remember { mutableStateOf("") }
+    var body by remember { mutableStateOf("") }
+
+    Spacer(Modifier.height(18.dp))
+    SectionHeader("Laboratório evolutivo", "skills versionadas · replay · validação")
+    Spacer(Modifier.height(10.dp))
+    GlassCard {
+        if (lab == null) {
+            Text("Carregando laboratório…", color = Lab.Muted, fontSize = 12.sp)
+        } else {
+            Text(
+                "Replay: ${lab.replays.size} execuções · ${(lab.replaySuccessRate * 100).toInt()}% sucesso · " +
+                    "${lab.meanLatencyMs.toLong()} ms · ${lab.meanTokens.toInt()} tokens médios",
+                color = Lab.Text,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Skills: ${lab.skills.size} candidatas/históricas · versão ativa: ${lab.approvedSkill?.title ?: "nenhuma"}",
+                color = Lab.Muted,
+                fontSize = 11.sp,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = title,
+            onValueChange = { title = it.take(100) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Nome da skill") },
+            singleLine = true,
+        )
+        Spacer(Modifier.height(6.dp))
+        OutlinedTextField(
+            value = body,
+            onValueChange = { body = it.take(12000) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Instruções reutilizáveis") },
+            minLines = 3,
+            maxLines = 6,
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                vm.proposeRsiSkill(title, body)
+                title = ""
+                body = ""
+            },
+            enabled = title.isNotBlank() && body.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Criar candidata") }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "A candidata é salva localmente e passa por validação estrutural. A aprovação é manual; " +
+                "nenhuma skill altera código executável ou pesos GGUF.",
+            color = Lab.Muted,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        lab?.skills?.take(8)?.forEach { skill ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${skill.title} · v${skill.version}${if (skill.approved) " · ativa" else ""}",
+                        color = Lab.Text,
+                        fontSize = 12.sp,
+                    )
+                    Text(
+                        "${skill.validation} · evidências: ${skill.evidenceCount}",
+                        color = Lab.Muted,
+                        fontSize = 10.sp,
+                    )
+                }
+                if (!skill.approved) {
+                    GhostButton("Validar e ativar") { vm.approveRsiSkill(skill.id) }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        GhostButton("Reverter para versão anterior") { vm.rollbackRsiSkill() }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "O motor de experimentos registra comparações baseline/holdout e bloqueia candidatos " +
+                "sem amostras mínimas ou sem ganho. O replay guarda hash da tarefa, não o texto privado.",
+            color = Lab.Muted,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+        )
+    }
+}
