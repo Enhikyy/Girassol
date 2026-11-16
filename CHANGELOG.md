@@ -1,3 +1,11 @@
+## 2.1.0 — Girassol RSI (experimental)
+
+- Added local Kotlin RSI ledger for real ReAct turns: operational success, tool failures, token usage and latency.
+- Added Base, Efficient and Deliberative harness profiles; profile selection is manual and shared across app screens.
+- Added Pareto-based candidate filtering and evidence thresholds before recommendations; no automatic promotion or GGUF weight mutation.
+- Added RSI metrics panel to Autonomy, persistence tests and `docs/RSI.md`.
+- Kept all third-party research projects as references; no Python/CUDA runtime or unverified code is bundled into the Android app.
+
 # Girassol 2.0.0 — autonomia de dispositivo
 
 - Adiciona `GirassolAccessibilityService`: leitura da árvore de UI, toque, gesto, digitação,
