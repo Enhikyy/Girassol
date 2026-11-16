@@ -28,6 +28,35 @@ Fontes upstream:
 - Lunaris MoC: https://github.com/Auren-Research/lunaris
 - Lunaris Guard (modelo separado): https://huggingface.co/auren-research/lunaris-guardv3
 
+## Exportação de adapters treinados
+
+O script `scripts/export_rsiw.py` converte um `state_dict` PyTorch treinado em `.rsiw`. Ele exige um JSON de mapeamento explícito entre os nomes dos tensores nativos e as chaves do checkpoint; valida shapes, valores finitos, arquitetura, dimensão, especialistas e profundidade; grava FP32 little-endian e calcula SHA-256. O importador Android valida novamente o pacote antes de aceitar os tensores.
+
+Exemplo de mapeamento RDT (os nomes à direita dependem do treinamento real):
+
+```json
+{
+  "input_weights": "adapter.input.weight",
+  "recurrent_weights": "adapter.recurrent.weight",
+  "bias": "adapter.bias",
+  "gate": "adapter.gate"
+}
+```
+
+Exportação:
+
+```bash
+python scripts/export_rsiw.py \
+  --checkpoint adapter.pt \
+  --mapping rdt-mapping.json \
+  --architecture rdt \
+  --hidden-size 256 \
+  --reasoning-steps 4 \
+  --output girassol-rdt.rsiw
+```
+
+Para Lunaris MoC, o mapeamento precisa fornecer router, especialistas, mediador e fusão com as dimensões especificadas no script. Modus_X usa parâmetros de estado `decay`/`learning_rate` e memória persistente, sem tensores treináveis neste kernel mínimo.
+
 ## Formato esperado para pesos
 
 O runtime C++ recebe tensores FP32 em ordem row-major; os nomes e dimensões esperados estão definidos nas assinaturas JNI/Kotlin. Nenhum tensor aleatório é distribuído como checkpoint. Um pacote de pesos só deve ser aceito quando trouxer:
