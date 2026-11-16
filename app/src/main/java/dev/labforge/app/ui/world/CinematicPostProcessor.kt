@@ -85,9 +85,9 @@ internal class CinematicPostProcessor {
         outputWidth = width.coerceAtLeast(1)
         outputHeight = height.coerceAtLeast(1)
         // Bound GPU memory and bandwidth on mid-range phones. Aspect ratio is preserved.
-        val scale = minOf(1f, MAX_TARGET_EDGE.toFloat() / maxOf(outputWidth, outputHeight))
-        val nextWidth = (outputWidth * scale).toInt().coerceAtLeast(1)
-        val nextHeight = (outputHeight * scale).toInt().coerceAtLeast(1)
+        val budget = CinematicRenderBudget.targetSize(outputWidth, outputHeight)
+        val nextWidth = budget.width
+        val nextHeight = budget.height
         if (nextWidth == targetWidth && nextHeight == targetHeight && framebuffer != 0) return
         releaseTarget()
         targetWidth = nextWidth
@@ -210,7 +210,6 @@ internal class CinematicPostProcessor {
 
     private companion object {
         const val TAG = "GirassolFilm"
-        const val MAX_TARGET_EDGE = 1600
 
         const val VERTEX_SHADER = """
             #version 300 es
@@ -249,8 +248,8 @@ internal class CinematicPostProcessor {
                 float warmHalo = highlight * uHalation;
                 vec3 haloColor = vec3(warmHalo * 1.12, warmHalo * 0.42, warmHalo * 0.16);
 
-                float horizontalEnergy = max(max(highlight, max(texture(uScene, vUv + vec2(texel.x * 2.0, 0.0)).r - 0.72, 0.0)), 0.0);
-                float flare = smoothstep(0.72, 0.98, redFringe.r) * uFlare * (1.0 - abs(vUv.y - 0.5) * 1.6);
+                float horizontalEnergy = max(highlight, texture(uScene, clamp(vUv + vec2(texel.x * 2.0, 0.0), 0.0, 1.0)).r - 0.72);
+                float flare = smoothstep(0.02, 0.28, horizontalEnergy) * uFlare * (1.0 - abs(vUv.y - 0.5) * 1.6);
                 vec3 film = mix(base, vec3(redFringe.r, base.g, base.b), 0.08);
                 film += haloColor + vec3(flare * 0.28, flare * 0.19, flare * 0.12);
 
