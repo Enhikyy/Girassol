@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numeric>
+#include <utility>
 
 namespace girassol::rsi {
 namespace {
