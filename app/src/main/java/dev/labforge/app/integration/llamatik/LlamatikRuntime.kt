@@ -216,12 +216,12 @@ object LlamatikRuntime {
                 return@callbackFlow
             }
             val history = buildString {
-                append("Instruções do sistema: ").append(SYSTEM).append("\\n\\n")
+                append("Instruções do sistema: ").append(SYSTEM).append("\n\n")
                 memory.messages().takeLast(12).forEach { message ->
                     append(if (message.role == ChatMessage.Role.User) "Usuário: " else "Assistente: ")
-                    append(message.content).append("\\n")
+                    append(message.content).append("\n")
                 }
-                append("Usuário: ").append(prompt).append("\\nAssistente:")
+                append("Usuário: ").append(prompt)
             }
             val callback = object : NativeCallback {
                 override fun onLog(line: String) { }
