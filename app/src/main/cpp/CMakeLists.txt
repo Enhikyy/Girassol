@@ -43,6 +43,7 @@ target_link_libraries(labforge PRIVATE
     llama-common
     android
     log
+    vulkan
 )
 
 target_compile_options(labforge PRIVATE -O3 -fexceptions -frtti -Wall)
