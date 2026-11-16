@@ -153,7 +153,7 @@ object AgentReachNative {
                 }
                 bytes.toByteArray()
             }
-            return String(out.toByteArray(), Charsets.UTF_8)
+            return String(out, Charsets.UTF_8)
         }
     }
 }
