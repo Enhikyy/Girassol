@@ -1,9 +1,6 @@
 name: Android Build and QA
 
 on:
-  push:
-    branches: ["**"]
-    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
