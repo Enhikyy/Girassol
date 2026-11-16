@@ -98,6 +98,7 @@ data class RsiWeightBundle(
 
             val descriptors = manifest.optJSONObject("tensors") ?: JSONObject()
             val tensors = HashMap<String, FloatArray>()
+            val tensorRanges = ArrayList<Pair<Long, Long>>()
             val required = when (architecture) {
                 "rdt" -> mapOf("input_weights" to hidden*hidden, "recurrent_weights" to hidden*hidden,
                     "bias" to hidden, "gate" to hidden)
@@ -119,7 +120,14 @@ data class RsiWeightBundle(
                     .order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(floats)
                 require(floats.all { it.isFinite() }) { "tensor $name contém NaN/Inf" }
                 tensors[name] = floats
+                tensorRanges += offset to (offset + count)
             }
+            var cursor = 0L
+            tensorRanges.sortedBy { it.first }.forEach { range ->
+                require(range.first == cursor) { "tensores sobrepostos ou com lacunas" }
+                cursor = range.second
+            }
+            require(cursor * 4L == payload.size.toLong()) { "payload contém dados não referenciados" }
             return RsiWeightBundle(
                 architecture, hidden, experts, topK, steps,
                 manifest.optDouble("decay", 0.95).toFloat(),
