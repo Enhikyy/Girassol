@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // kotlin.android REMOVIDO: built-in do AGP 9.0+ (https://kotl.in/gradle/agp-built-in-kotlin)
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
