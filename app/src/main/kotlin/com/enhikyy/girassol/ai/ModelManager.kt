@@ -60,7 +60,7 @@ object ModelManager {
                 app.ensureRealEngine()
                 val engine = app.llmEngine
                 if (engine.isLoaded) engine.close()
-                // NativeLlmEngine.load registra tamanho e tempo de carga no AppLogger.
+                // LlamatikEngine.load registra tamanho e tempo de carga no AppLogger.
                 val ok = engine.load(target.absolutePath)
                 if (!ok) throw ModelLoadException("O motor não confirmou a carga de $name")
 
