@@ -15,12 +15,6 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-                abiFilters += listOf("arm64-v8a")
-            }
-        }
     }
 
     buildTypes {
@@ -34,11 +28,6 @@ android {
         debug {
             isDebuggable = true
             isMinifyEnabled = false
-            ndk {
-                // x86_64 adicionado SOMENTE no debug para o device-gate no emulador do CI.
-                // Dispositivos reais (arm64-v8a) usam a variante otimizada.
-                abiFilters += listOf("arm64-v8a", "x86_64")
-            }
         }
     }
 
@@ -53,13 +42,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
     }
 
     packaging {
@@ -88,6 +70,11 @@ dependencies {
 
     // Haze 2.x (API corrigida: hazeBlur/HazeInput, NÃO hazeChild/hazeEffect da 1.x)
     implementation("dev.chrisbanes.haze:haze:2.1.0")
+    // hazeBlur/HazeInput/HazeBlurStyle vivem no modulo haze-blur (Haze 2.x, migrating-2.0.md)
+    implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
+
+    // LLM: llama.cpp pronto via Llamatik (decisao do prompt M0: usar o que existe; nativo proprio so se faltar recurso)
+    implementation("com.llamatik:core:2.4.0")
     // hazeBlur/HazeInput/HazeBlurStyle vivem no modulo haze-blur (Haze 2.x, migrating-2.0.md)
     implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
 
