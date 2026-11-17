@@ -88,6 +88,8 @@ dependencies {
 
     // Haze 2.x (API corrigida: hazeBlur/HazeInput, NÃO hazeChild/hazeEffect da 1.x)
     implementation("dev.chrisbanes.haze:haze:2.1.0")
+    // hazeBlur/HazeInput/HazeBlurStyle vivem no modulo haze-blur (Haze 2.x, migrating-2.0.md)
+    implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
