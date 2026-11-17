@@ -1,48 +1,45 @@
-cmake_minimum_required(VERSION 3.22.1)
-project(labforge CXX C)
+cmake_minimum_required(VERSION 3.22)
+project(girassol-vulkan LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# llama.cpp source tree (fetched by scripts/fetch-llama.sh, or bundled)
-set(LLAMA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp")
-if(NOT EXISTS "${LLAMA_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR "llama.cpp not found in ${LLAMA_DIR}. Run scripts/fetch-llama.sh first.")
+# Flags de otimização para ARM64
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=armv8.2-a+dotprod+i8mm+fp16")
 endif()
 
-set(LLAMA_BUILD_COMMON   ON  CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_TOOLS    OFF CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_SERVER   OFF CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_APP      OFF CACHE BOOL "" FORCE)
-set(LLAMA_OPENSSL        OFF CACHE BOOL "" FORCE)
-set(LLAMA_SUBPROCESS     OFF CACHE BOOL "" FORCE)
-set(LLAMA_CURL           OFF CACHE BOOL "" FORCE)
-set(GGML_NATIVE          OFF CACHE BOOL "" FORCE)
-set(GGML_OPENMP          OFF CACHE BOOL "" FORCE)
-set(GGML_CPU_KLEIDIAI    OFF CACHE BOOL "" FORCE)
-set(GGML_BACKEND_DL      OFF CACHE BOOL "" FORCE)
-set(GGML_LLAMAFILE       OFF CACHE BOOL "" FORCE)
+# Encontrar bibliotecas nativas
+find_library(vulkan-lib vulkan)
+find_library(log-lib log)
+find_library(android-lib android)
 
-add_subdirectory(${LLAMA_DIR} ${CMAKE_CURRENT_BINARY_DIR}/llama-build)
-
-add_library(labforge SHARED labforge_jni.cpp)
-
-target_include_directories(labforge PRIVATE
-    ${LLAMA_DIR}/include
-    ${LLAMA_DIR}/ggml/include
-    ${LLAMA_DIR}/src
-    ${LLAMA_DIR}/ggml/src
-    ${LLAMA_DIR}/common
-    ${LLAMA_DIR}/tools/quantize
+# Biblioteca nativa Vulkan (renderização)
+add_library(girassol-vulkan SHARED
+    JniBridge.cpp
+    VulkanRenderer.cpp
 )
 
-target_link_libraries(labforge PRIVATE
-    llama
-    llama-common
-    android
-    log
+target_link_libraries(girassol-vulkan
+    ${vulkan-lib}
+    ${log-lib}
+    ${android-lib}
 )
 
-target_compile_options(labforge PRIVATE -O3 -fexceptions -frtti -Wall)
+target_include_directories(girassol-vulkan PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Biblioteca nativa LLM (inferência)
+add_library(girassol-llm SHARED
+    LlmEngine.cpp
+)
+
+target_link_libraries(girassol-llm
+    ${log-lib}
+    ${android-lib}
+)
+
+target_include_directories(girassol-llm PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
