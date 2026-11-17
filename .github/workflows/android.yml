@@ -136,9 +136,7 @@ jobs:
             sleep 12
             adb exec-out screencap -p > mundo.png
             adb logcat -d > logcat.txt
-            if grep -E "FATAL|AndroidRuntime" logcat.txt; then
-              echo "FATAL encontrado no logcat" && exit 1
-            fi
+            if grep -E "FATAL|AndroidRuntime" logcat.txt; then echo "FATAL encontrado no logcat"; exit 1; fi
             adb pull /sdcard/Android/data/com.enhikyy.girassol/files/logs ./app_logs || true
       - name: Verificar screenshot nao preta (PIL)
         run: |
