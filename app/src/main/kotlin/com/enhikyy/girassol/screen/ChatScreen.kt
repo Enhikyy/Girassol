@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enhikyy.girassol.AppLogger
 import com.enhikyy.girassol.MyApplication
-import com.enhikyy.girassol.ai.NativeLlmEngine
+import com.enhikyy.girassol.ai.LlamatikEngine
 import com.enhikyy.girassol.ai.ModelManager
 import com.enhikyy.girassol.ai.ModelStatus
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +37,7 @@ data class ChatMessage(
 )
 
 /**
- * Tela CHAT com modelo LLM local (100% nativo via JNI).
+ * Tela CHAT com modelo LLM local (llama.cpp via Llamatik).
  *
  * Se houver modelo carregado, envia a mensagem e mostra a resposta token-a-token.
  * Se não houver modelo, mostra "Carregue um modelo em Configurações".
@@ -56,7 +56,7 @@ fun ChatScreen() {
     val modelStatus by ModelManager.status.collectAsState()
     val app = MyApplication.getInstance()
     val engine = app.llmEngine
-    val hasModel = engine is NativeLlmEngine && engine.isLoaded && modelStatus !is ModelStatus.Loading
+    val hasModel = engine is LlamatikEngine && engine.isLoaded && modelStatus !is ModelStatus.Loading
 
     // Mantém a vista no fim à medida que as mensagens chegam.
     LaunchedEffect(messages.size, isGenerating) {
