@@ -7,6 +7,10 @@ on:
     branches: [ main, girassol-2 ]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   assemble:
     runs-on: ubuntu-latest
@@ -17,6 +21,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -25,7 +30,7 @@ jobs:
           packages: platform-tools
       - name: Install SDK components
         run: |
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "cmake;3.22.1" "ndk;27.0.12077973"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
       - name: Grant gradlew
         run: chmod +x gradlew
       - name: Assemble Debug
@@ -46,6 +51,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -54,7 +60,7 @@ jobs:
           packages: platform-tools
       - name: Install SDK components
         run: |
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
       - name: Grant gradlew
         run: chmod +x gradlew
       - name: Unit tests
@@ -70,6 +76,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -78,7 +85,7 @@ jobs:
           packages: platform-tools
       - name: Install SDK components
         run: |
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
       - name: Grant gradlew
         run: chmod +x gradlew
       - name: Lint
@@ -103,6 +110,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -111,7 +119,7 @@ jobs:
           packages: platform-tools
       - name: Install SDK components
         run: |
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "cmake;3.22.1" "ndk;27.0.12077973"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
       - name: Grant gradlew
         run: chmod +x gradlew
       - name: Assemble Debug (for emulator)
@@ -167,6 +175,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -175,7 +184,7 @@ jobs:
           packages: platform-tools
       - name: Install SDK components
         run: |
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
       - name: Grant gradlew
         run: chmod +x gradlew
       - name: Build release APK
