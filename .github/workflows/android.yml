@@ -19,6 +19,10 @@ jobs:
           java-version: "21"
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # default da action é 'tools', REMOVIDO do repositório do Google → falha com exit 1.
+          # platform-tools é o mínimo; o resto é instalado no step sdkmanager abaixo.
+          packages: platform-tools
       - name: Install SDK components
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "cmake;3.22.1" "ndk;27.0.12077973"
@@ -44,6 +48,10 @@ jobs:
           java-version: "21"
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # default da action é 'tools', REMOVIDO do repositório do Google → falha com exit 1.
+          # platform-tools é o mínimo; o resto é instalado no step sdkmanager abaixo.
+          packages: platform-tools
       - name: Install SDK components
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
@@ -64,6 +72,10 @@ jobs:
           java-version: "21"
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # default da action é 'tools', REMOVIDO do repositório do Google → falha com exit 1.
+          # platform-tools é o mínimo; o resto é instalado no step sdkmanager abaixo.
+          packages: platform-tools
       - name: Install SDK components
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
@@ -93,6 +105,10 @@ jobs:
           java-version: "21"
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # default da action é 'tools', REMOVIDO do repositório do Google → falha com exit 1.
+          # platform-tools é o mínimo; o resto é instalado no step sdkmanager abaixo.
+          packages: platform-tools
       - name: Install SDK components
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "cmake;3.22.1" "ndk;27.0.12077973"
@@ -153,6 +169,10 @@ jobs:
           java-version: "21"
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # default da action é 'tools', REMOVIDO do repositório do Google → falha com exit 1.
+          # platform-tools é o mínimo; o resto é instalado no step sdkmanager abaixo.
+          packages: platform-tools
       - name: Install SDK components
         run: |
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
