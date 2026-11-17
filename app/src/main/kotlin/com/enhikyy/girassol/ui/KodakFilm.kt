@@ -126,12 +126,13 @@ fun KodakFilm(
     highQuality: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val supported = enabled &&
-        DebugFlags.enableKodakOverlay &&
-        intensity > 0.01f &&
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-
-    if (!supported) {
+    // Checagem inline de SDK_INT: o lint rastreia a guarda direta no if (val intermediária
+    // 'supported' causava NewApi falso-positivo em KodakFilmApi33).
+    if (!enabled ||
+        !DebugFlags.enableKodakOverlay ||
+        intensity <= 0.01f ||
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+    ) {
         // Sem filtro o conteúdo aparece tal como é — nunca há tela preta.
         // O motivo fica registado pelo chamador (ver MundoScreen).
         content()
