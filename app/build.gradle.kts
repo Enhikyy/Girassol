@@ -47,9 +47,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    // kotlinOptions REMOVIDO: bloco nao existe mais com Kotlin built-in do AGP 9.
+    // jvmTarget acompanha compileOptions (Java 17) automaticamente.
 
     buildFeatures {
         compose = true
