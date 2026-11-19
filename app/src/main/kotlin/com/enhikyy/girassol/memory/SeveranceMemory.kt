@@ -19,6 +19,8 @@ data class Memory(
     val x: Float,
     val z: Float,
     val timestamp: Long,
+    /** Tick lógico do WorldCore em que a memória foi criada. */
+    val worldTick: Long = 0L,
 )
 
 /** Região do mundo que dá acesso a um dos dois reinos. */
@@ -77,6 +79,7 @@ object SeveranceMemory {
         x: Float,
         z: Float,
         timestamp: Long = System.currentTimeMillis(),
+        worldTick: Long = 0L,
     ): Memory? {
         if (importance <= 0.02f) return null
         synchronized(lock) {
@@ -89,6 +92,7 @@ object SeveranceMemory {
                 x = x,
                 z = z,
                 timestamp = timestamp,
+                worldTick = worldTick,
             )
             memories += memory
             if (memories.size > MAX_MEMORIES) evictUnderLock()
@@ -126,6 +130,15 @@ object SeveranceMemory {
     }
 
     fun total(): Int = synchronized(lock) { memories.size }
+
+    /** Remove somente os nós explicitamente selecionados pela consolidação hipocampal. */
+    fun removeByIds(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        synchronized(lock) {
+            memories.removeAll { it.id in ids }
+            publishCountsUnderLock()
+        }
+    }
 
     fun clear() {
         synchronized(lock) {
