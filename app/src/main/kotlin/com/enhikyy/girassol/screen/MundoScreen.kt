@@ -47,6 +47,7 @@ import com.enhikyy.girassol.ui.*
 fun MundoScreen() {
     val agents by WorldState.agents.collectAsState()
     val commons by WorldState.commons.collectAsState()
+    val initializationError by WorldState.initializationError.collectAsState()
     val selectedId by WorldState.selectedId.collectAsState()
     val selected = agents.firstOrNull { it.id == selectedId } ?: agents.firstOrNull()
 
