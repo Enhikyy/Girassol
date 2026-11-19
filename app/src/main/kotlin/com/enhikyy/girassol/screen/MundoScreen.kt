@@ -44,6 +44,7 @@ import com.enhikyy.girassol.ui.*
 @Composable
 fun MundoScreen() {
     val agents by WorldState.agents.collectAsState()
+    val commons by WorldState.commons.collectAsState()
     val selectedId by WorldState.selectedId.collectAsState()
     val selected = agents.firstOrNull { it.id == selectedId } ?: agents.firstOrNull()
 
@@ -375,5 +376,13 @@ private fun DriveBar(label: String, value: Float, color: Color) {
                     .background(color),
             )
         }
+    }
+}
+
+@Composable
+private fun CommonsMetric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, color = Lab.TextPrimary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Lab.TextSecondary)
     }
 }
