@@ -359,10 +359,11 @@ object WorldCoreEventStore {
         var nextAgentId = 1L
         var lastEventId = 0L
         var previousHash = GENESIS_HASH
+        var memories: List<Memory> = emptyList()
 
         db.rawQuery(
             """
-            SELECT tick, last_event_id, state_json, chain_hash
+            SELECT tick, last_event_id, state_json, rng_state_json, chain_hash, created_utc, checkpoint_hash
             FROM world_checkpoints ORDER BY tick DESC LIMIT 1
             """.trimIndent(),
             null
@@ -370,7 +371,17 @@ object WorldCoreEventStore {
             if (cursor.moveToFirst()) {
                 tick = cursor.getLong(0)
                 lastEventId = cursor.getLong(1)
-                val state = JSONObject(cursor.getString(2))
+                val checkpoint = WorldCheckpoint(
+                    tick = tick,
+                    lastEventId = lastEventId,
+                    stateJson = cursor.getString(2),
+                    rngStateJson = cursor.getString(3),
+                    lastEventHash = cursor.getString(4),
+                    createdUtc = cursor.getLong(5),
+                    checkpointHash = cursor.getString(6),
+                )
+                check(checkpoint.verify()) { "Hash do checkpoint inválido no tick $tick" }
+                val state = JSONObject(checkpoint.stateJson)
                 simulatedMs = state.optLong("simulatedMs", 0L)
                 generation = state.optInt("generation", 0)
                 selectedId = state.optNullableLong("selectedId")
@@ -382,7 +393,7 @@ object WorldCoreEventStore {
                     val agent = agentFromJson(savedAgents.getJSONObject(index))
                     agents[agent.id] = agent
                 }
-                previousHash = cursor.getString(3)
+                previousHash = checkpoint.lastEventHash
             }
         }
 
@@ -429,6 +440,31 @@ object WorldCoreEventStore {
             }
         }
 
+        db.rawQuery(
+            """
+            SELECT memory_id, agent_id, realm, content, importance, x, z, created_at_ms, world_tick
+            FROM world_memories ORDER BY memory_id
+            """.trimIndent(),
+            null
+        ).use { cursor ->
+            val restoredMemories = ArrayList<Memory>()
+            while (cursor.moveToNext()) {
+                val realm = runCatching { Realm.valueOf(cursor.getString(2)) }.getOrNull() ?: continue
+                restoredMemories += Memory(
+                    id = cursor.getLong(0),
+                    agentId = cursor.getLong(1),
+                    realm = realm,
+                    content = cursor.getString(3),
+                    importance = cursor.getDouble(4).toFloat(),
+                    x = cursor.getDouble(5).toFloat(),
+                    z = cursor.getDouble(6).toFloat(),
+                    timestamp = cursor.getLong(7),
+                    worldTick = cursor.getLong(8),
+                )
+            }
+            memories = restoredMemories
+        }
+
         if (tick <= 0L || agents.isEmpty()) return null
         return RestoredWorldProjection(
             agents = agents.values.sortedBy { it.id },
@@ -438,8 +474,18 @@ object WorldCoreEventStore {
             selectedId = selectedId,
             commons = commons,
             growthClockMs = growthClockMs,
-            nextAgentId = nextAgentId
+            nextAgentId = nextAgentId,
+            memories = memories
         )
+    }
+
+
+    /** Remove do WAL os IDs descartados pela consolidação hipocampal. */
+    fun deleteMemories(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        val db = WorldCoreDatabase.writableDatabase() ?: return
+        val placeholders = ids.joinToString(",") { "?" }
+        db.delete("world_memories", "memory_id IN ($placeholders)", ids.map { it.toString() }.toTypedArray())
     }
 
     private fun agentPayload(
