@@ -78,6 +78,7 @@ dependencies {
     implementation("com.llamatik:core:2.4.0")
     implementation("org.luaj:luaj-jse:3.0.1")
     implementation("org.mozilla:rhino:1.9.2")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
