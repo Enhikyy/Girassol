@@ -140,7 +140,7 @@ class SimulationService : Service() {
                             "sessões paralelas=${budget.allowParallelSessions}; estado=${budget.thermalStatusLabel}"
                     )
                 }
-                loop.advance(System.currentTimeMillis())
+                loop.advance(System.currentTimeMillis(), stepMs = budget.tickIntervalMs)
                 delay(budget.tickIntervalMs)
             }
         }
