@@ -385,7 +385,7 @@ private fun DriveBar(label: String, value: Float, color: Color) {
 @Composable
 private fun CommonsMetric(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium, color = Lab.TextPrimary)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Lab.TextSecondary)
+        Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
