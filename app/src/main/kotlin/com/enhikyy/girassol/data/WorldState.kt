@@ -26,8 +26,20 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object WorldState {
 
+    data class Commons(
+        val food: Float = 80f,
+        val materials: Float = 45f,
+        val knowledge: Float = 12f,
+        val cohesion: Float = 0.72f,
+        val housing: Int = 12,
+        val structures: Int = 3,
+    )
+
     private const val WORLD_RADIUS = 120f
     private const val WORLD_SEED = 0x4749524153534f4cL
+    private const val POPULATION_CYCLE_MS = 6L * 60L * 60L * 1000L
+    private var growthClockMs = 0L
+    private var nextAgentId = 1L
 
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
@@ -43,6 +55,9 @@ object WorldState {
 
     private val _generation = MutableStateFlow(0)
     val generation: StateFlow<Int> = _generation.asStateFlow()
+
+    private val _commons = MutableStateFlow(Commons())
+    val commons: StateFlow<Commons> = _commons.asStateFlow()
 
     private val roles = listOf(
         "Explorador", "Pesquisador", "Artesão", "Guardião",
@@ -60,6 +75,9 @@ object WorldState {
             _tick.value = restored.tick
             _simulatedMs.value = restored.simulatedMs
             _generation.value = restored.generation
+            _commons.value = restored.commons
+            growthClockMs = restored.growthClockMs
+            nextAgentId = restored.nextAgentId
             _selectedId.value = restored.selectedId ?: restored.agents.firstOrNull()?.id
             AppLogger.log("INFO", "WORLD", "WorldCore restaurado: tick=${restored.tick}, agentes=${restored.agents.size}")
             return
@@ -85,6 +103,9 @@ object WorldState {
             )
         }
         _agents.value = seeded
+        _commons.value = Commons()
+        growthClockMs = 0L
+        nextAgentId = (seeded.maxOfOrNull { it.id } ?: 0L) + 1L
         _selectedId.value = seeded.firstOrNull()?.id
     }
 
@@ -134,7 +155,7 @@ object WorldState {
         val current = _agents.value
         if (current.isEmpty()) return
 
-        val dt = (dtMs / 1000f).coerceIn(0f, 30f)
+        val dt = dtMs.coerceAtLeast(0L) / 1000f
         val nextTick = _tick.value + 1L
 
         // Estágio de propostas: todos os agentes decidem sobre o mesmo snapshot S_t.
@@ -146,6 +167,16 @@ object WorldState {
             }
             val decision = GeaDecisionBridge.decide(agent, neighbours, nextTick, dt)
             Triple(agent, neighbours, decision)
+        }
+
+        val cooperativeActions = proposals.count { (_, _, decision) ->
+            decision.intention in setOf(Intention.SOCIALIZE, Intention.HELP, Intention.TEACH)
+        }
+        val studyActions = proposals.count { (_, _, decision) ->
+            decision.intention == Intention.STUDY || decision.intention == Intention.TEACH
+        }
+        val exploreActions = proposals.count { (_, _, decision) ->
+            decision.intention == Intention.EXPLORE
         }
 
         // Estágio de commit/projeção: aplica as propostas calculadas no snapshot comum.
@@ -193,22 +224,115 @@ object WorldState {
             )
         }
 
-        GeaDecisionBridge.finishTick(nextTick, updated)
+        updateCommons(
+            dt = dt,
+            cooperativeActions = cooperativeActions,
+            studyActions = studyActions,
+            exploreActions = exploreActions,
+            population = updated.size,
+            tick = nextTick,
+        )
+        val populationAfterGrowth = maybeGrowPopulation(dtMs, updated, nextTick)
+        GeaDecisionBridge.finishTick(nextTick, populationAfterGrowth)
         val nextSimulatedMs = _simulatedMs.value + dtMs
         val persisted = WorldCoreEventStore.commitTick(
             tick = nextTick,
-            agents = updated,
+            agents = populationAfterGrowth,
             simulatedMs = nextSimulatedMs,
             generation = _generation.value,
             selectedId = _selectedId.value,
             worldSeed = WORLD_SEED,
+            commons = _commons.value,
+            growthClockMs = growthClockMs,
+            nextAgentId = nextAgentId,
         )
         check(persisted || !WorldCoreDatabase.isInitialized) {
             "WorldCore recusou o commit do tick $nextTick; projeção não publicada"
         }
-        _agents.value = updated
+        _agents.value = populationAfterGrowth
         _tick.value = nextTick
         _simulatedMs.value = nextSimulatedMs
+    }
+
+
+    /** Economia determinística dos bens comuns, atualizada no mesmo tick dos agentes. */
+    private fun updateCommons(
+        dt: Float,
+        cooperativeActions: Int,
+        studyActions: Int,
+        exploreActions: Int,
+        population: Int,
+        tick: Long,
+    ) {
+        if (dt <= 0f || population <= 0) return
+        val current = _commons.value
+        val size = population.toFloat()
+        var food = (current.food + (0.018f * size - 0.010f * size) * dt).coerceIn(0f, 100f)
+        var materials = (current.materials + exploreActions * 0.08f * dt - size * 0.001f * dt)
+            .coerceIn(0f, 100f)
+        val knowledge = (current.knowledge + studyActions * 0.025f * dt + exploreActions * 0.006f * dt)
+            .coerceIn(0f, 100f)
+        val cooperationRate = cooperativeActions.toFloat() / size
+        val cohesion = (current.cohesion + (cooperationRate - 0.35f) * 0.002f * dt)
+            .coerceIn(0.05f, 1f)
+        var housing = current.housing
+        var structures = current.structures
+
+        if (tick % 6_000L == 0L && materials >= 24f && food >= 30f && housing < population + 6) {
+            housing += 1
+            structures += 1
+            materials = (materials - 6f).coerceAtLeast(0f)
+            food = (food - 2f).coerceAtLeast(0f)
+        }
+        _commons.value = Commons(food, materials, knowledge, cohesion, housing, structures)
+    }
+
+    /** Crescimento populacional em ciclos simulados, com aleatoriedade derivada do seed do mundo. */
+    private fun maybeGrowPopulation(
+        dtMs: Long,
+        population: List<Agent>,
+        tick: Long,
+    ): List<Agent> {
+        growthClockMs += dtMs.coerceAtLeast(0L)
+        if (growthClockMs < POPULATION_CYCLE_MS) return population
+        growthClockMs %= POPULATION_CYCLE_MS
+
+        val resources = _commons.value
+        if (
+            population.size >= 64 ||
+            population.size >= resources.housing ||
+            resources.food < 25f ||
+            resources.cohesion < 0.45f ||
+            population.size < 2
+        ) return population
+
+        val parents = population.sortedByDescending { it.fitness }.take(2)
+        val first = parents[0]
+        val second = parents[1]
+        val childId = nextAgentId++
+        val rng = DeterministicRng(
+            StreamSeedDeriver.derive(WORLD_SEED, childId.toString(), tick, "population-birth")
+        )
+        val child = Agent(
+            id = childId,
+            name = "Descendente $childId",
+            role = first.role,
+            drives = Drives(
+                energy = 0.72f,
+                social = ((first.drives.social + second.drives.social) / 2f).coerceIn(0.1f, 0.9f),
+                knowledge = ((first.drives.knowledge + second.drives.knowledge) / 2f).coerceIn(0.1f, 0.9f),
+                focus = ((first.drives.focus + second.drives.focus) / 2f).coerceIn(0.1f, 0.9f),
+            ),
+            isInnie = rng.nextInt(2) == 0,
+            x = ((first.x + second.x) / 2f + (rng.nextDouble().toFloat() - 0.5f) * 8f)
+                .coerceIn(-WORLD_RADIUS, WORLD_RADIUS),
+            z = ((first.z + second.z) / 2f + (rng.nextDouble().toFloat() - 0.5f) * 8f)
+                .coerceIn(-WORLD_RADIUS, WORLD_RADIUS),
+            generation = maxOf(first.generation, second.generation) + 1,
+        )
+        _commons.value = resources.copy(food = (resources.food - 10f).coerceAtLeast(0f))
+        AppLogger.log("INFO", "WORLD", "Nascimento determinístico: ${child.name}, geração=${child.generation}")
+        return population + child
     }
 
     /** Aplica o efeito de uma intenção nos drives, em função de [dt] segundos. */
