@@ -343,21 +343,22 @@ object GeaDecisionBridge {
             HomeostaticVariable("focus", drives.focus.toDouble(), 0.65, 0.25, 0.4).driveCost()
 
     private fun publishDefaultAffordances() {
+        data class Definition(val id: String, val action: String, val x: Float, val z: Float)
         val definitions = listOf(
-            Triple("rest-area", "REST", 128f, 128f),
-            Triple("canteen", "EAT", 112f, 128f),
-            Triple("study-hall", "STUDY", 140f, 140f),
-            Triple("commons-plaza", "SOCIALIZE", 160f, 160f),
-            Triple("help-desk", "HELP", 150f, 140f),
-            Triple("teaching-hall", "TEACH", 136f, 144f)
+            Definition("rest-area", "REST", 128f, 128f),
+            Definition("canteen", "EAT", 112f, 128f),
+            Definition("study-hall", "STUDY", 140f, 140f),
+            Definition("commons-plaza", "SOCIALIZE", 160f, 160f),
+            Definition("help-desk", "HELP", 150f, 140f),
+            Definition("teaching-hall", "TEACH", 136f, 144f)
         )
-        definitions.forEach { (id, action, x, z) ->
+        definitions.forEach { definition ->
             affordanceGrid.publishAdvertisement(
                 AffordanceAdvertisement(
-                    sourceEntityId = id,
-                    actionType = action,
-                    x = x,
-                    z = z,
+                    sourceEntityId = definition.id,
+                    actionType = definition.action,
+                    x = definition.x,
+                    z = definition.z,
                     broadcastRadius = 180f,
                     advertisedRelief = mapOf("homeostasis" to 0.1),
                     maxConcurrentUsers = 8
