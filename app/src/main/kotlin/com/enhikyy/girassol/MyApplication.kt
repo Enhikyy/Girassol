@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.PowerManager
 import com.enhikyy.girassol.core.cognition.AllostaticThermalCoupling
 import com.enhikyy.girassol.core.integration.GeaDecisionBridge
+import com.enhikyy.girassol.core.persistence.WorldCoreDatabase
 import com.enhikyy.girassol.ai.LlamatikEngine
 import com.enhikyy.girassol.ai.LlmEngine
 import com.enhikyy.girassol.ai.NullLlmEngine
@@ -27,6 +28,7 @@ class MyApplication : Application() {
         INSTANCE = this
         AppLogger.init(this)
         DebugFlags.logState()
+        WorldCoreDatabase.initialize(this)
         registerThermalTelemetry()
         // Motor real será instanciado quando o usuário carregar um modelo
     }
