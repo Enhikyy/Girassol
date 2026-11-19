@@ -69,6 +69,10 @@ fun ChatScreen() {
         val text = input.trim()
         if (text.isEmpty() || isGenerating) return
 
+        // Preserva o histórico anterior; a mensagem atual é acrescentada uma única vez.
+        val previousHistory = messages.map { message ->
+            (if (message.isUser) "user" else "assistant") to message.content
+        }
         // Mensagem do usuário
         val userMessage = ChatMessage(
             id = System.currentTimeMillis(),
@@ -98,9 +102,7 @@ fun ChatScreen() {
         val answer = StringBuilder()
         scope.launch(AppLogger.globalCoroutineExceptionHandler) {
             try {
-                val history = (messages.map { message ->
-                    (if (message.isUser) "user" else "assistant") to message.content
-                } + ("user" to text)).takeLast(32)
+                val history = (previousHistory + ("user" to text)).takeLast(32)
                 val ok = llmEngine.generateChat(history) { token ->
                     // Chega na thread de background: acumula e publica o texto parcial na principal.
                     answer.append(token)
