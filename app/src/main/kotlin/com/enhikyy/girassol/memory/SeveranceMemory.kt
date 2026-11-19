@@ -80,11 +80,12 @@ object SeveranceMemory {
         z: Float,
         timestamp: Long = System.currentTimeMillis(),
         worldTick: Long = 0L,
+        memoryId: Long? = null,
     ): Memory? {
         if (importance <= 0.02f) return null
         synchronized(lock) {
             val memory = Memory(
-                id = nextId++,
+                id = memoryId ?: nextId,
                 agentId = agentId,
                 realm = realm,
                 content = content,
@@ -94,6 +95,7 @@ object SeveranceMemory {
                 timestamp = timestamp,
                 worldTick = worldTick,
             )
+            nextId = maxOf(nextId, memory.id + 1L)
             memories += memory
             if (memories.size > MAX_MEMORIES) evictUnderLock()
             publishCountsUnderLock()
@@ -127,6 +129,17 @@ object SeveranceMemory {
     /** Todas as memórias de um agente, ambos os reinos (para inspeção). */
     fun allFor(agentId: Long): List<Memory> = synchronized(lock) {
         memories.filter { it.agentId == agentId }
+    }
+
+
+    /** Reconstrói o índice em memória a partir das linhas duráveis do SQLite WAL. */
+    fun restoreFromPersistence(restored: List<Memory>) {
+        synchronized(lock) {
+            memories.clear()
+            memories.addAll(restored.sortedBy { it.id }.takeLast(MAX_MEMORIES))
+            nextId = (memories.maxOfOrNull { it.id } ?: 0L) + 1L
+            publishCountsUnderLock()
+        }
     }
 
     fun total(): Int = synchronized(lock) { memories.size }
