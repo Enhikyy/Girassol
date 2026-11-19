@@ -222,9 +222,10 @@ object WorldCoreEventStore {
         worldSeed: Long,
         commons: WorldState.Commons,
         growthClockMs: Long,
-        nextAgentId: Long
-    ): Boolean {
-        val db = WorldCoreDatabase.writableDatabase() ?: return false
+        nextAgentId: Long,
+        pendingMemories: List<PendingWorldMemory> = emptyList(),
+    ): WorldCommitResult {
+        val db = WorldCoreDatabase.writableDatabase() ?: return WorldCommitResult(false)
         require(agents.map { it.id }.distinct().size == agents.size) {
             "IDs de agente duplicados no snapshot do WorldCore"
         }
@@ -248,6 +249,8 @@ object WorldCoreEventStore {
                 "WorldCore tick não monotônico: recebido=$tick anterior=$previousTick"
             }
 
+            val memoryByAgent = pendingMemories.associateBy { it.agentId }
+            val memoryIdsByAgent = LinkedHashMap<Long, Long>()
             for (agent in agents.sortedBy { it.id }) {
                 val action = agent.lastIntention
                 val payload = agentPayload(
@@ -280,30 +283,51 @@ object WorldCoreEventStore {
                     put("event_hash", hash)
                 }
                 db.insertOrThrow("canonical_events", null, values)
+                memoryByAgent[agent.id]?.let { memory ->
+                    val memoryValues = ContentValues().apply {
+                        put("memory_id", eventId)
+                        put("agent_id", memory.agentId)
+                        put("realm", memory.realm.name)
+                        put("content", memory.content)
+                        put("importance", memory.importance.toDouble())
+                        put("x", memory.x.toDouble())
+                        put("z", memory.z.toDouble())
+                        put("created_at_ms", memory.timestampMs)
+                        put("world_tick", memory.worldTick)
+                    }
+                    db.insertOrThrow("world_memories", null, memoryValues)
+                    memoryIdsByAgent[agent.id] = eventId
+                }
                 previousHash = hash
             }
 
             if (tick % CHECKPOINT_INTERVAL == 0L) {
+                val stateJson = snapshotJson(
+                    agents, tick, simulatedMs, generation, selectedId,
+                    commons, growthClockMs, nextAgentId
+                )
+                val rngStateJson = JSONObject()
+                    .put("worldSeed", worldSeed.toString())
+                    .put("strategy", "sha256-derived-independent-streams")
+                    .put("checkpointTick", tick)
+                    .toString()
+                val createdUtc = System.currentTimeMillis()
+                val verifiedCheckpoint = WorldCheckpoint.create(
+                    tick = tick,
+                    lastEventId = lastEventId,
+                    stateJson = stateJson,
+                    rngStateJson = rngStateJson,
+                    lastEventHash = previousHash,
+                    createdUtc = createdUtc,
+                )
                 val checkpoint = ContentValues().apply {
                     put("tick", tick)
                     put("last_event_id", lastEventId)
-                    put(
-                        "state_json",
-                        snapshotJson(
-                            agents, tick, simulatedMs, generation, selectedId,
-                            commons, growthClockMs, nextAgentId
-                        )
-                    )
-                    put(
-                        "rng_state_json",
-                        JSONObject()
-                            .put("worldSeed", worldSeed.toString())
-                            .put("strategy", "sha256-derived-independent-streams")
-                            .put("checkpointTick", tick)
-                            .toString()
-                    )
+                    put("state_json", stateJson)
+                    put("rng_state_json", rngStateJson)
                     put("chain_hash", previousHash)
-                    put("created_utc", System.currentTimeMillis())
+                    put("checkpoint_hash", verifiedCheckpoint.checkpointHash)
+                    put("created_utc", createdUtc)
                 }
                 db.insertWithOnConflict(
                     "world_checkpoints",
@@ -313,7 +337,7 @@ object WorldCoreEventStore {
                 )
             }
             db.setTransactionSuccessful()
-            return true
+            return WorldCommitResult(true, memoryIdsByAgent)
         } finally {
             db.endTransaction()
         }
