@@ -211,7 +211,7 @@ private class WorldCoreOpenHelper(context: Context) :
 object WorldCoreEventStore {
     private const val SCHEMA_VERSION = 1
     private const val GENESIS_HASH = "GENESIS"
-    private const val CHECKPOINT_INTERVAL = 500L
+    private const val CHECKPOINT_INTERVAL = 100L
 
     fun commitTick(
         tick: Long,
@@ -343,6 +343,56 @@ object WorldCoreEventStore {
         }
     }
 
+
+    /** Guarda a população inicial antes de o loop começar, incluindo tick zero. */
+    fun saveInitialCheckpoint(
+        agents: List<Agent>,
+        simulatedMs: Long,
+        generation: Int,
+        selectedId: Long?,
+        worldSeed: Long,
+        commons: WorldState.Commons,
+        growthClockMs: Long,
+        nextAgentId: Long,
+    ): Boolean {
+        val db = WorldCoreDatabase.writableDatabase() ?: return false
+        db.beginTransaction()
+        try {
+            val stateJson = snapshotJson(
+                agents, 0L, simulatedMs, generation, selectedId,
+                commons, growthClockMs, nextAgentId
+            )
+            val rngStateJson = JSONObject()
+                .put("worldSeed", worldSeed.toString())
+                .put("strategy", "sha256-derived-independent-streams")
+                .put("checkpointTick", 0L)
+                .toString()
+            val createdUtc = System.currentTimeMillis()
+            val checkpointModel = WorldCheckpoint.create(
+                tick = 0L,
+                lastEventId = 0L,
+                stateJson = stateJson,
+                rngStateJson = rngStateJson,
+                lastEventHash = GENESIS_HASH,
+                createdUtc = createdUtc,
+            )
+            val values = ContentValues().apply {
+                put("tick", 0L)
+                put("last_event_id", 0L)
+                put("state_json", stateJson)
+                put("rng_state_json", rngStateJson)
+                put("chain_hash", GENESIS_HASH)
+                put("checkpoint_hash", checkpointModel.checkpointHash)
+                put("created_utc", createdUtc)
+            }
+            db.insertWithOnConflict("world_checkpoints", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            db.setTransactionSuccessful()
+            return true
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     /**
      * Restaura o último checkpoint e reaplica os eventos posteriores,
      * verificando continuidade e SHA-256 antes de expor o estado à UI.
@@ -465,7 +515,7 @@ object WorldCoreEventStore {
             memories = restoredMemories
         }
 
-        if (tick <= 0L || agents.isEmpty()) return null
+        if (agents.isEmpty()) return null
         return RestoredWorldProjection(
             agents = agents.values.sortedBy { it.id },
             tick = tick,
