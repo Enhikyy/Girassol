@@ -7,7 +7,11 @@ import com.enhikyy.girassol.memory.SeveranceMemory
 import com.enhikyy.girassol.sim.Simulation
 import kotlin.math.cos
 import kotlin.math.sin
+import com.enhikyy.girassol.AppLogger
 import com.enhikyy.girassol.core.integration.GeaDecisionBridge
+import com.enhikyy.girassol.core.persistence.WorldCoreDatabase
+import com.enhikyy.girassol.core.persistence.WorldCoreEventStore
+import com.enhikyy.girassol.core.world.WorldActor
 import com.enhikyy.girassol.core.world.DeterministicRng
 import com.enhikyy.girassol.core.world.StreamSeedDeriver
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +52,18 @@ object WorldState {
     /** Cria a população inicial. Idempotente. */
     fun initialize(population: Int = 8) {
         if (_agents.value.isNotEmpty()) return
+        val restored = runCatching { WorldCoreEventStore.restoreLatestProjection() }
+            .onFailure { AppLogger.log("ERROR", "WORLD", "Checkpoint/event log inválido; iniciando projeção limpa", it) }
+            .getOrNull()
+        if (restored != null) {
+            _agents.value = restored.agents
+            _tick.value = restored.tick
+            _simulatedMs.value = restored.simulatedMs
+            _generation.value = restored.generation
+            _selectedId.value = restored.selectedId ?: restored.agents.firstOrNull()?.id
+            AppLogger.log("INFO", "WORLD", "WorldCore restaurado: tick=${restored.tick}, agentes=${restored.agents.size}")
+            return
+        }
         val seeded = List(population) { index ->
             val id = index + 1L
             val rng = DeterministicRng(
@@ -110,7 +126,11 @@ object WorldState {
      * nos drives, move-se em direção ao alvo da intenção, e ocasionalmente grava
      * uma memória no reino correspondente à sua posição.
      */
-    fun step(dtMs: Long) {
+    suspend fun step(dtMs: Long) {
+        WorldActor.execute { stepOnWorldActor(dtMs) }
+    }
+
+    private fun stepOnWorldActor(dtMs: Long) {
         val current = _agents.value
         if (current.isEmpty()) return
 
@@ -174,9 +194,21 @@ object WorldState {
         }
 
         GeaDecisionBridge.finishTick(nextTick, updated)
+        val nextSimulatedMs = _simulatedMs.value + dtMs
+        val persisted = WorldCoreEventStore.commitTick(
+            tick = nextTick,
+            agents = updated,
+            simulatedMs = nextSimulatedMs,
+            generation = _generation.value,
+            selectedId = _selectedId.value,
+            worldSeed = WORLD_SEED,
+        )
+        check(persisted || !WorldCoreDatabase.isInitialized) {
+            "WorldCore recusou o commit do tick $nextTick; projeção não publicada"
+        }
         _agents.value = updated
         _tick.value = nextTick
-        _simulatedMs.value += dtMs
+        _simulatedMs.value = nextSimulatedMs
     }
 
     /** Aplica o efeito de uma intenção nos drives, em função de [dt] segundos. */
@@ -242,6 +274,6 @@ object WorldState {
 
     /** Adaptador do mundo para o [Simulation] consumido pelo GameLoop. */
     val simulation: Simulation = object : Simulation {
-        override fun step(dtMs: Long) = WorldState.step(dtMs)
+        override suspend fun step(dtMs: Long) = WorldState.step(dtMs)
     }
 }
