@@ -76,7 +76,10 @@ dependencies {
 
     // Temporário até a consolidação do runtime neural nativo único.
     implementation("com.llamatik:core:2.4.0")
+    implementation("org.luaj:luaj-jse:3.0.1")
+    implementation("org.mozilla:rhino:1.9.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.3.21")
 }
