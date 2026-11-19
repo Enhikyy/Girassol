@@ -60,6 +60,9 @@ object WorldState {
     private val _commons = MutableStateFlow(Commons())
     val commons: StateFlow<Commons> = _commons.asStateFlow()
 
+    private val _initializationError = MutableStateFlow<String?>(null)
+    val initializationError: StateFlow<String?> = _initializationError.asStateFlow()
+
     private val roles = listOf(
         "Explorador", "Pesquisador", "Artesão", "Guardião",
         "Diplomata", "Curador", "Engenheiro", "Filósofo",
@@ -68,9 +71,16 @@ object WorldState {
     /** Cria a população inicial. Idempotente. */
     fun initialize(population: Int = 8) {
         if (_agents.value.isNotEmpty()) return
-        val restored = runCatching { WorldCoreEventStore.restoreLatestProjection() }
-            .onFailure { AppLogger.log("ERROR", "WORLD", "Checkpoint/event log inválido; iniciando projeção limpa", it) }
-            .getOrNull()
+        val restoreAttempt = runCatching { WorldCoreEventStore.restoreLatestProjection() }
+        if (restoreAttempt.isFailure) {
+            val error = restoreAttempt.exceptionOrNull()
+            val message = "Persistência WorldCore inválida: ${error?.message ?: "erro desconhecido"}"
+            _initializationError.value = message
+            AppLogger.log("FATAL", "WORLD", message, error)
+            return
+        }
+        _initializationError.value = null
+        val restored = restoreAttempt.getOrNull()
         if (restored != null) {
             _agents.value = restored.agents
             _tick.value = restored.tick
