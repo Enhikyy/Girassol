@@ -6,10 +6,13 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.enhikyy.girassol.core.world.CanonicalEvent
 import com.enhikyy.girassol.core.world.ProposalOrigin
+import com.enhikyy.girassol.core.world.WorldCheckpoint
 import com.enhikyy.girassol.data.Agent
 import com.enhikyy.girassol.data.Drives
 import com.enhikyy.girassol.data.Health
 import com.enhikyy.girassol.data.WorldState
+import com.enhikyy.girassol.memory.Memory
+import com.enhikyy.girassol.memory.Realm
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -21,7 +24,24 @@ data class RestoredWorldProjection(
     val selectedId: Long?,
     val commons: WorldState.Commons,
     val growthClockMs: Long,
-    val nextAgentId: Long
+    val nextAgentId: Long,
+    val memories: List<Memory>
+)
+
+data class PendingWorldMemory(
+    val agentId: Long,
+    val realm: Realm,
+    val content: String,
+    val importance: Float,
+    val x: Float,
+    val z: Float,
+    val timestampMs: Long,
+    val worldTick: Long,
+)
+
+data class WorldCommitResult(
+    val committed: Boolean,
+    val memoryIdsByAgent: Map<Long, Long> = emptyMap(),
 )
 
 object WorldCoreDatabase {
@@ -81,10 +101,27 @@ private class WorldCoreOpenHelper(context: Context) :
                 state_json TEXT NOT NULL,
                 rng_state_json TEXT NOT NULL,
                 chain_hash TEXT NOT NULL,
+                checkpoint_hash TEXT NOT NULL,
                 created_utc INTEGER NOT NULL
             )
             """.trimIndent()
         )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS world_memories (
+                memory_id INTEGER PRIMARY KEY,
+                agent_id INTEGER NOT NULL,
+                realm TEXT NOT NULL,
+                content TEXT NOT NULL,
+                importance REAL NOT NULL,
+                x REAL NOT NULL,
+                z REAL NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                world_tick INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_world_memories_agent_tick ON world_memories(agent_id, world_tick)")
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS rsi_promotion_ledger (
@@ -137,12 +174,33 @@ private class WorldCoreOpenHelper(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Migrações futuras devem preservar o event log; nunca apagar eventos.
+        // Migrações aditivas: preservar event log, checkpoints e memórias.
+        if (oldVersion < 2) {
+            runCatching {
+                db.execSQL("ALTER TABLE world_checkpoints ADD COLUMN checkpoint_hash TEXT NOT NULL DEFAULT ''")
+            }
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS world_memories (
+                    memory_id INTEGER PRIMARY KEY,
+                    agent_id INTEGER NOT NULL,
+                    realm TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    importance REAL NOT NULL,
+                    x REAL NOT NULL,
+                    z REAL NOT NULL,
+                    created_at_ms INTEGER NOT NULL,
+                    world_tick INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_world_memories_agent_tick ON world_memories(agent_id, world_tick)")
+        }
         onCreate(db)
     }
 
     private companion object {
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
     }
 }
 
