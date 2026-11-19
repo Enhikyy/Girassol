@@ -3,6 +3,7 @@ package com.enhikyy.girassol
 import android.app.Application
 import android.os.Build
 import android.os.PowerManager
+import com.enhikyy.girassol.core.ai.Dedicated247RuntimeGovernor
 import com.enhikyy.girassol.core.cognition.AllostaticThermalCoupling
 import com.enhikyy.girassol.core.integration.GeaDecisionBridge
 import com.enhikyy.girassol.core.persistence.WorldCoreDatabase
@@ -22,6 +23,10 @@ class MyApplication : Application() {
     /** Instância única do motor LLM (inicia como nula). */
     var llmEngine: LlmEngine = NullLlmEngine()
         private set
+
+    val runtimeGovernor: Dedicated247RuntimeGovernor by lazy {
+        Dedicated247RuntimeGovernor(this)
+    }
 
     override fun onCreate() {
         super.onCreate()
