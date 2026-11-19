@@ -27,7 +27,7 @@ jobs:
         with:
           packages: platform-tools
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
       - name: Grant wrapper permission
         run: chmod +x ./gradlew
       - name: Assemble debug
@@ -54,7 +54,7 @@ jobs:
         with:
           packages: platform-tools
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-37" "build-tools;37.0.0"
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
       - name: Grant wrapper permission
         run: chmod +x ./gradlew
       - name: Unit tests
@@ -76,7 +76,7 @@ jobs:
         with:
           packages: platform-tools
       - name: Install Android SDK
-        run: sdkmanager "platforms;android-37" "build-tools;37.0.0"
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
       - name: Grant wrapper permission
         run: chmod +x ./gradlew
       - name: Lint
