@@ -11,6 +11,7 @@ import com.enhikyy.girassol.AppLogger
 import com.enhikyy.girassol.core.integration.GeaDecisionBridge
 import com.enhikyy.girassol.core.persistence.WorldCoreDatabase
 import com.enhikyy.girassol.core.persistence.WorldCoreEventStore
+import com.enhikyy.girassol.core.persistence.PendingWorldMemory
 import com.enhikyy.girassol.core.world.WorldActor
 import com.enhikyy.girassol.core.world.DeterministicRng
 import com.enhikyy.girassol.core.world.StreamSeedDeriver
@@ -76,6 +77,7 @@ object WorldState {
             _simulatedMs.value = restored.simulatedMs
             _generation.value = restored.generation
             _commons.value = restored.commons
+            SeveranceMemory.restoreFromPersistence(restored.memories)
             growthClockMs = restored.growthClockMs
             nextAgentId = restored.nextAgentId
             _selectedId.value = restored.selectedId ?: restored.agents.firstOrNull()?.id
@@ -210,6 +212,7 @@ object WorldState {
                     importance = decision.score.coerceIn(0.05f, 1f),
                     x = nx,
                     z = nz,
+                    timestampMs = System.currentTimeMillis(),
                 )
             }
 
@@ -245,7 +248,7 @@ object WorldState {
             currentGeneration = _generation.value,
         )
         val nextSimulatedMs = _simulatedMs.value + dtMs
-        val persisted = WorldCoreEventStore.commitTick(
+        val commit = WorldCoreEventStore.commitTick(
             tick = nextTick,
             agents = growth.agents,
             simulatedMs = nextSimulatedMs,
@@ -255,8 +258,20 @@ object WorldState {
             commons = growth.commons,
             growthClockMs = growth.growthClockMs,
             nextAgentId = growth.nextAgentId,
+            pendingMemories = pendingMemories.map { memory ->
+                PendingWorldMemory(
+                    agentId = memory.agentId,
+                    realm = memory.realm,
+                    content = memory.content,
+                    importance = memory.importance,
+                    x = memory.x,
+                    z = memory.z,
+                    timestampMs = memory.timestampMs,
+                    worldTick = nextTick,
+                )
+            },
         )
-        check(persisted || !WorldCoreDatabase.isInitialized) {
+        check(commit.committed || !WorldCoreDatabase.isInitialized) {
             "WorldCore recusou o commit do tick $nextTick; projeção não publicada"
         }
 
@@ -273,7 +288,9 @@ object WorldState {
                 importance = memory.importance,
                 x = memory.x,
                 z = memory.z,
+                timestamp = memory.timestampMs,
                 worldTick = nextTick,
+                memoryId = commit.memoryIdsByAgent[memory.agentId],
             )
         }
         committedDecisions.forEach { decision ->
@@ -298,6 +315,7 @@ object WorldState {
         val importance: Float,
         val x: Float,
         val z: Float,
+        val timestampMs: Long,
     )
 
     private data class DecisionCommit(
