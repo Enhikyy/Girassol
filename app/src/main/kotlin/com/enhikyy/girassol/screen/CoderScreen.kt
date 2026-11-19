@@ -90,7 +90,7 @@ fun CoderScreen() {
                             val created = PluginStore.create(newName.trim(), extension)
                             status = if (created) "Plugin criado" else "Nome inválido ou plugin já existente"
                             if (created) {
-                                selected = plugins.firstOrNull { it.id == "${newName.trim()}.$extension" }
+                                selected = PluginStore.plugins.value.firstOrNull { it.id == "${newName.trim()}.$extension" }
                             }
                         }
                     }) { Text("Criar") }
