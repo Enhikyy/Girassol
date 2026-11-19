@@ -179,7 +179,9 @@ object WorldState {
             decision.intention == Intention.EXPLORE
         }
 
-        // Estágio de commit/projeção: aplica as propostas calculadas no snapshot comum.
+        // A projeção é calculada sem publicar mutações nem tocar na memória global.
+        val pendingMemories = ArrayList<PendingMemoryWrite>()
+        val committedDecisions = ArrayList<DecisionCommit>()
         val updated = proposals.map { (agent, neighbours, decision) ->
             val nextDrives = applyIntention(agent.drives, decision.intention, dt)
             val (nx, nz) = move(agent, decision.intention, dt, nextTick)
@@ -194,25 +196,18 @@ object WorldState {
                 StreamSeedDeriver.derive(WORLD_SEED, agent.id.toString(), nextTick, "memory-write")
             )
             if (memoryRng.nextDouble() < 0.02 * dt) {
-                SeveranceMemory.remember(
+                pendingMemories += PendingMemoryWrite(
                     agentId = agent.id,
                     realm = realm,
                     content = memoryFor(decision.intention, agent),
                     importance = decision.score.coerceIn(0.05f, 1f),
                     x = nx,
                     z = nz,
-                    worldTick = nextTick,
                 )
             }
 
             val reward = (0.6 * cooperation + 0.4 * (1f - nextDrives.imbalance() / 2f)).toDouble()
-            GeaDecisionBridge.recordCommittedDecision(
-                agent = agent,
-                neighbours = neighbours,
-                intention = decision.intention,
-                reward = reward,
-                tick = nextTick,
-            )
+            committedDecisions += DecisionCommit(agent, neighbours, decision.intention, reward)
 
             agent.copy(
                 drives = nextDrives,
@@ -224,7 +219,8 @@ object WorldState {
             )
         }
 
-        updateCommons(
+        val nextCommons = updateCommons(
+            current = _commons.value,
             dt = dt,
             cooperativeActions = cooperativeActions,
             studyActions = studyActions,
@@ -232,40 +228,97 @@ object WorldState {
             population = updated.size,
             tick = nextTick,
         )
-        val populationAfterGrowth = maybeGrowPopulation(dtMs, updated, nextTick)
-        GeaDecisionBridge.finishTick(nextTick, populationAfterGrowth)
+        val growth = maybeGrowPopulation(
+            dtMs = dtMs,
+            population = updated,
+            tick = nextTick,
+            commons = nextCommons,
+            currentGrowthClockMs = growthClockMs,
+            currentNextAgentId = nextAgentId,
+            currentGeneration = _generation.value,
+        )
         val nextSimulatedMs = _simulatedMs.value + dtMs
         val persisted = WorldCoreEventStore.commitTick(
             tick = nextTick,
-            agents = populationAfterGrowth,
+            agents = growth.agents,
             simulatedMs = nextSimulatedMs,
-            generation = _generation.value,
+            generation = growth.generation,
             selectedId = _selectedId.value,
             worldSeed = WORLD_SEED,
-            commons = _commons.value,
-            growthClockMs = growthClockMs,
-            nextAgentId = nextAgentId,
+            commons = growth.commons,
+            growthClockMs = growth.growthClockMs,
+            nextAgentId = growth.nextAgentId,
         )
         check(persisted || !WorldCoreDatabase.isInitialized) {
             "WorldCore recusou o commit do tick $nextTick; projeção não publicada"
         }
-        _agents.value = populationAfterGrowth
+
+        // Só depois do commit durável são publicados os efeitos laterais e o novo snapshot.
+        _commons.value = growth.commons
+        growthClockMs = growth.growthClockMs
+        nextAgentId = growth.nextAgentId
+        _generation.value = growth.generation
+        pendingMemories.forEach { memory ->
+            SeveranceMemory.remember(
+                agentId = memory.agentId,
+                realm = memory.realm,
+                content = memory.content,
+                importance = memory.importance,
+                x = memory.x,
+                z = memory.z,
+                worldTick = nextTick,
+            )
+        }
+        committedDecisions.forEach { decision ->
+            GeaDecisionBridge.recordCommittedDecision(
+                agent = decision.agent,
+                neighbours = decision.neighbours,
+                intention = decision.intention,
+                reward = decision.reward,
+                tick = nextTick,
+            )
+        }
+        GeaDecisionBridge.finishTick(nextTick, growth.agents)
+        _agents.value = growth.agents
         _tick.value = nextTick
         _simulatedMs.value = nextSimulatedMs
     }
 
+    private data class PendingMemoryWrite(
+        val agentId: Long,
+        val realm: Realm,
+        val content: String,
+        val importance: Float,
+        val x: Float,
+        val z: Float,
+    )
 
-    /** Economia determinística dos bens comuns, atualizada no mesmo tick dos agentes. */
+    private data class DecisionCommit(
+        val agent: Agent,
+        val neighbours: List<Agent>,
+        val intention: Intention,
+        val reward: Double,
+    )
+
+    private data class GrowthProjection(
+        val agents: List<Agent>,
+        val commons: Commons,
+        val growthClockMs: Long,
+        val nextAgentId: Long,
+        val generation: Int,
+    )
+
+    /** Economia determinística dos bens comuns, calculada sem publicar estado. */
     private fun updateCommons(
+        current: Commons,
         dt: Float,
         cooperativeActions: Int,
         studyActions: Int,
         exploreActions: Int,
         population: Int,
         tick: Long,
-    ) {
-        if (dt <= 0f || population <= 0) return
-        val current = _commons.value
+    ): Commons {
+        if (dt <= 0f || population <= 0) return current
         val size = population.toFloat()
         var food = (current.food + (0.018f * size - 0.010f * size) * dt).coerceIn(0f, 100f)
         var materials = (current.materials + exploreActions * 0.08f * dt - size * 0.001f * dt)
@@ -284,7 +337,7 @@ object WorldState {
             materials = (materials - 6f).coerceAtLeast(0f)
             food = (food - 2f).coerceAtLeast(0f)
         }
-        _commons.value = Commons(food, materials, knowledge, cohesion, housing, structures)
+        return Commons(food, materials, knowledge, cohesion, housing, structures)
     }
 
     /** Crescimento populacional em ciclos simulados, com aleatoriedade derivada do seed do mundo. */
@@ -292,24 +345,34 @@ object WorldState {
         dtMs: Long,
         population: List<Agent>,
         tick: Long,
-    ): List<Agent> {
-        growthClockMs += dtMs.coerceAtLeast(0L)
-        if (growthClockMs < POPULATION_CYCLE_MS) return population
-        growthClockMs %= POPULATION_CYCLE_MS
+        commons: Commons,
+        currentGrowthClockMs: Long,
+        currentNextAgentId: Long,
+        currentGeneration: Int,
+    ): GrowthProjection {
+        var nextClock = currentGrowthClockMs + dtMs.coerceAtLeast(0L)
+        var nextId = currentNextAgentId
+        var nextGeneration = currentGeneration
+        var nextCommons = commons
+        if (nextClock < POPULATION_CYCLE_MS) {
+            return GrowthProjection(population, nextCommons, nextClock, nextId, nextGeneration)
+        }
+        nextClock %= POPULATION_CYCLE_MS
 
-        val resources = _commons.value
         if (
             population.size >= 64 ||
-            population.size >= resources.housing ||
-            resources.food < 25f ||
-            resources.cohesion < 0.45f ||
+            population.size >= commons.housing ||
+            commons.food < 25f ||
+            commons.cohesion < 0.45f ||
             population.size < 2
-        ) return population
+        ) {
+            return GrowthProjection(population, nextCommons, nextClock, nextId, nextGeneration)
+        }
 
         val parents = population.sortedByDescending { it.fitness }.take(2)
         val first = parents[0]
         val second = parents[1]
-        val childId = nextAgentId++
+        val childId = nextId++
         val rng = DeterministicRng(
             StreamSeedDeriver.derive(WORLD_SEED, childId.toString(), tick, "population-birth")
         )
@@ -330,9 +393,10 @@ object WorldState {
                 .coerceIn(-WORLD_RADIUS, WORLD_RADIUS),
             generation = maxOf(first.generation, second.generation) + 1,
         )
-        _commons.value = resources.copy(food = (resources.food - 10f).coerceAtLeast(0f))
+        nextCommons = commons.copy(food = (commons.food - 10f).coerceAtLeast(0f))
+        nextGeneration = maxOf(currentGeneration, child.generation)
         AppLogger.log("INFO", "WORLD", "Nascimento determinístico: ${child.name}, geração=${child.generation}")
-        return population + child
+        return GrowthProjection(population + child, nextCommons, nextClock, nextId, nextGeneration)
     }
 
     /** Aplica o efeito de uma intenção nos drives, em função de [dt] segundos. */
