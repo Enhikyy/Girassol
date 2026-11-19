@@ -28,7 +28,7 @@ interface LlmEngine {
     suspend fun load(modelPath: String): Boolean
     suspend fun generate(prompt: String, onToken: (String) -> Unit): Boolean
     suspend fun generateChat(messages: List<Pair<String, String>>, onToken: (String) -> Unit): Boolean {
-        val prompt = messages.joinToString("\\n") { (role, content) -> "<|$role|>\\n$content" } + "\\n<|assistant|>"
+        val prompt = messages.joinToString("\n") { (role, content) -> "<|$role|>\n$content" } + "\n<|assistant|>"
         return generate(prompt, onToken)
     }
     suspend fun generateStructured(prompt: String, jsonSchema: String, onToken: (String) -> Unit): Boolean =
@@ -137,7 +137,7 @@ class LlamatikEngine(
     ): Boolean {
         if (!_isLoaded) throw GenerationException("Tentativa de gerar chat sem modelo carregado")
         val prompt = LlamaBridge.applyChatTemplate(messages, addAssistantPrefix = true)
-            ?: messages.joinToString("\\n") { (role, content) -> "<|$role|>\\n$content" } + "\\n<|assistant|>"
+            ?: messages.joinToString("\n") { (role, content) -> "<|$role|>\n$content" } + "\n<|assistant|>"
         return generate(prompt, onToken)
     }
 
