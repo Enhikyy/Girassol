@@ -3,6 +3,7 @@ package com.enhikyy.girassol.core.world
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.Closeable
+import kotlin.coroutines.EmptyCoroutineContext
 import java.util.concurrent.Executors
 
 /**
@@ -19,6 +20,11 @@ object WorldActor : Closeable {
 
     suspend fun <T> execute(block: () -> T): T = withContext(dispatcher) {
         block()
+    }
+
+    /** Enfileira mutações de UI/serviços no mesmo escritor serial do mundo. */
+    fun dispatch(block: () -> Unit) {
+        dispatcher.dispatch(EmptyCoroutineContext, Runnable(block))
     }
 
     override fun close() {
