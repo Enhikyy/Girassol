@@ -8,24 +8,22 @@ import com.enhikyy.girassol.core.cognition.AllostaticThermalCoupling
 import com.enhikyy.girassol.core.cognition.GlobalWorkspaceStage
 import com.enhikyy.girassol.core.cognition.HomeostaticVariable
 import com.enhikyy.girassol.core.cognition.PerceptualSignal
-import com.enhikyy.girassol.core.evolution.SemanticDiversityAndNicheEngine
 import com.enhikyy.girassol.core.evolution.SemanticCollapseGuard
 import com.enhikyy.girassol.core.memory.AssociativeMemoryNode
 import com.enhikyy.girassol.core.memory.DomainBetaBelief
 import com.enhikyy.girassol.core.memory.HybridMemoryRetriever
 import com.enhikyy.girassol.core.memory.MemoryLayer
-import com.enhikyy.girassol.core.memory.SleepConsolidationAndImmuneEngine
 import com.enhikyy.girassol.core.memory.ConsolidatableMemory
 import com.enhikyy.girassol.core.memory.HippocampalSleepConsolidator
 import com.enhikyy.girassol.core.memory.SubjectiveOpinion
 import com.enhikyy.girassol.core.social.DirectedSocialTie
+import com.enhikyy.girassol.core.world.AffordanceAdvertisement
 import com.enhikyy.girassol.core.world.DeterministicRng
 import com.enhikyy.girassol.core.world.SpatialStigmergyAndAffordanceGrid
 import com.enhikyy.girassol.core.world.StreamSeedDeriver
 import com.enhikyy.girassol.data.Agent
 import com.enhikyy.girassol.memory.SeveranceMemory
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.max
 
 /**
  * Adapta os motores GEA definidos em Completo.md ao estado observável atual do mundo.
@@ -355,7 +353,7 @@ object GeaDecisionBridge {
         )
         definitions.forEach { (id, action, x, z) ->
             affordanceGrid.publishAdvertisement(
-                com.enhikyy.girassol.core.world.AffordanceAdvertisement(
+                AffordanceAdvertisement(
                     sourceEntityId = id,
                     actionType = action,
                     x = x,
