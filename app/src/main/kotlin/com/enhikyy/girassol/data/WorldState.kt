@@ -119,6 +119,23 @@ object WorldState {
         growthClockMs = 0L
         nextAgentId = (seeded.maxOfOrNull { it.id } ?: 0L) + 1L
         _selectedId.value = seeded.firstOrNull()?.id
+        if (WorldCoreDatabase.isInitialized) {
+            val saved = WorldCoreEventStore.saveInitialCheckpoint(
+                agents = seeded,
+                simulatedMs = 0L,
+                generation = _generation.value,
+                selectedId = _selectedId.value,
+                worldSeed = WORLD_SEED,
+                commons = _commons.value,
+                growthClockMs = growthClockMs,
+                nextAgentId = nextAgentId,
+            )
+            if (!saved) {
+                _agents.value = emptyList()
+                _initializationError.value = "Não foi possível gravar o checkpoint inicial do WorldCore."
+                AppLogger.log("FATAL", "WORLD", _initializationError.value.orEmpty())
+            }
+        }
     }
 
     fun select(id: Long) {
