@@ -7,7 +7,9 @@ import com.enhikyy.girassol.memory.SeveranceMemory
 import com.enhikyy.girassol.sim.Simulation
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.random.Random
+import com.enhikyy.girassol.core.integration.GeaDecisionBridge
+import com.enhikyy.girassol.core.world.DeterministicRng
+import com.enhikyy.girassol.core.world.StreamSeedDeriver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,8 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 object WorldState {
 
     private const val WORLD_RADIUS = 120f
-
-    private val random = Random(7)
+    private const val WORLD_SEED = 0x4749524153534f4cL
 
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
@@ -48,19 +49,23 @@ object WorldState {
     fun initialize(population: Int = 8) {
         if (_agents.value.isNotEmpty()) return
         val seeded = List(population) { index ->
+            val id = index + 1L
+            val rng = DeterministicRng(
+                StreamSeedDeriver.derive(WORLD_SEED, id.toString(), 0L, "agent-initial-state")
+            )
             Agent(
-                id = index + 1L,
+                id = id,
                 name = "Agente ${index + 1}",
                 role = roles[index % roles.size],
                 drives = Drives(
-                    energy = 0.45f + random.nextFloat() * 0.5f,
-                    social = 0.2f + random.nextFloat() * 0.6f,
-                    knowledge = 0.1f + random.nextFloat() * 0.5f,
-                    focus = 0.3f + random.nextFloat() * 0.5f,
+                    energy = 0.45f + rng.nextDouble().toFloat() * 0.5f,
+                    social = 0.2f + rng.nextDouble().toFloat() * 0.6f,
+                    knowledge = 0.1f + rng.nextDouble().toFloat() * 0.5f,
+                    focus = 0.3f + rng.nextDouble().toFloat() * 0.5f,
                 ),
-                isInnie = random.nextBoolean(),
-                x = (random.nextFloat() - 0.5f) * WORLD_RADIUS * 2f,
-                z = (random.nextFloat() - 0.5f) * WORLD_RADIUS * 2f,
+                isInnie = rng.nextInt(2) == 0,
+                x = (rng.nextDouble().toFloat() - 0.5f) * WORLD_RADIUS * 2f,
+                z = (rng.nextDouble().toFloat() - 0.5f) * WORLD_RADIUS * 2f,
             )
         }
         _agents.value = seeded
@@ -110,27 +115,34 @@ object WorldState {
         if (current.isEmpty()) return
 
         val dt = (dtMs / 1000f).coerceIn(0f, 30f)
-        val updated = ArrayList<Agent>(current.size)
+        val nextTick = _tick.value + 1L
 
-        for (agent in current) {
+        // Estágio de propostas: todos os agentes decidem sobre o mesmo snapshot S_t.
+        // Nenhuma mutação do mundo é publicada até que todas as propostas existam.
+        val proposals = current.map { agent ->
             val neighbours = current.filter {
                 it.id != agent.id &&
                     UtilityAI.distance(it, agent) <= UtilityAI.SOCIAL_RADIUS
             }
-            val decision = UtilityAI.decide(agent, neighbours)
+            val decision = GeaDecisionBridge.decide(agent, neighbours, nextTick, dt)
+            Triple(agent, neighbours, decision)
+        }
+
+        // Estágio de commit/projeção: aplica as propostas calculadas no snapshot comum.
+        val updated = proposals.map { (agent, neighbours, decision) ->
             val nextDrives = applyIntention(agent.drives, decision.intention, dt)
+            val (nx, nz) = move(agent, decision.intention, dt, nextTick)
 
-            val (nx, nz) = move(agent, decision.intention, dt)
-
-            // Aptidão cresce com drives equilibrados e com cooperação.
             val cooperation = UtilityAI.cooperationWeight(decision.intention)
-            val fitness = agent.fitness + dt * (0.01f * cooperation + 0.02f * (1f - nextDrives.imbalance() / 2f))
-
+            val fitness = agent.fitness +
+                dt * (0.01f * cooperation + 0.02f * (1f - nextDrives.imbalance() / 2f))
             val realm = if (agent.isInnie) Realm.INNIE else Realm.OUTIE
             val health = diagnose(nextDrives, decision.intention)
 
-            // Memórias: só eventos com significado, não todos os ticks.
-            if (random.nextFloat() < 0.02f * dt) {
+            val memoryRng = DeterministicRng(
+                StreamSeedDeriver.derive(WORLD_SEED, agent.id.toString(), nextTick, "memory-write")
+            )
+            if (memoryRng.nextDouble() < 0.02 * dt) {
                 SeveranceMemory.remember(
                     agentId = agent.id,
                     realm = realm,
@@ -138,10 +150,20 @@ object WorldState {
                     importance = decision.score.coerceIn(0.05f, 1f),
                     x = nx,
                     z = nz,
+                    worldTick = nextTick,
                 )
             }
 
-            updated += agent.copy(
+            val reward = (0.6 * cooperation + 0.4 * (1f - nextDrives.imbalance() / 2f)).toDouble()
+            GeaDecisionBridge.recordCommittedDecision(
+                agent = agent,
+                neighbours = neighbours,
+                intention = decision.intention,
+                reward = reward,
+                tick = nextTick,
+            )
+
+            agent.copy(
                 drives = nextDrives,
                 x = nx,
                 z = nz,
@@ -151,8 +173,9 @@ object WorldState {
             )
         }
 
+        GeaDecisionBridge.finishTick(nextTick, updated)
         _agents.value = updated
-        _tick.value += 1
+        _tick.value = nextTick
         _simulatedMs.value += dtMs
     }
 
@@ -169,8 +192,8 @@ object WorldState {
         }
 
     /** Desloca o agente rumo ao alvo da intenção. */
-    private fun move(agent: Agent, intention: Intention, dt: Float): Pair<Float, Float> {
-        val (targetX, targetZ) = targetFor(intention, agent)
+    private fun move(agent: Agent, intention: Intention, dt: Float, tick: Long): Pair<Float, Float> {
+        val (targetX, targetZ) = targetFor(intention, agent, tick)
         val dx = targetX - agent.x
         val dz = targetZ - agent.z
         val distance = kotlin.math.hypot(dx, dz)
@@ -187,12 +210,12 @@ object WorldState {
     }
 
     /** Destino espacial associado a cada intenção. */
-    private fun targetFor(intention: Intention, agent: Agent): Pair<Float, Float> = when (intention) {
+    private fun targetFor(intention: Intention, agent: Agent, tick: Long): Pair<Float, Float> = when (intention) {
         Intention.REST, Intention.EAT -> 0f to 0f
         Intention.STUDY, Intention.TEACH -> 12f to 12f
         Intention.SOCIALIZE, Intention.HELP -> 40f to 40f
         Intention.EXPLORE -> {
-            val angle = agent.id * 0.7f + _tick.value * 0.01f
+            val angle = agent.id * 0.7f + tick * 0.01f
             (cos(angle) * 100f) to (sin(angle) * 100f)
         }
     }
