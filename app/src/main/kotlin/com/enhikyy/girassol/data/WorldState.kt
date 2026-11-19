@@ -110,34 +110,41 @@ object WorldState {
     }
 
     fun select(id: Long) {
-        _selectedId.value = id
+        WorldActor.dispatch { _selectedId.value = id }
     }
 
     fun selected(): Agent? = _agents.value.firstOrNull { it.id == _selectedId.value }
 
     fun setInnie(agentId: Long, innie: Boolean) {
-        _agents.value = _agents.value.map {
-            if (it.id == agentId) it.copy(isInnie = innie) else it
+        WorldActor.dispatch {
+            _agents.value = _agents.value.map {
+                if (it.id == agentId) it.copy(isInnie = innie) else it
+            }
         }
     }
 
     /** Substitui um único agente (usado pelas terapias do hospital). */
     fun replaceAgent(agent: Agent) {
-        _agents.value = _agents.value.map {
-            if (it.id == agent.id) agent else it
+        WorldActor.dispatch {
+            _agents.value = _agents.value.map {
+                if (it.id == agent.id) agent else it
+            }
         }
     }
 
     /** Substitui a população inteira (usado pelo motor evolutivo). */
     fun replaceAll(agents: List<Agent>) {
-        _agents.value = agents
-        if (agents.none { it.id == _selectedId.value }) {
-            _selectedId.value = agents.firstOrNull()?.id
+        WorldActor.dispatch {
+            _agents.value = agents
+            if (agents.none { it.id == _selectedId.value }) {
+                _selectedId.value = agents.firstOrNull()?.id
+            }
+            nextAgentId = maxOf(nextAgentId, (agents.maxOfOrNull { it.id } ?: 0L) + 1L)
         }
     }
 
     fun setGeneration(generation: Int) {
-        _generation.value = generation
+        WorldActor.dispatch { _generation.value = generation.coerceAtLeast(0) }
     }
 
     /**
