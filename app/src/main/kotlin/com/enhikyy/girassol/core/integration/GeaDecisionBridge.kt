@@ -23,6 +23,7 @@ import com.enhikyy.girassol.core.world.SpatialStigmergyAndAffordanceGrid
 import com.enhikyy.girassol.core.world.StreamSeedDeriver
 import com.enhikyy.girassol.data.Agent
 import com.enhikyy.girassol.memory.SeveranceMemory
+import com.enhikyy.girassol.core.persistence.WorldCoreEventStore
 import java.util.concurrent.ConcurrentHashMap
 
 /**
