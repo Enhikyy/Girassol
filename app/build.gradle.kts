@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    // kotlin.android REMOVIDO: built-in do AGP 9.0+ (https://kotl.in/gradle/agp-built-in-kotlin)
+    // Kotlin Android is built into AGP 9+.
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -9,11 +9,13 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.enhikyy.girassol"
+        // Nova identidade de instalação. O namespace Kotlin permanece estável
+        // nesta etapa para não quebrar referências R geradas pelo código atual.
+        applicationId = "com.girassol.ecosystem"
         minSdk = 31
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0.0-unified"
 
     }
 
@@ -36,9 +38,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // kotlinOptions REMOVIDO: bloco nao existe mais com Kotlin built-in do AGP 9.
-    // jvmTarget acompanha compileOptions (Java 17) automaticamente.
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -48,6 +47,10 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -68,15 +71,16 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
 
-    // Haze 2.x (API corrigida: hazeBlur/HazeInput, NÃO hazeChild/hazeEffect da 1.x)
     implementation("dev.chrisbanes.haze:haze:2.1.0")
-    // hazeBlur/HazeInput/HazeBlurStyle vivem no modulo haze-blur (Haze 2.x, migrating-2.0.md)
     implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
 
-    // LLM: llama.cpp pronto via Llamatik (decisao do prompt M0: usar o que existe; nativo proprio so se faltar recurso)
+    // Temporário até a consolidação do runtime neural nativo único.
     implementation("com.llamatik:core:2.4.0")
-    // hazeBlur/HazeInput/HazeBlurStyle vivem no modulo haze-blur (Haze 2.x, migrating-2.0.md)
-    implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
+    implementation("org.luaj:luaj-jse:3.0.1")
+    implementation("org.mozilla:rhino:1.9.2")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.3.21")
 }

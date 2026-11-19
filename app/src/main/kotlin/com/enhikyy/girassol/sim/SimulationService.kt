@@ -16,6 +16,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.enhikyy.girassol.AppLogger
+import com.enhikyy.girassol.MyApplication
 import com.enhikyy.girassol.core.AutonomyController
 import com.enhikyy.girassol.core.RunState
 import com.enhikyy.girassol.data.WorldState
@@ -48,7 +49,6 @@ class SimulationService : Service() {
 
         private const val CHANNEL_ID = "girassol_simulation"
         private const val NOTIFICATION_ID = 1001
-        private const val TICK_MS = 100L
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, SimulationService::class.java))
@@ -120,7 +120,8 @@ class SimulationService : Service() {
 
     private fun startTicking() {
         tickJob = scope.launch {
-            AppLogger.log("INFO", "LOOP", "GameLoop iniciado (tick=${TICK_MS}ms)")
+            AppLogger.log("INFO", "LOOP", "GameLoop iniciado com orçamento dinâmico")
+            var lastBudgetLabel = ""
             while (isActive) {
                 // Nenhum passo acontece enquanto a autonomia estiver pausada.
                 if (AutonomyController.state.value == RunState.PAUSED) {
@@ -129,8 +130,18 @@ class SimulationService : Service() {
                     loop.reset(System.currentTimeMillis())
                     AppLogger.log("INFO", "LOOP", "GameLoop retomado após pausa")
                 }
-                loop.advance(System.currentTimeMillis())
-                delay(TICK_MS)
+                val budget = (application as MyApplication).runtimeGovernor.evaluateCurrentBudget()
+                if (budget.thermalStatusLabel != lastBudgetLabel) {
+                    lastBudgetLabel = budget.thermalStatusLabel
+                    AppLogger.log(
+                        "INFO",
+                        "GOVERNOR",
+                        "RAM livre=${budget.availableMemoryMb}MB; tick=${budget.tickIntervalMs}ms; " +
+                            "sessões paralelas=${budget.allowParallelSessions}; estado=${budget.thermalStatusLabel}"
+                    )
+                }
+                loop.advance(System.currentTimeMillis(), stepMs = budget.tickIntervalMs)
+                delay(budget.tickIntervalMs)
             }
         }
     }

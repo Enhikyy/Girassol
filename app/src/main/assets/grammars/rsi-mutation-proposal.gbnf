@@ -1,0 +1,15 @@
+root ::= "{" ws
+  "\"rationale\":" ws string "," ws
+  "\"delta_epistemic_weight\":" ws signed-float "," ws
+  "\"delta_gate_tie_threshold\":" ws signed-float "," ws
+  "\"delta_switch_hysteresis\":" ws signed-float "," ws
+  "\"delta_memrl_alpha\":" ws signed-float "," ws
+  "\"delta_thermal_sensitivity\":" ws signed-float "," ws
+  "\"new_vpo_rule\":" ws (string | "null") "," ws
+  "\"confidence\":" ws unit-float
+ws "}"
+
+signed-float ::= "-"? "0." [0-9] [0-9]? [0-9]?
+unit-float ::= "0." [0-9] [0-9]? | "1.0"
+string ::= "\"" ([^"\\\x7F\x00-\x1F] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n]*

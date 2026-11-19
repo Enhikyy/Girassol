@@ -1,6 +1,7 @@
 package com.enhikyy.girassol.ai
 
 import com.enhikyy.girassol.AppLogger
+import com.enhikyy.girassol.MyApplication
 import com.llamatik.core.platform.LlamaBridge
 import com.llamatik.core.platform.GenStream
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -26,6 +27,12 @@ interface LlmEngine {
     val modelPath: String?
     suspend fun load(modelPath: String): Boolean
     suspend fun generate(prompt: String, onToken: (String) -> Unit): Boolean
+    suspend fun generateChat(messages: List<Pair<String, String>>, onToken: (String) -> Unit): Boolean {
+        val prompt = messages.joinToString("\n") { (role, content) -> "<|$role|>\n$content" } + "\n<|assistant|>"
+        return generate(prompt, onToken)
+    }
+    suspend fun generateStructured(prompt: String, jsonSchema: String, onToken: (String) -> Unit): Boolean =
+        generate(prompt, onToken)
     fun close()
 }
 
@@ -72,7 +79,28 @@ class LlamatikEngine(
 
         return try {
             // Executa em thread de background
+            val budget = MyApplication.getInstance().runtimeGovernor.evaluateCurrentBudget()
+            AppLogger.log(
+                "INFO",
+                "LLM_ENGINE",
+                "Orçamento: RAM livre=${budget.availableMemoryMb}MB contexto=${budget.contextLength} " +
+                    "tokens=${budget.maxOutputTokens} threads=${budget.numThreads} " +
+                    "batch=${budget.batchSize} thermal=${budget.thermalStatusLabel}"
+            )
             val ok = withContext(Dispatchers.Default + exceptionHandler) {
+                LlamaBridge.updateGenerateParams(
+                    temperature = 0.7f,
+                    maxTokens = budget.maxOutputTokens,
+                    topP = 0.95f,
+                    topK = 40,
+                    repeatPenalty = 1.1f,
+                    contextLength = budget.contextLength,
+                    numThreads = budget.numThreads,
+                    useMmap = budget.useMmap,
+                    flashAttention = budget.flashAttention,
+                    batchSize = budget.batchSize,
+                    gpuLayers = 0
+                )
                 LlamaBridge.initGenerateModel(modelPath)
             }
 
@@ -100,6 +128,51 @@ class LlamatikEngine(
             _isLoaded = false
             _modelPath = null
             throw ModelLoadException("Falha ao carregar modelo: ${e.message}", e)
+        }
+    }
+
+    override suspend fun generateChat(
+        messages: List<Pair<String, String>>,
+        onToken: (String) -> Unit
+    ): Boolean {
+        if (!_isLoaded) throw GenerationException("Tentativa de gerar chat sem modelo carregado")
+        val prompt = LlamaBridge.applyChatTemplate(messages, addAssistantPrefix = true)
+            ?: messages.joinToString("\n") { (role, content) -> "<|$role|>\n$content" } + "\n<|assistant|>"
+        return generate(prompt, onToken)
+    }
+
+    override suspend fun generateStructured(
+        prompt: String,
+        jsonSchema: String,
+        onToken: (String) -> Unit
+    ): Boolean {
+        if (!_isLoaded) throw GenerationException("Tentativa de gerar JSON sem modelo carregado")
+        if (prompt.isBlank()) throw GenerationException("Prompt vazio")
+        val startedAt = System.nanoTime()
+        var tokenCount = 0
+        var streamError: String? = null
+        return try {
+            withContext(Dispatchers.Default + exceptionHandler) {
+                LlamaBridge.generateJsonStream(prompt, jsonSchema, object : GenStream {
+                    override fun onDelta(text: String) {
+                        tokenCount++
+                        onToken(text)
+                    }
+                    override fun onComplete() {
+                        val elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+                        val rate = if (elapsed > 0) tokenCount * 1000.0 / elapsed else 0.0
+                        AppLogger.log("INFO", "LLM_ENGINE", "JSON stream: $tokenCount tokens, ${"%.2f".format(rate)} tok/s")
+                    }
+                    override fun onError(message: String) {
+                        streamError = message
+                    }
+                })
+            }
+            streamError?.let { throw GenerationException("Erro no JSON stream: $it") }
+            true
+        } catch (error: Exception) {
+            AppLogger.log("ERROR", "LLM_ENGINE", "Falha no JSON stream: ${error.message}", error)
+            throw if (error is GenerationException) error else GenerationException("Falha no JSON stream", error)
         }
     }
 
@@ -158,8 +231,8 @@ class LlamatikEngine(
         if (_isLoaded) {
             AppLogger.log("INFO", "LLM_ENGINE", "Liberando modelo: $_modelPath")
             try {
-                // Llamatik não expõe releaseModel direto no LlamaBridge; sessionReset limpa o KV cache
-                LlamaBridge.sessionReset()
+                // shutdown() libera o modelo e os recursos nativos; não apenas o KV cache.
+                LlamaBridge.shutdown()
             } catch (e: Exception) {
                 AppLogger.log("WARN", "LLM_ENGINE", "Erro ao limpar sessão: ${e.message}", e)
             }

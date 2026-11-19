@@ -7,7 +7,14 @@ import com.enhikyy.girassol.memory.SeveranceMemory
 import com.enhikyy.girassol.sim.Simulation
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.random.Random
+import com.enhikyy.girassol.AppLogger
+import com.enhikyy.girassol.core.integration.GeaDecisionBridge
+import com.enhikyy.girassol.core.persistence.WorldCoreDatabase
+import com.enhikyy.girassol.core.persistence.WorldCoreEventStore
+import com.enhikyy.girassol.core.persistence.PendingWorldMemory
+import com.enhikyy.girassol.core.world.WorldActor
+import com.enhikyy.girassol.core.world.DeterministicRng
+import com.enhikyy.girassol.core.world.StreamSeedDeriver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,9 +27,20 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object WorldState {
 
-    private const val WORLD_RADIUS = 120f
+    data class Commons(
+        val food: Float = 80f,
+        val materials: Float = 45f,
+        val knowledge: Float = 12f,
+        val cohesion: Float = 0.72f,
+        val housing: Int = 12,
+        val structures: Int = 3,
+    )
 
-    private val random = Random(7)
+    private const val WORLD_RADIUS = 120f
+    private const val WORLD_SEED = 0x4749524153534f4cL
+    private const val POPULATION_CYCLE_MS = 6L * 60L * 60L * 1000L
+    private var growthClockMs = 0L
+    private var nextAgentId = 1L
 
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
@@ -39,6 +57,12 @@ object WorldState {
     private val _generation = MutableStateFlow(0)
     val generation: StateFlow<Int> = _generation.asStateFlow()
 
+    private val _commons = MutableStateFlow(Commons())
+    val commons: StateFlow<Commons> = _commons.asStateFlow()
+
+    private val _initializationError = MutableStateFlow<String?>(null)
+    val initializationError: StateFlow<String?> = _initializationError.asStateFlow()
+
     private val roles = listOf(
         "Explorador", "Pesquisador", "Artesão", "Guardião",
         "Diplomata", "Curador", "Engenheiro", "Filósofo",
@@ -47,55 +71,109 @@ object WorldState {
     /** Cria a população inicial. Idempotente. */
     fun initialize(population: Int = 8) {
         if (_agents.value.isNotEmpty()) return
+        val restoreAttempt = runCatching { WorldCoreEventStore.restoreLatestProjection() }
+        if (restoreAttempt.isFailure) {
+            val error = restoreAttempt.exceptionOrNull()
+            val message = "Persistência WorldCore inválida: ${error?.message ?: "erro desconhecido"}"
+            _initializationError.value = message
+            AppLogger.log("FATAL", "WORLD", message, error)
+            return
+        }
+        _initializationError.value = null
+        val restored = restoreAttempt.getOrNull()
+        if (restored != null) {
+            _agents.value = restored.agents
+            _tick.value = restored.tick
+            _simulatedMs.value = restored.simulatedMs
+            _generation.value = restored.generation
+            _commons.value = restored.commons
+            SeveranceMemory.restoreFromPersistence(restored.memories)
+            growthClockMs = restored.growthClockMs
+            nextAgentId = restored.nextAgentId
+            _selectedId.value = restored.selectedId ?: restored.agents.firstOrNull()?.id
+            AppLogger.log("INFO", "WORLD", "WorldCore restaurado: tick=${restored.tick}, agentes=${restored.agents.size}")
+            return
+        }
         val seeded = List(population) { index ->
+            val id = index + 1L
+            val rng = DeterministicRng(
+                StreamSeedDeriver.derive(WORLD_SEED, id.toString(), 0L, "agent-initial-state")
+            )
             Agent(
-                id = index + 1L,
+                id = id,
                 name = "Agente ${index + 1}",
                 role = roles[index % roles.size],
                 drives = Drives(
-                    energy = 0.45f + random.nextFloat() * 0.5f,
-                    social = 0.2f + random.nextFloat() * 0.6f,
-                    knowledge = 0.1f + random.nextFloat() * 0.5f,
-                    focus = 0.3f + random.nextFloat() * 0.5f,
+                    energy = 0.45f + rng.nextDouble().toFloat() * 0.5f,
+                    social = 0.2f + rng.nextDouble().toFloat() * 0.6f,
+                    knowledge = 0.1f + rng.nextDouble().toFloat() * 0.5f,
+                    focus = 0.3f + rng.nextDouble().toFloat() * 0.5f,
                 ),
-                isInnie = random.nextBoolean(),
-                x = (random.nextFloat() - 0.5f) * WORLD_RADIUS * 2f,
-                z = (random.nextFloat() - 0.5f) * WORLD_RADIUS * 2f,
+                isInnie = rng.nextInt(2) == 0,
+                x = (rng.nextDouble().toFloat() - 0.5f) * WORLD_RADIUS * 2f,
+                z = (rng.nextDouble().toFloat() - 0.5f) * WORLD_RADIUS * 2f,
             )
         }
         _agents.value = seeded
+        _commons.value = Commons()
+        growthClockMs = 0L
+        nextAgentId = (seeded.maxOfOrNull { it.id } ?: 0L) + 1L
         _selectedId.value = seeded.firstOrNull()?.id
+        if (WorldCoreDatabase.isInitialized) {
+            val saved = WorldCoreEventStore.saveInitialCheckpoint(
+                agents = seeded,
+                simulatedMs = 0L,
+                generation = _generation.value,
+                selectedId = _selectedId.value,
+                worldSeed = WORLD_SEED,
+                commons = _commons.value,
+                growthClockMs = growthClockMs,
+                nextAgentId = nextAgentId,
+            )
+            if (!saved) {
+                _agents.value = emptyList()
+                _initializationError.value = "Não foi possível gravar o checkpoint inicial do WorldCore."
+                AppLogger.log("FATAL", "WORLD", _initializationError.value.orEmpty())
+            }
+        }
     }
 
     fun select(id: Long) {
-        _selectedId.value = id
+        WorldActor.dispatch { _selectedId.value = id }
     }
 
     fun selected(): Agent? = _agents.value.firstOrNull { it.id == _selectedId.value }
 
     fun setInnie(agentId: Long, innie: Boolean) {
-        _agents.value = _agents.value.map {
-            if (it.id == agentId) it.copy(isInnie = innie) else it
+        WorldActor.dispatch {
+            _agents.value = _agents.value.map {
+                if (it.id == agentId) it.copy(isInnie = innie) else it
+            }
         }
     }
 
     /** Substitui um único agente (usado pelas terapias do hospital). */
     fun replaceAgent(agent: Agent) {
-        _agents.value = _agents.value.map {
-            if (it.id == agent.id) agent else it
+        WorldActor.dispatch {
+            _agents.value = _agents.value.map {
+                if (it.id == agent.id) agent else it
+            }
         }
     }
 
     /** Substitui a população inteira (usado pelo motor evolutivo). */
     fun replaceAll(agents: List<Agent>) {
-        _agents.value = agents
-        if (agents.none { it.id == _selectedId.value }) {
-            _selectedId.value = agents.firstOrNull()?.id
+        WorldActor.dispatch {
+            _agents.value = agents
+            if (agents.none { it.id == _selectedId.value }) {
+                _selectedId.value = agents.firstOrNull()?.id
+            }
+            nextAgentId = maxOf(nextAgentId, (agents.maxOfOrNull { it.id } ?: 0L) + 1L)
         }
     }
 
     fun setGeneration(generation: Int) {
-        _generation.value = generation
+        WorldActor.dispatch { _generation.value = generation.coerceAtLeast(0) }
     }
 
     /**
@@ -105,43 +183,70 @@ object WorldState {
      * nos drives, move-se em direção ao alvo da intenção, e ocasionalmente grava
      * uma memória no reino correspondente à sua posição.
      */
-    fun step(dtMs: Long) {
+    suspend fun step(dtMs: Long) {
+        WorldActor.execute { stepOnWorldActor(dtMs) }
+    }
+
+    private fun stepOnWorldActor(dtMs: Long) {
         val current = _agents.value
         if (current.isEmpty()) return
 
-        val dt = (dtMs / 1000f).coerceIn(0f, 30f)
-        val updated = ArrayList<Agent>(current.size)
+        val dt = dtMs.coerceAtLeast(0L) / 1000f
+        val nextTick = _tick.value + 1L
 
-        for (agent in current) {
+        // Estágio de propostas: todos os agentes decidem sobre o mesmo snapshot S_t.
+        // Nenhuma mutação do mundo é publicada até que todas as propostas existam.
+        val proposals = current.map { agent ->
             val neighbours = current.filter {
                 it.id != agent.id &&
                     UtilityAI.distance(it, agent) <= UtilityAI.SOCIAL_RADIUS
             }
-            val decision = UtilityAI.decide(agent, neighbours)
+            val decision = GeaDecisionBridge.decide(agent, neighbours, nextTick, dt)
+            Triple(agent, neighbours, decision)
+        }
+
+        val cooperativeActions = proposals.count { (_, _, decision) ->
+            decision.intention in setOf(Intention.SOCIALIZE, Intention.HELP, Intention.TEACH)
+        }
+        val studyActions = proposals.count { (_, _, decision) ->
+            decision.intention == Intention.STUDY || decision.intention == Intention.TEACH
+        }
+        val exploreActions = proposals.count { (_, _, decision) ->
+            decision.intention == Intention.EXPLORE
+        }
+
+        // A projeção é calculada sem publicar mutações nem tocar na memória global.
+        val pendingMemories = ArrayList<PendingMemoryWrite>()
+        val committedDecisions = ArrayList<DecisionCommit>()
+        val updated = proposals.map { (agent, neighbours, decision) ->
             val nextDrives = applyIntention(agent.drives, decision.intention, dt)
+            val (nx, nz) = move(agent, decision.intention, dt, nextTick)
 
-            val (nx, nz) = move(agent, decision.intention, dt)
-
-            // Aptidão cresce com drives equilibrados e com cooperação.
             val cooperation = UtilityAI.cooperationWeight(decision.intention)
-            val fitness = agent.fitness + dt * (0.01f * cooperation + 0.02f * (1f - nextDrives.imbalance() / 2f))
-
+            val fitness = agent.fitness +
+                dt * (0.01f * cooperation + 0.02f * (1f - nextDrives.imbalance() / 2f))
             val realm = if (agent.isInnie) Realm.INNIE else Realm.OUTIE
             val health = diagnose(nextDrives, decision.intention)
 
-            // Memórias: só eventos com significado, não todos os ticks.
-            if (random.nextFloat() < 0.02f * dt) {
-                SeveranceMemory.remember(
+            val memoryRng = DeterministicRng(
+                StreamSeedDeriver.derive(WORLD_SEED, agent.id.toString(), nextTick, "memory-write")
+            )
+            if (memoryRng.nextDouble() < 0.02 * dt) {
+                pendingMemories += PendingMemoryWrite(
                     agentId = agent.id,
                     realm = realm,
                     content = memoryFor(decision.intention, agent),
                     importance = decision.score.coerceIn(0.05f, 1f),
                     x = nx,
                     z = nz,
+                    timestampMs = System.currentTimeMillis(),
                 )
             }
 
-            updated += agent.copy(
+            val reward = (0.6 * cooperation + 0.4 * (1f - nextDrives.imbalance() / 2f)).toDouble()
+            committedDecisions += DecisionCommit(agent, neighbours, decision.intention, reward)
+
+            agent.copy(
                 drives = nextDrives,
                 x = nx,
                 z = nz,
@@ -151,9 +256,199 @@ object WorldState {
             )
         }
 
-        _agents.value = updated
-        _tick.value += 1
-        _simulatedMs.value += dtMs
+        val nextCommons = updateCommons(
+            current = _commons.value,
+            dt = dt,
+            cooperativeActions = cooperativeActions,
+            studyActions = studyActions,
+            exploreActions = exploreActions,
+            population = updated.size,
+            tick = nextTick,
+        )
+        val growth = maybeGrowPopulation(
+            dtMs = dtMs,
+            population = updated,
+            tick = nextTick,
+            commons = nextCommons,
+            currentGrowthClockMs = growthClockMs,
+            currentNextAgentId = nextAgentId,
+            currentGeneration = _generation.value,
+        )
+        val nextSimulatedMs = _simulatedMs.value + dtMs
+        val commit = WorldCoreEventStore.commitTick(
+            tick = nextTick,
+            agents = growth.agents,
+            simulatedMs = nextSimulatedMs,
+            generation = growth.generation,
+            selectedId = _selectedId.value,
+            worldSeed = WORLD_SEED,
+            commons = growth.commons,
+            growthClockMs = growth.growthClockMs,
+            nextAgentId = growth.nextAgentId,
+            pendingMemories = pendingMemories.map { memory ->
+                PendingWorldMemory(
+                    agentId = memory.agentId,
+                    realm = memory.realm,
+                    content = memory.content,
+                    importance = memory.importance,
+                    x = memory.x,
+                    z = memory.z,
+                    timestampMs = memory.timestampMs,
+                    worldTick = nextTick,
+                )
+            },
+        )
+        check(commit.committed || !WorldCoreDatabase.isInitialized) {
+            "WorldCore recusou o commit do tick $nextTick; projeção não publicada"
+        }
+
+        // Só depois do commit durável são publicados os efeitos laterais e o novo snapshot.
+        _commons.value = growth.commons
+        growthClockMs = growth.growthClockMs
+        nextAgentId = growth.nextAgentId
+        _generation.value = growth.generation
+        pendingMemories.forEach { memory ->
+            SeveranceMemory.remember(
+                agentId = memory.agentId,
+                realm = memory.realm,
+                content = memory.content,
+                importance = memory.importance,
+                x = memory.x,
+                z = memory.z,
+                timestamp = memory.timestampMs,
+                worldTick = nextTick,
+                memoryId = commit.memoryIdsByAgent[memory.agentId],
+            )
+        }
+        committedDecisions.forEach { decision ->
+            GeaDecisionBridge.recordCommittedDecision(
+                agent = decision.agent,
+                neighbours = decision.neighbours,
+                intention = decision.intention,
+                reward = decision.reward,
+                tick = nextTick,
+            )
+        }
+        GeaDecisionBridge.finishTick(nextTick, growth.agents)
+        _agents.value = growth.agents
+        _tick.value = nextTick
+        _simulatedMs.value = nextSimulatedMs
+    }
+
+    private data class PendingMemoryWrite(
+        val agentId: Long,
+        val realm: Realm,
+        val content: String,
+        val importance: Float,
+        val x: Float,
+        val z: Float,
+        val timestampMs: Long,
+    )
+
+    private data class DecisionCommit(
+        val agent: Agent,
+        val neighbours: List<Agent>,
+        val intention: Intention,
+        val reward: Double,
+    )
+
+    private data class GrowthProjection(
+        val agents: List<Agent>,
+        val commons: Commons,
+        val growthClockMs: Long,
+        val nextAgentId: Long,
+        val generation: Int,
+    )
+
+    /** Economia determinística dos bens comuns, calculada sem publicar estado. */
+    private fun updateCommons(
+        current: Commons,
+        dt: Float,
+        cooperativeActions: Int,
+        studyActions: Int,
+        exploreActions: Int,
+        population: Int,
+        tick: Long,
+    ): Commons {
+        if (dt <= 0f || population <= 0) return current
+        val size = population.toFloat()
+        var food = (current.food + (0.018f * size - 0.010f * size) * dt).coerceIn(0f, 100f)
+        var materials = (current.materials + exploreActions * 0.08f * dt - size * 0.001f * dt)
+            .coerceIn(0f, 100f)
+        val knowledge = (current.knowledge + studyActions * 0.025f * dt + exploreActions * 0.006f * dt)
+            .coerceIn(0f, 100f)
+        val cooperationRate = cooperativeActions.toFloat() / size
+        val cohesion = (current.cohesion + (cooperationRate - 0.35f) * 0.002f * dt)
+            .coerceIn(0.05f, 1f)
+        var housing = current.housing
+        var structures = current.structures
+
+        if (tick % 6_000L == 0L && materials >= 24f && food >= 30f && housing < population + 6) {
+            housing += 1
+            structures += 1
+            materials = (materials - 6f).coerceAtLeast(0f)
+            food = (food - 2f).coerceAtLeast(0f)
+        }
+        return Commons(food, materials, knowledge, cohesion, housing, structures)
+    }
+
+    /** Crescimento populacional em ciclos simulados, com aleatoriedade derivada do seed do mundo. */
+    private fun maybeGrowPopulation(
+        dtMs: Long,
+        population: List<Agent>,
+        tick: Long,
+        commons: Commons,
+        currentGrowthClockMs: Long,
+        currentNextAgentId: Long,
+        currentGeneration: Int,
+    ): GrowthProjection {
+        var nextClock = currentGrowthClockMs + dtMs.coerceAtLeast(0L)
+        var nextId = currentNextAgentId
+        var nextGeneration = currentGeneration
+        var nextCommons = commons
+        if (nextClock < POPULATION_CYCLE_MS) {
+            return GrowthProjection(population, nextCommons, nextClock, nextId, nextGeneration)
+        }
+        nextClock %= POPULATION_CYCLE_MS
+
+        if (
+            population.size >= 64 ||
+            population.size >= commons.housing ||
+            commons.food < 25f ||
+            commons.cohesion < 0.45f ||
+            population.size < 2
+        ) {
+            return GrowthProjection(population, nextCommons, nextClock, nextId, nextGeneration)
+        }
+
+        val parents = population.sortedByDescending { it.fitness }.take(2)
+        val first = parents[0]
+        val second = parents[1]
+        val childId = nextId++
+        val rng = DeterministicRng(
+            StreamSeedDeriver.derive(WORLD_SEED, childId.toString(), tick, "population-birth")
+        )
+        val child = Agent(
+            id = childId,
+            name = "Descendente $childId",
+            role = first.role,
+            drives = Drives(
+                energy = 0.72f,
+                social = ((first.drives.social + second.drives.social) / 2f).coerceIn(0.1f, 0.9f),
+                knowledge = ((first.drives.knowledge + second.drives.knowledge) / 2f).coerceIn(0.1f, 0.9f),
+                focus = ((first.drives.focus + second.drives.focus) / 2f).coerceIn(0.1f, 0.9f),
+            ),
+            isInnie = rng.nextInt(2) == 0,
+            x = ((first.x + second.x) / 2f + (rng.nextDouble().toFloat() - 0.5f) * 8f)
+                .coerceIn(-WORLD_RADIUS, WORLD_RADIUS),
+            z = ((first.z + second.z) / 2f + (rng.nextDouble().toFloat() - 0.5f) * 8f)
+                .coerceIn(-WORLD_RADIUS, WORLD_RADIUS),
+            generation = maxOf(first.generation, second.generation) + 1,
+        )
+        nextCommons = commons.copy(food = (commons.food - 10f).coerceAtLeast(0f))
+        nextGeneration = maxOf(currentGeneration, child.generation)
+        AppLogger.log("INFO", "WORLD", "Nascimento determinístico: ${child.name}, geração=${child.generation}")
+        return GrowthProjection(population + child, nextCommons, nextClock, nextId, nextGeneration)
     }
 
     /** Aplica o efeito de uma intenção nos drives, em função de [dt] segundos. */
@@ -169,8 +464,8 @@ object WorldState {
         }
 
     /** Desloca o agente rumo ao alvo da intenção. */
-    private fun move(agent: Agent, intention: Intention, dt: Float): Pair<Float, Float> {
-        val (targetX, targetZ) = targetFor(intention, agent)
+    private fun move(agent: Agent, intention: Intention, dt: Float, tick: Long): Pair<Float, Float> {
+        val (targetX, targetZ) = targetFor(intention, agent, tick)
         val dx = targetX - agent.x
         val dz = targetZ - agent.z
         val distance = kotlin.math.hypot(dx, dz)
@@ -187,12 +482,12 @@ object WorldState {
     }
 
     /** Destino espacial associado a cada intenção. */
-    private fun targetFor(intention: Intention, agent: Agent): Pair<Float, Float> = when (intention) {
+    private fun targetFor(intention: Intention, agent: Agent, tick: Long): Pair<Float, Float> = when (intention) {
         Intention.REST, Intention.EAT -> 0f to 0f
         Intention.STUDY, Intention.TEACH -> 12f to 12f
         Intention.SOCIALIZE, Intention.HELP -> 40f to 40f
         Intention.EXPLORE -> {
-            val angle = agent.id * 0.7f + _tick.value * 0.01f
+            val angle = agent.id * 0.7f + tick * 0.01f
             (cos(angle) * 100f) to (sin(angle) * 100f)
         }
     }
@@ -219,6 +514,6 @@ object WorldState {
 
     /** Adaptador do mundo para o [Simulation] consumido pelo GameLoop. */
     val simulation: Simulation = object : Simulation {
-        override fun step(dtMs: Long) = WorldState.step(dtMs)
+        override suspend fun step(dtMs: Long) = WorldState.step(dtMs)
     }
 }

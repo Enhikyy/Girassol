@@ -51,6 +51,8 @@ enum class Section(val label: String) {
     DASHBOARD("DASHBOARD"),
     ESCOLA("ESCOLA"),
     HOSPITAL("HOSPITAL"),
+    CODER("CODER"),
+    PLUGINS("PLUGINS"),
 }
 
 /**
@@ -100,6 +102,8 @@ fun GirassolApp() {
                         Section.DASHBOARD -> DashboardScreen()
                         Section.ESCOLA -> EscolaScreen()
                         Section.HOSPITAL -> HospitalScreen()
+                        Section.CODER -> CoderScreen()
+                        Section.PLUGINS -> PluginsScreen()
                     }
                 }
             }

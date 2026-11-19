@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -44,6 +46,8 @@ import com.enhikyy.girassol.ui.*
 @Composable
 fun MundoScreen() {
     val agents by WorldState.agents.collectAsState()
+    val commons by WorldState.commons.collectAsState()
+    val initializationError by WorldState.initializationError.collectAsState()
     val selectedId by WorldState.selectedId.collectAsState()
     val selected = agents.firstOrNull { it.id == selectedId } ?: agents.firstOrNull()
 
@@ -375,5 +379,13 @@ private fun DriveBar(label: String, value: Float, color: Color) {
                     .background(color),
             )
         }
+    }
+}
+
+@Composable
+private fun CommonsMetric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, color = Lab.TextPrimary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Lab.TextSecondary)
     }
 }

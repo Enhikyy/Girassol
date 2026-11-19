@@ -19,6 +19,8 @@ data class Memory(
     val x: Float,
     val z: Float,
     val timestamp: Long,
+    /** Tick lógico do WorldCore em que a memória foi criada. */
+    val worldTick: Long = 0L,
 )
 
 /** Região do mundo que dá acesso a um dos dois reinos. */
@@ -77,11 +79,13 @@ object SeveranceMemory {
         x: Float,
         z: Float,
         timestamp: Long = System.currentTimeMillis(),
+        worldTick: Long = 0L,
+        memoryId: Long? = null,
     ): Memory? {
         if (importance <= 0.02f) return null
         synchronized(lock) {
             val memory = Memory(
-                id = nextId++,
+                id = memoryId ?: nextId,
                 agentId = agentId,
                 realm = realm,
                 content = content,
@@ -89,7 +93,9 @@ object SeveranceMemory {
                 x = x,
                 z = z,
                 timestamp = timestamp,
+                worldTick = worldTick,
             )
+            nextId = maxOf(nextId, memory.id + 1L)
             memories += memory
             if (memories.size > MAX_MEMORIES) evictUnderLock()
             publishCountsUnderLock()
@@ -125,7 +131,27 @@ object SeveranceMemory {
         memories.filter { it.agentId == agentId }
     }
 
+
+    /** Reconstrói o índice em memória a partir das linhas duráveis do SQLite WAL. */
+    fun restoreFromPersistence(restored: List<Memory>) {
+        synchronized(lock) {
+            memories.clear()
+            memories.addAll(restored.sortedBy { it.id }.takeLast(MAX_MEMORIES))
+            nextId = (memories.maxOfOrNull { it.id } ?: 0L) + 1L
+            publishCountsUnderLock()
+        }
+    }
+
     fun total(): Int = synchronized(lock) { memories.size }
+
+    /** Remove somente os nós explicitamente selecionados pela consolidação hipocampal. */
+    fun removeByIds(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        synchronized(lock) {
+            memories.removeAll { it.id in ids }
+            publishCountsUnderLock()
+        }
+    }
 
     fun clear() {
         synchronized(lock) {
