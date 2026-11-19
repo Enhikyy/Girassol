@@ -9,6 +9,7 @@ import com.enhikyy.girassol.core.world.ProposalOrigin
 import com.enhikyy.girassol.data.Agent
 import com.enhikyy.girassol.data.Drives
 import com.enhikyy.girassol.data.Health
+import com.enhikyy.girassol.data.WorldState
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -17,7 +18,10 @@ data class RestoredWorldProjection(
     val tick: Long,
     val simulatedMs: Long,
     val generation: Int,
-    val selectedId: Long?
+    val selectedId: Long?,
+    val commons: WorldState.Commons,
+    val growthClockMs: Long,
+    val nextAgentId: Long
 )
 
 object WorldCoreDatabase {
@@ -157,7 +161,10 @@ object WorldCoreEventStore {
         simulatedMs: Long,
         generation: Int,
         selectedId: Long?,
-        worldSeed: Long
+        worldSeed: Long,
+        commons: WorldState.Commons,
+        growthClockMs: Long,
+        nextAgentId: Long
     ): Boolean {
         val db = WorldCoreDatabase.writableDatabase() ?: return false
         require(agents.map { it.id }.distinct().size == agents.size) {
@@ -185,7 +192,10 @@ object WorldCoreEventStore {
 
             for (agent in agents.sortedBy { it.id }) {
                 val action = agent.lastIntention
-                val payload = agentPayload(agent, tick, simulatedMs, generation, selectedId)
+                val payload = agentPayload(
+                    agent, tick, simulatedMs, generation, selectedId,
+                    commons, growthClockMs, nextAgentId
+                )
                 val eventId = ++lastEventId
                 val actorId = agent.id.toString()
                 val hash = CanonicalEvent.computeHash(
@@ -219,7 +229,13 @@ object WorldCoreEventStore {
                 val checkpoint = ContentValues().apply {
                     put("tick", tick)
                     put("last_event_id", lastEventId)
-                    put("state_json", snapshotJson(agents, tick, simulatedMs, generation, selectedId))
+                    put(
+                        "state_json",
+                        snapshotJson(
+                            agents, tick, simulatedMs, generation, selectedId,
+                            commons, growthClockMs, nextAgentId
+                        )
+                    )
                     put(
                         "rng_state_json",
                         JSONObject()
@@ -256,6 +272,9 @@ object WorldCoreEventStore {
         var simulatedMs = 0L
         var generation = 0
         var selectedId: Long? = null
+        var commons = WorldState.Commons()
+        var growthClockMs = 0L
+        var nextAgentId = 1L
         var lastEventId = 0L
         var previousHash = GENESIS_HASH
 
@@ -273,6 +292,9 @@ object WorldCoreEventStore {
                 simulatedMs = state.optLong("simulatedMs", 0L)
                 generation = state.optInt("generation", 0)
                 selectedId = state.optNullableLong("selectedId")
+                commons = commonsFromJson(state.optJSONObject("commons") ?: JSONObject())
+                growthClockMs = state.optLong("growthClockMs", 0L)
+                nextAgentId = state.optLong("nextAgentId", 1L)
                 val savedAgents = state.optJSONArray("agents") ?: JSONArray()
                 for (index in 0 until savedAgents.length()) {
                     val agent = agentFromJson(savedAgents.getJSONObject(index))
@@ -317,6 +339,9 @@ object WorldCoreEventStore {
                 simulatedMs = payloadObject.optLong("simulatedMs", simulatedMs)
                 generation = payloadObject.optInt("generation", generation)
                 selectedId = payloadObject.optNullableLong("selectedId")
+                commons = commonsFromJson(payloadObject.optJSONObject("commons") ?: JSONObject())
+                growthClockMs = payloadObject.optLong("growthClockMs", growthClockMs)
+                nextAgentId = payloadObject.optLong("nextAgentId", nextAgentId)
                 lastEventId = eventId
                 previousHash = eventHash
             }
@@ -328,7 +353,10 @@ object WorldCoreEventStore {
             tick = tick,
             simulatedMs = simulatedMs,
             generation = generation,
-            selectedId = selectedId
+            selectedId = selectedId,
+            commons = commons,
+            growthClockMs = growthClockMs,
+            nextAgentId = nextAgentId
         )
     }
 
@@ -337,13 +365,19 @@ object WorldCoreEventStore {
         tick: Long,
         simulatedMs: Long,
         generation: Int,
-        selectedId: Long?
+        selectedId: Long?,
+        commons: WorldState.Commons,
+        growthClockMs: Long,
+        nextAgentId: Long
     ): String = JSONObject()
         .put("agent", agentJson(agent))
         .put("tick", tick)
         .put("simulatedMs", simulatedMs)
         .put("generation", generation)
         .put("selectedId", selectedId ?: JSONObject.NULL)
+        .put("commons", commonsJson(commons))
+        .put("growthClockMs", growthClockMs)
+        .put("nextAgentId", nextAgentId)
         .toString()
 
     private fun snapshotJson(
@@ -351,16 +385,40 @@ object WorldCoreEventStore {
         tick: Long,
         simulatedMs: Long,
         generation: Int,
-        selectedId: Long?
+        selectedId: Long?,
+        commons: WorldState.Commons,
+        growthClockMs: Long,
+        nextAgentId: Long
     ): String = JSONObject()
         .put("tick", tick)
         .put("simulatedMs", simulatedMs)
         .put("generation", generation)
         .put("selectedId", selectedId ?: JSONObject.NULL)
+        .put("commons", commonsJson(commons))
+        .put("growthClockMs", growthClockMs)
+        .put("nextAgentId", nextAgentId)
         .put("agents", JSONArray().apply {
             agents.sortedBy { it.id }.forEach { put(agentJson(it)) }
         })
         .toString()
+
+
+    private fun commonsJson(commons: WorldState.Commons): JSONObject = JSONObject()
+        .put("food", commons.food.toDouble())
+        .put("materials", commons.materials.toDouble())
+        .put("knowledge", commons.knowledge.toDouble())
+        .put("cohesion", commons.cohesion.toDouble())
+        .put("housing", commons.housing)
+        .put("structures", commons.structures)
+
+    private fun commonsFromJson(json: JSONObject): WorldState.Commons = WorldState.Commons(
+        food = json.optDouble("food", 80.0).toFloat(),
+        materials = json.optDouble("materials", 45.0).toFloat(),
+        knowledge = json.optDouble("knowledge", 12.0).toFloat(),
+        cohesion = json.optDouble("cohesion", 0.72).toFloat(),
+        housing = json.optInt("housing", 12),
+        structures = json.optInt("structures", 3)
+    )
 
     private fun agentJson(agent: Agent): JSONObject = JSONObject()
         .put("id", agent.id)
