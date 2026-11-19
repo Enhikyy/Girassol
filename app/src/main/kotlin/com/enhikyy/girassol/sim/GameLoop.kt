@@ -5,7 +5,7 @@ import com.enhikyy.girassol.AppLogger
 /** Qualquer sistema que avança em passos lógicos de tamanho fixo. */
 interface Simulation {
     /** Avança a simulação em [dtMs] milissegundos simulados. */
-    fun step(dtMs: Long)
+    suspend fun step(dtMs: Long)
 }
 
 /**
@@ -78,7 +78,7 @@ class GameLoop(
     }
 
     /** Calcula quanto tempo passou desde a última chamada e executa os passos devidos. */
-    fun advance(nowWallMs: Long): Report {
+    suspend fun advance(nowWallMs: Long): Report {
         val last = lastWallMs
         lastWallMs = nowWallMs
         if (last == null) return Report.NONE
