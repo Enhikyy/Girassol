@@ -31,13 +31,13 @@ interface WallClockStore {
  */
 class GameLoop(
     private val simulation: Simulation,
-    private val stepMs: Long = 100L,
+    private val defaultStepMs: Long = 100L,
     private val maxCatchUpSteps: Int = 6_000,
     private val store: WallClockStore? = null,
     private val persistEveryN: Int = 100,
 ) {
     init {
-        require(stepMs > 0) { "stepMs deve ser positivo" }
+        require(defaultStepMs > 0) { "defaultStepMs deve ser positivo" }
         require(maxCatchUpSteps > 0) { "maxCatchUpSteps deve ser positivo" }
         require(persistEveryN > 0) { "persistEveryN deve ser positivo" }
     }
@@ -57,6 +57,7 @@ class GameLoop(
     private var lastWallMs: Long? = null
     private var accumulatorMs: Long = 0L
     private var iterations = 0
+    private var currentStepMs: Long = defaultStepMs
 
     /**
      * Define o instante de referência. O próximo [advance] mede o tempo
@@ -71,6 +72,7 @@ class GameLoop(
         lastWallMs = restored ?: now
         accumulatorMs = 0L
         iterations = 0
+        currentStepMs = defaultStepMs
         if (restored != null) {
             val gap = (now - restored).coerceAtLeast(0L)
             AppLogger.log("INFO", "LOOP", "GameLoop retomado; atraso=${gap}ms")
@@ -78,17 +80,23 @@ class GameLoop(
     }
 
     /** Calcula quanto tempo passou desde a última chamada e executa os passos devidos. */
-    suspend fun advance(nowWallMs: Long): Report {
+    suspend fun advance(nowWallMs: Long, stepMs: Long = currentStepMs): Report {
+        require(stepMs > 0L) { "stepMs deve ser positivo" }
+        if (stepMs != currentStepMs) {
+            val fractionalProgress = accumulatorMs.toDouble() / currentStepMs.toDouble()
+            accumulatorMs = (fractionalProgress * stepMs).toLong().coerceIn(0L, stepMs - 1L)
+            currentStepMs = stepMs
+        }
         val last = lastWallMs
         lastWallMs = nowWallMs
         if (last == null) return Report.NONE
 
         accumulatorMs += (nowWallMs - last).coerceAtLeast(0L)
-        val due = accumulatorMs / stepMs
+        val due = accumulatorMs / currentStepMs
         val fixedSteps = minOf(due, maxCatchUpSteps.toLong()).toInt()
 
-        repeat(fixedSteps) { simulation.step(stepMs) }
-        accumulatorMs -= fixedSteps.toLong() * stepMs
+        repeat(fixedSteps) { simulation.step(currentStepMs) }
+        accumulatorMs -= fixedSteps.toLong() * currentStepMs
 
         var steps = fixedSteps
         var simulated = fixedSteps.toLong() * stepMs
